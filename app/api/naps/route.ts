@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
         latitud:  parseFloat(String(row.latitud).replace(",", ".")),
         longitud: parseFloat(String(row.longitud).replace(",", ".")),
       }))
-      .filter((r) => !isNaN(r.latitud) && !isNaN(r.longitud) && r.latitud !== 0);
+      .filter((r: { latitud: number; longitud: number }) => !isNaN(r.latitud) && !isNaN(r.longitud) && r.latitud !== 0);
 
     return NextResponse.json(data);
   } catch (err: unknown) {

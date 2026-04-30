@@ -48,12 +48,6 @@ const SUCURSALES: Record<number, string> = {
   8: "Fiambalá",
 };
 
-const ESTADO_LABELS: Record<number, string> = {
-  3: "Conectado",
-  6: "Suspendido",
-};
-
-
 function fmt(n: number) {
   return n.toLocaleString("es-AR");
 }
@@ -111,13 +105,12 @@ export default function ClientesTVDashboard() {
   return (
     <div className="space-y-6">
       {/* Header del dashboard */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-white">Dashboard Clientes</h2>
+          <h2 className="text-lg sm:text-xl font-bold text-white">Dashboard Clientes</h2>
           <p className="text-slate-400 text-sm mt-0.5">Datos en tiempo real desde el ERP</p>
         </div>
         <div className="flex items-center gap-3">
-          {/* Filtro de estados — dropdown */}
           <div ref={dropdownRef} className="relative">
             <button
               onClick={() => setDropdownOpen((v) => !v)}
@@ -129,42 +122,26 @@ export default function ClientesTVDashboard() {
               </span>
               <ChevronDown size={13} className={`text-slate-400 transition-transform ${dropdownOpen ? "rotate-180" : ""}`} />
             </button>
-
             {dropdownOpen && (
               <div className="absolute right-0 top-full mt-2 w-64 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 p-2 max-h-80 overflow-y-auto">
                 <div className="flex justify-between items-center px-2 py-1.5 mb-1">
                   <span className="text-xs text-slate-500 uppercase tracking-wider">Filtrar por estado</span>
-                  <button
-                    onClick={() => setEstados(allEstados.map((e) => e.id))}
-                    className="text-xs text-indigo-400 hover:text-indigo-300"
-                  >
-                    Todos
-                  </button>
+                  <button onClick={() => setEstados(allEstados.map((e) => e.id))} className="text-xs text-indigo-400 hover:text-indigo-300">Todos</button>
                 </div>
                 {allEstados.map((e) => (
-                  <button
-                    key={e.id}
-                    onClick={() => toggleEstado(e.id)}
+                  <button key={e.id} onClick={() => toggleEstado(e.id)}
                     className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm hover:bg-slate-800 transition-colors text-left"
                   >
-                    <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border transition-colors ${
-                      estados.includes(e.id)
-                        ? "bg-indigo-600 border-indigo-500"
-                        : "border-slate-600"
-                    }`}>
+                    <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border transition-colors ${estados.includes(e.id) ? "bg-indigo-600 border-indigo-500" : "border-slate-600"}`}>
                       {estados.includes(e.id) && <Check size={10} className="text-white" />}
                     </div>
-                    <span className={estados.includes(e.id) ? "text-white" : "text-slate-400"}>
-                      {e.nombre}
-                    </span>
+                    <span className={estados.includes(e.id) ? "text-white" : "text-slate-400"}>{e.nombre}</span>
                   </button>
                 ))}
               </div>
             )}
           </div>
-          <button
-            onClick={fetchData}
-            disabled={loading}
+          <button onClick={fetchData} disabled={loading}
             className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-colors disabled:opacity-50"
           >
             <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
@@ -176,7 +153,7 @@ export default function ClientesTVDashboard() {
       <div className="flex items-center gap-2 flex-wrap">
         <button
           onClick={() => setSucursalSeleccionada(null)}
-          className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+          className={`px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium border transition-colors ${
             sucursalSeleccionada === null
               ? "bg-indigo-600 border-indigo-500 text-white"
               : "border-slate-600 text-slate-400 hover:border-slate-400 hover:text-slate-200"
@@ -185,10 +162,8 @@ export default function ClientesTVDashboard() {
           Todas
         </button>
         {Object.entries(SUCURSALES).map(([cod, nombre]) => (
-          <button
-            key={cod}
-            onClick={() => setSucursalSeleccionada(Number(cod))}
-            className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+          <button key={cod} onClick={() => setSucursalSeleccionada(Number(cod))}
+            className={`px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium border transition-colors ${
               sucursalSeleccionada === Number(cod)
                 ? "bg-indigo-600 border-indigo-500 text-white"
                 : "border-slate-600 text-slate-400 hover:border-slate-400 hover:text-slate-200"
@@ -206,7 +181,7 @@ export default function ClientesTVDashboard() {
       )}
 
       {loading && !data && (
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[...Array(3)].map((_, i) => (
             <div key={i} className="bg-slate-800/50 border border-slate-700/60 rounded-2xl p-6 animate-pulse h-28" />
           ))}
@@ -216,51 +191,48 @@ export default function ClientesTVDashboard() {
       {data && (
         <>
           {/* KPIs principales */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 flex flex-col items-center justify-center text-center">
-              <div className="flex items-center gap-2 text-slate-400 text-sm mb-2">
-                <Users size={15} /> Total Clientes
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5 flex items-center gap-4 sm:flex-col sm:items-center sm:justify-center sm:text-center">
+              <div className="flex items-center gap-2 text-slate-400 text-sm sm:mb-2">
+                <Users size={15} /> <span>Total Clientes</span>
               </div>
-              <div className="text-4xl font-bold text-white">{fmt(data.total_clientes)}</div>
+              <div className="text-3xl sm:text-4xl font-bold text-white ml-auto sm:ml-0">{fmt(data.total_clientes)}</div>
             </div>
-            <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 flex flex-col items-center justify-center text-center">
-              <div className="flex items-center gap-2 text-slate-400 text-sm mb-2">
-                <Monitor size={15} /> Total Clientes TV
+            <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5 flex items-center gap-4 sm:flex-col sm:items-center sm:justify-center sm:text-center">
+              <div className="flex items-center gap-2 text-slate-400 text-sm sm:mb-2">
+                <Monitor size={15} /> <span>Total Clientes TV</span>
               </div>
-              <div className="text-4xl font-bold text-violet-400">{fmt(data.total_tv)}</div>
+              <div className="text-3xl sm:text-4xl font-bold text-violet-400 ml-auto sm:ml-0">{fmt(data.total_tv)}</div>
             </div>
-            <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 flex flex-col items-center justify-center text-center">
+            <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5 flex flex-col justify-center">
               <div className="flex items-center gap-2 text-slate-400 text-sm mb-2">
-                <TrendingUp size={15} /> Posicionamiento TV
+                <TrendingUp size={15} /> <span>Posicionamiento TV</span>
               </div>
-              <div className="text-4xl font-bold text-cyan-400">{data.posicionamiento}%</div>
+              <div className="text-3xl sm:text-4xl font-bold text-cyan-400">{data.posicionamiento}%</div>
               <div className="w-full mt-3 bg-slate-700 rounded-full h-1.5">
-                <div
-                  className="bg-cyan-500 h-1.5 rounded-full transition-all"
-                  style={{ width: `${data.posicionamiento}%` }}
-                />
+                <div className="bg-cyan-500 h-1.5 rounded-full transition-all" style={{ width: `${data.posicionamiento}%` }} />
               </div>
             </div>
           </div>
 
           {/* Con Deco vs Solo APP */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 flex items-center gap-5">
-              <div className="w-12 h-12 rounded-xl bg-violet-500/20 flex items-center justify-center flex-shrink-0">
-                <Monitor size={22} className="text-violet-400" />
+            <div className="bg-slate-800 border border-slate-700 rounded-2xl p-4 sm:p-6 flex items-center gap-3 sm:gap-5">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-violet-500/20 flex items-center justify-center flex-shrink-0">
+                <Monitor size={20} className="text-violet-400" />
               </div>
               <div>
-                <div className="text-slate-400 text-sm">Con Deco (STB)</div>
-                <div className="text-3xl font-bold text-white">{fmt(data.con_deco)}</div>
+                <div className="text-slate-400 text-xs sm:text-sm">Con Deco (STB)</div>
+                <div className="text-2xl sm:text-3xl font-bold text-white">{fmt(data.con_deco)}</div>
               </div>
             </div>
-            <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 flex items-center gap-5">
-              <div className="w-12 h-12 rounded-xl bg-teal-500/20 flex items-center justify-center flex-shrink-0">
-                <Smartphone size={22} className="text-teal-400" />
+            <div className="bg-slate-800 border border-slate-700 rounded-2xl p-4 sm:p-6 flex items-center gap-3 sm:gap-5">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-teal-500/20 flex items-center justify-center flex-shrink-0">
+                <Smartphone size={20} className="text-teal-400" />
               </div>
               <div>
-                <div className="text-slate-400 text-sm">Solo APP</div>
-                <div className="text-3xl font-bold text-white">{fmt(data.solo_app)}</div>
+                <div className="text-slate-400 text-xs sm:text-sm">Solo APP</div>
+                <div className="text-2xl sm:text-3xl font-bold text-white">{fmt(data.solo_app)}</div>
               </div>
             </div>
           </div>
@@ -273,50 +245,46 @@ export default function ClientesTVDashboard() {
 
           {/* Breakdown por sucursal */}
           <div>
-            <h3 className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-3">
-              Por sucursal
-            </h3>
+            <h3 className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-3">Por sucursal</h3>
             <div className="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-700">
-                    <th className="text-left px-5 py-3 text-slate-400 font-medium">Sucursal</th>
-                    <th className="text-right px-5 py-3 text-slate-400 font-medium">Total Clientes</th>
-                    <th className="text-right px-5 py-3 text-slate-400 font-medium">Clientes TV</th>
-                    <th className="text-right px-5 py-3 text-slate-400 font-medium w-16">%</th>
-                    <th className="px-5 py-3 w-32" />
-                    <th className="text-right px-4 py-3 text-violet-400 font-medium text-xs">Cli. IPTV</th>
-                    <th className="text-right px-4 py-3 text-violet-400 font-medium text-xs">Decos IPTV</th>
-                    <th className="text-right px-4 py-3 text-cyan-400 font-medium text-xs">Cli. OTT</th>
-                    <th className="text-right px-4 py-3 text-cyan-400 font-medium text-xs">Decos OTT</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.sucursales.map((s, i) => (
-                    <tr
-                      key={s.cod_sucursal}
-                      className={`${i < data.sucursales.length - 1 ? "border-b border-slate-700/50" : ""} hover:bg-slate-700/30 transition-colors`}
-                    >
-                      <td className="px-5 py-3.5 font-medium text-white">{s.nombre}</td>
-                      <td className="px-5 py-3.5 text-right text-slate-300">{fmt(s.total_clientes)}</td>
-                      <td className="px-5 py-3.5 text-right text-violet-400 font-semibold">{fmt(s.total_tv)}</td>
-                      <td className="px-5 py-3.5 text-right font-bold text-cyan-400">{s.porcentaje}%</td>
-                      <td className="px-5 py-3.5">
-                        <div className="w-full bg-slate-700 rounded-full h-1.5">
-                          <div
-                            className="bg-cyan-500 h-1.5 rounded-full transition-all"
-                            style={{ width: `${Math.min(s.porcentaje, 100)}%` }}
-                          />
-                        </div>
-                      </td>
-                      <td className="px-4 py-3.5 text-right text-slate-300 text-sm">{fmt(s.clientes_iptv)}</td>
-                      <td className="px-4 py-3.5 text-right text-violet-400 text-sm">{fmt(s.decos_iptv)}</td>
-                      <td className="px-4 py-3.5 text-right text-slate-300 text-sm">{fmt(s.clientes_ott)}</td>
-                      <td className="px-4 py-3.5 text-right text-cyan-400 text-sm">{fmt(s.decos_ott)}</td>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm min-w-[640px]">
+                  <thead>
+                    <tr className="border-b border-slate-700">
+                      <th className="text-left px-4 py-3 text-slate-400 font-medium">Sucursal</th>
+                      <th className="text-right px-4 py-3 text-slate-400 font-medium">Tot. Clientes</th>
+                      <th className="text-right px-4 py-3 text-slate-400 font-medium">Clientes TV</th>
+                      <th className="text-right px-4 py-3 text-slate-400 font-medium w-16">%</th>
+                      <th className="px-4 py-3 w-28" />
+                      <th className="text-right px-3 py-3 text-violet-400 font-medium text-xs">Cli. IPTV</th>
+                      <th className="text-right px-3 py-3 text-violet-400 font-medium text-xs">Decos IPTV</th>
+                      <th className="text-right px-3 py-3 text-cyan-400 font-medium text-xs">Cli. OTT</th>
+                      <th className="text-right px-3 py-3 text-cyan-400 font-medium text-xs">Decos OTT</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {data.sucursales.map((s, i) => (
+                      <tr key={s.cod_sucursal}
+                        className={`${i < data.sucursales.length - 1 ? "border-b border-slate-700/50" : ""} hover:bg-slate-700/30 transition-colors`}
+                      >
+                        <td className="px-4 py-3.5 font-medium text-white">{s.nombre}</td>
+                        <td className="px-4 py-3.5 text-right text-slate-300">{fmt(s.total_clientes)}</td>
+                        <td className="px-4 py-3.5 text-right text-violet-400 font-semibold">{fmt(s.total_tv)}</td>
+                        <td className="px-4 py-3.5 text-right font-bold text-cyan-400">{s.porcentaje}%</td>
+                        <td className="px-4 py-3.5">
+                          <div className="w-full bg-slate-700 rounded-full h-1.5">
+                            <div className="bg-cyan-500 h-1.5 rounded-full transition-all" style={{ width: `${Math.min(s.porcentaje, 100)}%` }} />
+                          </div>
+                        </td>
+                        <td className="px-3 py-3.5 text-right text-slate-300 text-sm">{fmt(s.clientes_iptv)}</td>
+                        <td className="px-3 py-3.5 text-right text-violet-400 text-sm">{fmt(s.decos_iptv)}</td>
+                        <td className="px-3 py-3.5 text-right text-slate-300 text-sm">{fmt(s.clientes_ott)}</td>
+                        <td className="px-3 py-3.5 text-right text-cyan-400 text-sm">{fmt(s.decos_ott)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </>

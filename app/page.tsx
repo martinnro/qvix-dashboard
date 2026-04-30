@@ -165,7 +165,7 @@ function Home() {
     <div className="min-h-screen bg-slate-900 text-white">
       {/* Header */}
       <header className="border-b border-slate-800 bg-slate-900/95 backdrop-blur sticky top-0 z-10">
-        <div className="max-w-screen-xl mx-auto px-6 py-3 flex items-center justify-between gap-4">
+        <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-2 sm:gap-4">
 
           {/* Logo */}
           <div className="flex items-center cursor-pointer" onClick={goHome}>
@@ -282,7 +282,7 @@ function Home() {
               onClick={() => setShowModal(true)}
               className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors"
             >
-              <PlusCircle size={15} /> Cargar datos
+              <PlusCircle size={15} /> <span className="hidden sm:inline">Cargar datos</span>
             </button>
             {sessionUser && (
               <span className="text-sm text-slate-400 hidden sm:block">
@@ -324,7 +324,7 @@ function Home() {
 
       {showMapa && <MapaView onClose={goHome} />}
 
-      <main className={`max-w-screen-xl mx-auto px-6 py-8 space-y-8 ${showLicencias || showSucursales || showMapa ? "hidden" : ""}`}>
+      <main className={`max-w-screen-xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8 ${showLicencias || showSucursales || showMapa ? "hidden" : ""}`}>
 
         {/* ── Dashboard principal — solo en home ── */}
         {!showServiceView && <ClientesTVDashboard />}

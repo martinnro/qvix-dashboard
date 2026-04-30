@@ -43,4 +43,3 @@ next-env.d.ts
 # data files con info operativa
 *.xlsx
 *.xls
-ultranet.png

@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     `);
 
     const data = result.recordset
-      .map((row) => ({
+      .map((row: Record<string, unknown>) => ({
         nap:  row.nap,
         fibra: row.fibra,
         cod_sucursal: row.cod_sucursal,

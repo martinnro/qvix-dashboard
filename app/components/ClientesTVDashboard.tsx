@@ -108,7 +108,6 @@ export default function ClientesTVDashboard() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-lg sm:text-xl font-bold text-white">Dashboard Clientes</h2>
-          <p className="text-slate-400 text-sm mt-0.5">Datos en tiempo real desde el ERP</p>
         </div>
         <div className="flex items-center gap-3">
           <div ref={dropdownRef} className="relative">

@@ -116,7 +116,7 @@ export default function MapaView({ onClose }: { onClose: () => void }) {
     setBarriosSel((prev) => prev.includes(id) ? prev.filter((b) => b !== id) : [...prev, id]);
 
   return (
-    <div className="max-w-screen-xl mx-auto px-6 py-8 space-y-4">
+    <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -134,12 +134,12 @@ export default function MapaView({ onClose }: { onClose: () => void }) {
       <div className="flex items-center gap-3 flex-wrap">
 
         {/* Sucursal */}
-        <div className="flex items-center gap-1.5 bg-slate-800 border border-slate-700 rounded-xl p-1">
+        <div className="flex items-center gap-1 bg-slate-800 border border-slate-700 rounded-xl p-1 overflow-x-auto max-w-full">
           {Object.entries(SUCURSALES).map(([cod, nombre]) => (
             <button
               key={cod}
               onClick={() => setSucursal(Number(cod))}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              className={`px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-medium transition-colors whitespace-nowrap ${
                 sucursal === Number(cod)
                   ? "bg-indigo-600 text-white"
                   : "text-slate-400 hover:text-slate-200"

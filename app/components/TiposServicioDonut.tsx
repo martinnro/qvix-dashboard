@@ -38,9 +38,9 @@ export default function TiposServicioDonut({ tipos }: Props) {
       <h3 className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-4">
         Desglose por combinación de servicios
       </h3>
-      <div className="flex items-center gap-6">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
         {/* Donut */}
-        <div className="flex-shrink-0 w-48 h-48">
+        <div className="flex-shrink-0 w-40 h-40 sm:w-48 sm:h-48 mx-auto sm:mx-0">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie

@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
 import { RefreshCw, ChevronDown, Check, Wifi } from "lucide-react";
-import { getColorById, type MapStyle, type NapItem } from "./MapaLeaflet";
+import { getColorById, type MapStyle, type NapItem } from "./MapaUtils";
 
 const MapaLeaflet = dynamic(() => import("./MapaLeaflet"), { ssr: false });
 

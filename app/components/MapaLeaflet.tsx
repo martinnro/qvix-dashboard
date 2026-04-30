@@ -3,13 +3,7 @@ import { useEffect } from "react";
 import { MapContainer, TileLayer, CircleMarker, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-
-export interface NapItem {
-  nap: string;
-  fibra: string;
-  latitud: number;
-  longitud: number;
-}
+import { getColorById, type MapStyle, type NapItem } from "./MapaUtils";
 
 const napIcon = L.divIcon({
   className: "",
@@ -33,8 +27,6 @@ const napIcon = L.divIcon({
   iconAnchor: [14, 14],
   popupAnchor: [0, -16],
 });
-
-export type MapStyle = "dark" | "street" | "satellite" | "satellite-labels" | "light";
 
 export const MAP_STYLES: { key: MapStyle; label: string; url: string; attribution: string }[] = [
   {
@@ -75,36 +67,6 @@ interface Punto {
   estado_nombre: string;
   latitud: number;
   longitud: number;
-}
-
-const ESTADO_COLOR: Record<number, string> = {
-  1:   "#3b82f6", // Pendiente → Azul
-  3:   "#22c55e", // Conectado → Verde
-  6:   "#f59e0b", // Suspendido → Amarillo
-  9:   "#ef4444", // En Zona No Cableada → Rojo
-  101: "#111827", // Pendiente En Nodo No Operativo → Negro
-};
-
-const FALLBACK_PALETTE: Record<number, string> = {
-  2:  "#f97316", // Bajada Lista → Naranja
-  4:  "#a855f7", // Anulado → Violeta
-  5:  "#ec4899", // Cortado → Rosa
-  7:  "#14b8a6", // Baja Voluntaria → Teal
-  8:  "#84cc16", // Rechaza Cableado → Lima
-  10: "#e11d48", // Rechaza Modem → Rose
-  11: "#8b5cf6", // Incobrable/Irrecuperable → Purple
-  12: "#d97706", // Facturación Manual → Amber
-  61: "#f97316", // Suspendido en Gestión de Corte → Naranja
-  63: "#fb923c", // Gestión Abogados → Naranja claro
-  64: "#6366f1", // Pend. Cambio Domic. → Indigo
-  65: "#10b981", // Pend. Faltan Requis. → Emerald
-  99: "#94a3b8", // Unificado TV/Net → Gris
-};
-
-export function getColorByName(nombre: string): string { return "#94a3b8"; }
-
-export function getColorById(id: number): string {
-  return ESTADO_COLOR[id] ?? FALLBACK_PALETTE[id] ?? "#94a3b8";
 }
 
 function FitBounds({ puntos }: { puntos: Punto[] }) {

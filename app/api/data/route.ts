@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPool, getAdminPool } from "@/app/lib/db";
+import { getPool } from "@/app/lib/db";
 
 export async function GET() {
   try {
@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Datos incompletos" }, { status: 400 });
     }
 
-    const pool = await getAdminPool();
+    const pool = await getPool();
     await pool.request()
       .input("servicio", servicio)
       .input("organizacion", organizacion)
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   try {
     const { servicio, organizacion, fecha } = await req.json();
-    const pool = await getAdminPool();
+    const pool = await getPool();
     await pool.request()
       .input("servicio", servicio)
       .input("organizacion", organizacion)

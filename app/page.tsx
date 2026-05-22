@@ -254,7 +254,7 @@ function Home() {
                     >
                       <span className={`w-2 h-2 rounded-full flex-shrink-0 ${color}`} />
                       {label}
-                      <span className="ml-auto text-xs text-slate-600">pronto</span>
+                      {disabled && <span className="ml-auto text-xs text-slate-600">pronto</span>}
                     </button>
                   ))}
 

@@ -37,9 +37,6 @@ export default function DataEntryModal({ organizaciones, servicioActivo, onSaved
   const [newOrg, setNewOrg] = useState("");
   const [showNewOrg, setShowNewOrg] = useState(false);
   const [customOrgs, setCustomOrgs] = useState<string[]>([]);
-  const [password, setPassword] = useState("");
-  const [passwordError, setPasswordError] = useState(false);
-
   const finalOrgs = [...new Set([...allOrgs, ...customOrgs])];
 
   const update = (i: number, field: string, value: string) =>
@@ -95,11 +92,6 @@ export default function DataEntryModal({ organizaciones, servicioActivo, onSaved
   };
 
   const save = async () => {
-    if (password !== "123456") {
-      setPasswordError(true);
-      return;
-    }
-    setPasswordError(false);
     setSaving(true);
     setStatus("idle");
     try {
@@ -240,25 +232,7 @@ export default function DataEntryModal({ organizaciones, servicioActivo, onSaved
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-800 space-y-3">
-          <div className="flex items-center gap-3">
-            <label className="text-xs text-slate-400 whitespace-nowrap">Contraseña</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => { setPassword(e.target.value); setPasswordError(false); }}
-              onKeyDown={(e) => e.key === "Enter" && save()}
-              placeholder="Ingresá la contraseña para confirmar"
-              className={`flex-1 bg-slate-800 border rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none ${
-                passwordError ? "border-red-500 focus:border-red-400" : "border-slate-600 focus:border-indigo-500"
-              }`}
-            />
-          </div>
-          {passwordError && (
-            <p className="text-xs text-red-400 flex items-center gap-1">
-              <AlertCircle size={13} /> Contraseña incorrecta.
-            </p>
-          )}
+        <div className="px-6 py-4 border-t border-slate-800">
           <div className="flex items-center justify-between">
             <p className="text-xs text-slate-500">Si ya existe org + fecha, se sobreescribe.</p>
             <button

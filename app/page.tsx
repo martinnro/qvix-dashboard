@@ -278,12 +278,14 @@ function Home() {
           {/* Derecha */}
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            <button
-              onClick={() => setShowModal(true)}
-              className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors"
-            >
-              <PlusCircle size={15} /> <span className="hidden sm:inline">Cargar datos</span>
-            </button>
+            {showServiceView && (
+              <button
+                onClick={() => setShowModal(true)}
+                className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors"
+              >
+                <PlusCircle size={15} /> <span className="hidden sm:inline">Cargar datos</span>
+              </button>
+            )}
             {sessionUser && (
               <span className="text-sm text-slate-400 hidden sm:block">
                 Usuario: <span className="text-white font-medium">{sessionUser.user}</span>

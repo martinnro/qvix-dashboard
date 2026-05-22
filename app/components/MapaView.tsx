@@ -235,15 +235,19 @@ export default function MapaView({ onClose }: { onClose: () => void }) {
       </div>
 
       {/* Leyenda dinámica según estados seleccionados */}
-      <div className="flex items-center gap-4 text-xs text-slate-400 flex-wrap">
+      <div className="flex items-center gap-3 flex-wrap">
         {estadosOpts
           .filter((e) => estados.includes(e.id))
-          .map((e) => (
-            <div key={e.id} className="flex items-center gap-1.5">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: getColorById(e.id) }} />
-              {e.nombre}
-            </div>
-          ))}
+          .map((e) => {
+            const count = puntos.filter((p) => p.Estado_Servicio === e.id).length;
+            return (
+              <div key={e.id} className="flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5">
+                <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: getColorById(e.id) }} />
+                <span className="text-xs text-slate-400">{e.nombre}</span>
+                <span className="text-xs font-bold text-white">{count.toLocaleString("es-AR")}</span>
+              </div>
+            );
+          })}
       </div>
 
       {error && <div className="text-red-400 text-sm">{error}</div>}

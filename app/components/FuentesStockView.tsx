@@ -1,6 +1,6 @@
 "use client";
-import { useState, useEffect } from "react";
-import { ArrowLeft, Plus, Trash2, Pencil, X, Check, AlertCircle, Package, Wrench } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { ArrowLeft, Plus, Trash2, Pencil, X, Check, AlertCircle, Package, Wrench, RefreshCw } from "lucide-react";
 
 const CUADRILLAS = [
   "Carpio/Lopez",
@@ -21,6 +21,20 @@ interface FuentaRow {
   observacion: string;
 }
 
+interface ControlRow {
+  id_conexion: number;
+  id_Orden_Servicio: number;
+  Estado_Servicio: string;
+  problema_descripcion: string;
+  asistencia: string;
+  Tiene_Fuente_12V: "SI" | "NO";
+  Otros_Materiales: string;
+  fecha_reclamo: string;
+  fecha_solucion: string;
+  Motivo_Estado: string;
+  Dias: number;
+}
+
 type SubView = "stock" | "control";
 
 const emptyForm = (): Omit<FuentaRow, "id"> => ({
@@ -38,6 +52,8 @@ function calcDisponible(row: FuentaRow) {
 
 export default function FuentesStockView({ onClose }: { onClose: () => void }) {
   const [subView, setSubView] = useState<SubView>("stock");
+
+  // Stock state
   const [rows, setRows] = useState<FuentaRow[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [editRow, setEditRow] = useState<FuentaRow | null>(null);
@@ -46,6 +62,17 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState("");
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
+  // Control state
+  const [controlRows, setControlRows] = useState<ControlRow[]>([]);
+  const [controlLoading, setControlLoading] = useState(false);
+  const [fechaDesde, setFechaDesde] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d.toISOString().slice(0, 10);
+  });
+  const [fechaHasta, setFechaHasta] = useState("");
+  const [tieneFuente, setTieneFuente] = useState("");
+
   const load = () => {
     fetch("/api/fuentes-stock")
       .then((r) => r.json())
@@ -53,7 +80,21 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
       .catch(() => {});
   };
 
+  const loadControl = useCallback(() => {
+    setControlLoading(true);
+    const params = new URLSearchParams();
+    if (fechaDesde) params.set("fecha_desde", fechaDesde);
+    if (fechaHasta) params.set("fecha_hasta", fechaHasta);
+    if (tieneFuente) params.set("tiene_fuente", tieneFuente);
+    fetch(`/api/fuentes-control?${params.toString()}`)
+      .then((r) => r.json())
+      .then((d) => Array.isArray(d) && setControlRows(d))
+      .catch(() => {})
+      .finally(() => setControlLoading(false));
+  }, [fechaDesde, fechaHasta, tieneFuente]);
+
   useEffect(() => { load(); }, []);
+  useEffect(() => { if (subView === "control") loadControl(); }, [subView, loadControl]);
 
   const openAdd = () => {
     setEditRow(null);
@@ -140,11 +181,12 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
           <Package size={14} /> Stock
         </button>
         <button
-          disabled
-          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-slate-600 cursor-not-allowed"
+          onClick={() => setSubView("control")}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            subView === "control" ? "bg-sky-600 text-white" : "text-slate-400 hover:text-slate-200"
+          }`}
         >
           <Wrench size={14} /> Control con sistema
-          <span className="text-xs text-slate-700 ml-1">pronto</span>
         </button>
       </div>
 
@@ -277,6 +319,118 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
             </table>
           </div>
         </>
+      )}
+
+      {subView === "control" && (
+        <div className="space-y-4">
+          {/* Filtros */}
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-400">Desde</label>
+              <input
+                type="date"
+                value={fechaDesde}
+                onChange={(e) => setFechaDesde(e.target.value)}
+                className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-400">Hasta</label>
+              <input
+                type="date"
+                value={fechaHasta}
+                onChange={(e) => setFechaHasta(e.target.value)}
+                className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-slate-400">Fuente 12V</label>
+              <select
+                value={tieneFuente}
+                onChange={(e) => setTieneFuente(e.target.value)}
+                className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
+              >
+                <option value="">Todos</option>
+                <option value="SI">Con fuente</option>
+                <option value="NO">Sin fuente</option>
+              </select>
+            </div>
+            <button
+              onClick={loadControl}
+              disabled={controlLoading}
+              className="flex items-center gap-2 bg-sky-600 hover:bg-sky-500 disabled:opacity-50 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+            >
+              <RefreshCw size={14} className={controlLoading ? "animate-spin" : ""} />
+              {controlLoading ? "Cargando..." : "Buscar"}
+            </button>
+            {controlRows.length > 0 && (
+              <span className="text-sm text-slate-400 ml-1">{controlRows.length} ODS encontradas</span>
+            )}
+          </div>
+
+          {/* Tabla */}
+          <div className="overflow-x-auto rounded-2xl border border-slate-700">
+            <table className="w-full text-sm border-collapse min-w-[900px]">
+              <thead>
+                <tr className="bg-slate-800 text-slate-400 text-xs uppercase tracking-wide">
+                  <th className="px-3 py-2.5 text-left border-b border-slate-700">ODS</th>
+                  <th className="px-3 py-2.5 text-left border-b border-slate-700">Conexión</th>
+                  <th className="px-3 py-2.5 text-left border-b border-slate-700">Estado Servicio</th>
+                  <th className="px-3 py-2.5 text-left border-b border-slate-700">Asistencia</th>
+                  <th className="px-3 py-2.5 text-left border-b border-slate-700">Problema</th>
+                  <th className="px-3 py-2.5 text-center border-b border-slate-700">Fuente 12V</th>
+                  <th className="px-3 py-2.5 text-left border-b border-slate-700">Otros materiales</th>
+                  <th className="px-3 py-2.5 text-left border-b border-slate-700">Reclamo</th>
+                  <th className="px-3 py-2.5 text-left border-b border-slate-700">Solución</th>
+                  <th className="px-3 py-2.5 text-center border-b border-slate-700">Días</th>
+                </tr>
+              </thead>
+              <tbody>
+                {!controlLoading && controlRows.length === 0 && (
+                  <tr>
+                    <td colSpan={10} className="text-center text-slate-500 py-12">
+                      Sin resultados. Ajustá los filtros y presioná Buscar.
+                    </td>
+                  </tr>
+                )}
+                {controlRows.map((row) => (
+                  <tr key={row.id_Orden_Servicio} className="border-b border-slate-800 hover:bg-slate-800/40 transition-colors">
+                    <td className="px-3 py-2 text-slate-300 font-mono">{row.id_Orden_Servicio}</td>
+                    <td className="px-3 py-2 text-slate-300">{row.id_conexion}</td>
+                    <td className="px-3 py-2 text-slate-300 whitespace-nowrap">{row.Estado_Servicio ?? "—"}</td>
+                    <td className="px-3 py-2 text-slate-300 whitespace-nowrap">{row.asistencia ?? "—"}</td>
+                    <td className="px-3 py-2 text-slate-400 max-w-[180px] truncate" title={row.problema_descripcion ?? ""}>
+                      {row.problema_descripcion ?? "—"}
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${
+                        row.Tiene_Fuente_12V === "SI"
+                          ? "bg-emerald-900/60 text-emerald-300"
+                          : "bg-red-900/60 text-red-300"
+                      }`}>
+                        {row.Tiene_Fuente_12V}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-slate-400 max-w-[200px] truncate" title={row.Otros_Materiales ?? ""}>
+                      {row.Otros_Materiales || "—"}
+                    </td>
+                    <td className="px-3 py-2 text-slate-300 whitespace-nowrap">
+                      {row.fecha_reclamo ? new Date(row.fecha_reclamo).toLocaleDateString("es-AR") : "—"}
+                    </td>
+                    <td className="px-3 py-2 text-slate-300 whitespace-nowrap">
+                      {row.fecha_solucion ? new Date(row.fecha_solucion).toLocaleDateString("es-AR") : "—"}
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      <span className={`text-xs font-bold ${row.Dias > 30 ? "text-red-400" : row.Dias > 7 ? "text-amber-400" : "text-slate-300"}`}>
+                        {row.Dias ?? "—"}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
       {/* Modal agregar / editar */}

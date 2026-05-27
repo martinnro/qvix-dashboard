@@ -3,30 +3,27 @@ import { useEffect } from "react";
 import { MapContainer, TileLayer, CircleMarker, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { getColorById, type MapStyle, type NapItem } from "./MapaUtils";
+import { getColorById, getNapColor, type MapStyle, type NapItem } from "./MapaUtils";
 
-const napIcon = L.divIcon({
-  className: "",
-  html: `<div style="
-    width:28px; height:28px;
-    background:#1e293b;
-    border:2px solid #a855f7;
-    border-radius:50%;
-    display:flex; align-items:center; justify-content:center;
-    box-shadow:0 2px 6px rgba(0,0,0,0.7);
-  ">
-    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
-      fill="none" stroke="#a855f7" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M5 12.55a11 11 0 0 1 14.08 0"/>
-      <path d="M1.42 9a16 16 0 0 1 21.16 0"/>
-      <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
-      <circle cx="12" cy="20" r="1" fill="#a855f7"/>
-    </svg>
-  </div>`,
-  iconSize: [28, 28],
-  iconAnchor: [14, 14],
-  popupAnchor: [0, -16],
-});
+function makeNapIcon(cantidad: number) {
+  const color = getNapColor(cantidad);
+  return L.divIcon({
+    className: "",
+    html: `<div style="
+      width:30px; height:30px;
+      background:#1e293b;
+      border:2.5px solid ${color};
+      border-radius:50%;
+      display:flex; align-items:center; justify-content:center;
+      box-shadow:0 2px 8px rgba(0,0,0,0.8);
+      font-size:11px; font-weight:700; color:${color};
+      font-family:sans-serif;
+    ">${cantidad > 0 ? cantidad : "·"}</div>`,
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
+    popupAnchor: [0, -18],
+  });
+}
 
 export const MAP_STYLES: { key: MapStyle; label: string; url: string; attribution: string }[] = [
   {
@@ -67,6 +64,7 @@ interface Punto {
   estado_nombre: string;
   latitud: number;
   longitud: number;
+  nap: string | null;
 }
 
 function FitBounds({ puntos }: { puntos: Punto[] }) {
@@ -111,11 +109,12 @@ export default function MapaLeaflet({ puntos, mapStyle, naps = [], showNaps = fa
       )}
       <FitBounds puntos={puntos} />
       {showNaps && naps.map((n) => (
-        <Marker key={n.nap} position={[n.latitud, n.longitud]} icon={napIcon}>
+        <Marker key={n.nap} position={[n.latitud, n.longitud]} icon={makeNapIcon(n.cantidad)}>
           <Popup>
             <div className="text-sm space-y-0.5">
               <p><strong>NAP:</strong> {n.nap}</p>
               <p><strong>Fibra:</strong> {n.fibra}</p>
+              <p><strong>Conexiones:</strong> {n.cantidad}</p>
             </div>
           </Popup>
         </Marker>
@@ -136,6 +135,7 @@ export default function MapaLeaflet({ puntos, mapStyle, naps = [], showNaps = fa
             <div className="text-sm space-y-0.5">
               <p><strong>Conexión:</strong> {p.id_conexion}</p>
               <p><strong>Estado:</strong> {p.estado_nombre}</p>
+              {p.nap && <p><strong>NAP:</strong> {p.nap}</p>}
             </div>
           </Popup>
         </CircleMarker>

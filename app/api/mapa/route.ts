@@ -25,12 +25,14 @@ export async function GET(req: NextRequest) {
       vcd.Estado_Servicio,
       ts.descripcion AS estado_nombre,
       TRY_CAST(i2.latitud  AS FLOAT) AS latitud,
-      TRY_CAST(i2.longitud AS FLOAT) AS longitud
+      TRY_CAST(i2.longitud AS FLOAT) AS longitud,
+      'N' + cr.nap_primer_nivel + '.' + cr.nap_segundo_nivel AS nap
     FROM Clientes c
     LEFT JOIN v_con_dom vcd           ON vcd.id_conexion = c.id_conexion
     LEFT JOIN Conexiones c2           ON c2.id_conexion = c.id_conexion
     LEFT JOIN inmuebles i2            ON i2.id_inmueble = c2.id_inmueble
     LEFT JOIN tipo_estado_servicio ts ON ts.id_estado_servicio = vcd.Estado_Servicio
+    LEFT JOIN Conexiones_referencia cr ON cr.id_conexion = c.id_conexion
     WHERE vcd.cod_sucursal = ${sucursal}
       AND vcd.Estado_Servicio IN (${estadosIn})
       ${barrioClause}

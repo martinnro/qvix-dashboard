@@ -5,6 +5,13 @@ export interface NapItem {
   fibra: string;
   latitud: number;
   longitud: number;
+  cantidad: number;
+}
+
+export function getNapColor(cantidad: number): string {
+  if (cantidad > 8) return "#ef4444";
+  if (cantidad >= 6) return "#f59e0b";
+  return "#a855f7";
 }
 
 const ESTADO_COLOR: Record<number, string> = {

@@ -21,6 +21,7 @@ interface Punto {
   estado_nombre: string;
   latitud: number;
   longitud: number;
+  nap: string | null;
 }
 
 interface Barrio {

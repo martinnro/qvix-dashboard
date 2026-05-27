@@ -5,6 +5,19 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { getColorById, getNapColor, type MapStyle, type NapItem } from "./MapaUtils";
 
+export interface PinCustom {
+  id: string;
+  titulo: string;
+  cx?: string;
+  abonado?: string;
+  barrio?: string;
+  lat: number;
+  lng: number;
+  color: string;
+  sucursal: number;
+  url_origen?: string;
+}
+
 function makeNapIcon(cantidad: number) {
   const color = getNapColor(cantidad);
   return L.divIcon({
@@ -22,6 +35,23 @@ function makeNapIcon(cantidad: number) {
     iconSize: [30, 30],
     iconAnchor: [15, 15],
     popupAnchor: [0, -18],
+  });
+}
+
+function makePinIcon(color: string) {
+  return L.divIcon({
+    className: "",
+    html: `<div style="
+      width:32px; height:32px;
+      background:${color};
+      border:2.5px solid #fff;
+      border-radius:50% 50% 50% 0;
+      transform:rotate(-45deg);
+      box-shadow:0 3px 8px rgba(0,0,0,0.6);
+    "></div>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 32],
+    popupAnchor: [0, -34],
   });
 }
 
@@ -86,9 +116,18 @@ interface Props {
   mapStyle: MapStyle;
   naps?: NapItem[];
   showNaps?: boolean;
+  pinesCustom?: PinCustom[];
+  showPinesCustom?: boolean;
 }
 
-export default function MapaLeaflet({ puntos, mapStyle, naps = [], showNaps = false }: Props) {
+export default function MapaLeaflet({
+  puntos,
+  mapStyle,
+  naps = [],
+  showNaps = false,
+  pinesCustom = [],
+  showPinesCustom = false,
+}: Props) {
   const centro: [number, number] = puntos.length > 0
     ? [puntos[0].latitud, puntos[0].longitud]
     : [-28.5, -65.8];
@@ -108,6 +147,8 @@ export default function MapaLeaflet({ puntos, mapStyle, naps = [], showNaps = fa
         <TileLayer url={labelsUrl} attribution="" />
       )}
       <FitBounds puntos={puntos} />
+
+      {/* NAPs */}
       {showNaps && naps.map((n) => (
         <Marker key={n.nap} position={[n.latitud, n.longitud]} icon={makeNapIcon(n.cantidad)}>
           <Popup>
@@ -119,6 +160,8 @@ export default function MapaLeaflet({ puntos, mapStyle, naps = [], showNaps = fa
           </Popup>
         </Marker>
       ))}
+
+      {/* Conexiones */}
       {puntos.map((p) => (
         <CircleMarker
           key={p.id_conexion}
@@ -139,6 +182,24 @@ export default function MapaLeaflet({ puntos, mapStyle, naps = [], showNaps = fa
             </div>
           </Popup>
         </CircleMarker>
+      ))}
+
+      {/* Pines custom */}
+      {showPinesCustom && pinesCustom.map((pin) => (
+        <Marker
+          key={pin.id}
+          position={[pin.lat, pin.lng]}
+          icon={makePinIcon(pin.color)}
+        >
+          <Popup>
+            <div style={{ minWidth: 160 }} className="text-sm space-y-1">
+              <p style={{ fontWeight: 700, color: pin.color }}>{pin.titulo}</p>
+              {pin.cx && <p><strong>CX:</strong> {pin.cx}</p>}
+              {pin.abonado && <p><strong>Abonado:</strong> {pin.abonado}</p>}
+              {pin.barrio && <p><strong>Barrio:</strong> {pin.barrio}</p>}
+            </div>
+          </Popup>
+        </Marker>
       ))}
     </MapContainer>
   );

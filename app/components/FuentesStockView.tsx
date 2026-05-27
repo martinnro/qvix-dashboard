@@ -408,7 +408,6 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
                   <th className="px-3 py-2.5 text-left border-b border-slate-700">Otros materiales</th>
                   <th className="px-3 py-2.5 text-left border-b border-slate-700">Reclamo</th>
                   <th className="px-3 py-2.5 text-left border-b border-slate-700">Solución</th>
-                  <th className="px-3 py-2.5 text-center border-b border-slate-700">Días</th>
                 </tr>
               </thead>
               <tbody>
@@ -445,11 +444,6 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
                     </td>
                     <td className="px-3 py-2 text-slate-300 whitespace-nowrap">
                       {row.fecha_solucion ? new Date(row.fecha_solucion).toLocaleDateString("es-AR") : "—"}
-                    </td>
-                    <td className="px-3 py-2 text-center">
-                      <span className={`text-xs font-bold ${row.Dias > 30 ? "text-red-400" : row.Dias > 7 ? "text-amber-400" : "text-slate-300"}`}>
-                        {row.Dias ?? "—"}
-                      </span>
                     </td>
                   </tr>
                 ))}

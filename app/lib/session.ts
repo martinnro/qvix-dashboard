@@ -2,7 +2,12 @@ import { getIronSession, IronSession } from "iron-session";
 import { cookies } from "next/headers";
 
 export interface SessionData {
-  user?: { user: string; nombre: string };
+  user?: {
+    user: string;
+    nombre: string;
+    sucursales: number[] | null;
+    secciones: string[] | null;
+  };
 }
 
 const sessionOptions = {

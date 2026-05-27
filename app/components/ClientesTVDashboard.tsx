@@ -52,12 +52,18 @@ function fmt(n: number) {
   return n.toLocaleString("es-AR");
 }
 
-export default function ClientesTVDashboard() {
+export default function ClientesTVDashboard({ sucursalesPermitidas = null }: { sucursalesPermitidas?: number[] | null }) {
+  const sucursalesDisponibles = sucursalesPermitidas
+    ? Object.entries(SUCURSALES).filter(([cod]) => sucursalesPermitidas.includes(Number(cod)))
+    : Object.entries(SUCURSALES);
+
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [estados, setEstados] = useState<number[]>([3, 6]);
-  const [sucursalSeleccionada, setSucursalSeleccionada] = useState<number | null>(null);
+  const [sucursalSeleccionada, setSucursalSeleccionada] = useState<number | null>(
+    sucursalesPermitidas?.length === 1 ? sucursalesPermitidas[0] : null
+  );
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -149,29 +155,31 @@ export default function ClientesTVDashboard() {
       </div>
 
       {/* Chips de sucursal */}
-      <div className="flex items-center gap-2 flex-wrap">
-        <button
-          onClick={() => setSucursalSeleccionada(null)}
-          className={`px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium border transition-colors ${
-            sucursalSeleccionada === null
-              ? "bg-indigo-600 border-indigo-500 text-white"
-              : "border-slate-600 text-slate-400 hover:border-slate-400 hover:text-slate-200"
-          }`}
-        >
-          Todas
-        </button>
-        {Object.entries(SUCURSALES).map(([cod, nombre]) => (
-          <button key={cod} onClick={() => setSucursalSeleccionada(Number(cod))}
+      {sucursalesDisponibles.length > 1 && (
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setSucursalSeleccionada(null)}
             className={`px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium border transition-colors ${
-              sucursalSeleccionada === Number(cod)
+              sucursalSeleccionada === null
                 ? "bg-indigo-600 border-indigo-500 text-white"
                 : "border-slate-600 text-slate-400 hover:border-slate-400 hover:text-slate-200"
             }`}
           >
-            {nombre}
+            Todas
           </button>
-        ))}
-      </div>
+          {sucursalesDisponibles.map(([cod, nombre]) => (
+            <button key={cod} onClick={() => setSucursalSeleccionada(Number(cod))}
+              className={`px-3 py-1.5 rounded-full text-xs sm:text-sm font-medium border transition-colors ${
+                sucursalSeleccionada === Number(cod)
+                  ? "bg-indigo-600 border-indigo-500 text-white"
+                  : "border-slate-600 text-slate-400 hover:border-slate-400 hover:text-slate-200"
+              }`}
+            >
+              {nombre}
+            </button>
+          ))}
+        </div>
+      )}
 
       {error && (
         <div className="bg-red-900/30 border border-red-700/50 rounded-xl px-4 py-3 text-red-400 text-sm">
@@ -243,7 +251,7 @@ export default function ClientesTVDashboard() {
           <DecosChart estados={estados} sucursal={sucursalSeleccionada} />
 
           {/* Breakdown por sucursal */}
-          <div>
+          {sucursalesDisponibles.length > 1 && <div>
             <h3 className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-3">Por sucursal</h3>
             <div className="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden">
               <div className="overflow-x-auto">
@@ -285,7 +293,7 @@ export default function ClientesTVDashboard() {
                 </table>
               </div>
             </div>
-          </div>
+          </div>}
         </>
       )}
     </div>

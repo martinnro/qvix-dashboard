@@ -45,7 +45,15 @@ function Home() {
   const [showMapa, setShowMapa] = useState(false);
   const [showFuentesStock, setShowFuentesStock] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [sessionUser, setSessionUser] = useState<{ user: string; nombre: string } | null>(null);
+  const [sessionUser, setSessionUser] = useState<{
+    user: string;
+    nombre: string;
+    sucursales: number[] | null;
+    secciones: string[] | null;
+  } | null>(null);
+
+  const puedeVer = (seccion: string) =>
+    !sessionUser || !sessionUser.secciones || sessionUser.secciones.includes(seccion);
   const tvRef = useRef<HTMLDivElement>(null);
   const reportesRef = useRef<HTMLDivElement>(null);
   const [selectedOrgs, setSelectedOrgs] = useState<string[]>(
@@ -179,7 +187,7 @@ function Home() {
           <nav className="flex items-center gap-1">
 
             {/* TV dropdown */}
-            <div ref={tvRef} className="relative">
+            {puedeVer("tv") && <div ref={tvRef} className="relative">
               <button
                 onClick={() => { setShowTVMenu(v => !v); setShowReportesMenu(false); }}
                 className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
@@ -229,10 +237,10 @@ function Home() {
                   </>}
                 </div>
               )}
-            </div>
+            </div>}
 
             {/* Reportes dropdown */}
-            <div ref={reportesRef} className="relative">
+            {(puedeVer("mapa") || puedeVer("fuentes")) && <div ref={reportesRef} className="relative">
               <button
                 onClick={() => { setShowReportesMenu(v => !v); setShowTVMenu(false); }}
                 className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
@@ -244,39 +252,43 @@ function Home() {
               </button>
               {showReportesMenu && (
                 <div className="absolute left-0 top-full mt-2 w-52 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 p-1.5">
-                  {[
-                    { label: "Reclamos", color: "bg-rose-500", disabled: true },
-                    { label: "Instalaciones", color: "bg-amber-400", disabled: true },
-                    { label: "Mapa", color: "bg-emerald-500", disabled: false },
-                  ].map(({ label, color, disabled }) => (
-                    <button key={label}
-                      className={`${menuItem} ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
-                      disabled={disabled}
-                      onClick={!disabled && label === "Mapa" ? () => { setShowMapa(true); setShowReportesMenu(false); } : undefined}
-                    >
-                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${color}`} />
-                      {label}
-                      {disabled && <span className="ml-auto text-xs text-slate-600">pronto</span>}
-                    </button>
-                  ))}
+                  {puedeVer("mapa") && <>
+                    {[
+                      { label: "Reclamos", color: "bg-rose-500", disabled: true },
+                      { label: "Instalaciones", color: "bg-amber-400", disabled: true },
+                      { label: "Mapa", color: "bg-emerald-500", disabled: false },
+                    ].map(({ label, color, disabled }) => (
+                      <button key={label}
+                        className={`${menuItem} ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
+                        disabled={disabled}
+                        onClick={!disabled && label === "Mapa" ? () => { setShowMapa(true); setShowReportesMenu(false); } : undefined}
+                      >
+                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${color}`} />
+                        {label}
+                        {disabled && <span className="ml-auto text-xs text-slate-600">pronto</span>}
+                      </button>
+                    ))}
+                  </>}
 
-                  <div className="border-t border-slate-800 my-1" />
-                  <p className="px-3 py-1.5 text-xs text-slate-500 uppercase tracking-wider">Stock</p>
-                  <button
-                    onClick={() => { setShowFuentesStock(true); setShowReportesMenu(false); }}
-                    className={menuItem}
-                  >
-                    <span className="w-2 h-2 rounded-full flex-shrink-0 bg-sky-400" />
-                    Fuentes
-                  </button>
-                  <button className={`${menuItem} opacity-50 cursor-not-allowed`} disabled>
-                    <span className="w-2 h-2 rounded-full flex-shrink-0 bg-violet-400" />
-                    Controles
-                    <span className="ml-auto text-xs text-slate-600">pronto</span>
-                  </button>
+                  {puedeVer("fuentes") && <>
+                    <div className="border-t border-slate-800 my-1" />
+                    <p className="px-3 py-1.5 text-xs text-slate-500 uppercase tracking-wider">Stock</p>
+                    <button
+                      onClick={() => { setShowFuentesStock(true); setShowReportesMenu(false); }}
+                      className={menuItem}
+                    >
+                      <span className="w-2 h-2 rounded-full flex-shrink-0 bg-sky-400" />
+                      Fuentes
+                    </button>
+                    <button className={`${menuItem} opacity-50 cursor-not-allowed`} disabled>
+                      <span className="w-2 h-2 rounded-full flex-shrink-0 bg-violet-400" />
+                      Controles
+                      <span className="ml-auto text-xs text-slate-600">pronto</span>
+                    </button>
+                  </>}
                 </div>
               )}
-            </div>
+            </div>}
           </nav>
 
           {/* Derecha */}
@@ -328,13 +340,15 @@ function Home() {
         />
       )}
 
-      {showMapa && <MapaView onClose={goHome} />}
+      {showMapa && <MapaView onClose={goHome} sucursalesPermitidas={sessionUser?.sucursales ?? null} />}
       {showFuentesStock && <FuentesStockView onClose={goHome} />}
 
       <main className={`max-w-screen-xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8 ${showLicencias || showSucursales || showMapa || showFuentesStock ? "hidden" : ""}`}>
 
         {/* ── Dashboard principal — solo en home ── */}
-        {!showServiceView && <ClientesTVDashboard />}
+        {!showServiceView && sessionUser !== null && (
+          <ClientesTVDashboard sucursalesPermitidas={sessionUser.sucursales} />
+        )}
 
         {showServiceView && hasData && (
           <>

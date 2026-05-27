@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/app/lib/session";
 
-interface AuthUser { user: string; pass: string; nombre: string; }
+interface AuthUser {
+  user: string;
+  pass: string;
+  nombre: string;
+  sucursales?: number[] | null;
+  secciones?: string[] | null;
+}
 
 function getUsers(): AuthUser[] {
   try {
@@ -20,7 +26,12 @@ export async function POST(req: NextRequest) {
   }
 
   const session = await getSession();
-  session.user = { user: found.user, nombre: found.nombre };
+  session.user = {
+    user: found.user,
+    nombre: found.nombre,
+    sucursales: found.sucursales ?? null,
+    secciones: found.secciones ?? null,
+  };
   await session.save();
 
   return NextResponse.json({ ok: true });

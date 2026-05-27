@@ -56,8 +56,14 @@ const COLORES_PRESET = [
   { label: "Violeta", value: "#a855f7" },
 ];
 
-export default function MapaView({ onClose }: { onClose: () => void }) {
-  const [sucursal, setSucursal]     = useState<number>(4);
+export default function MapaView({ onClose, sucursalesPermitidas = null }: { onClose: () => void; sucursalesPermitidas?: number[] | null }) {
+  const sucursalesDisponibles = sucursalesPermitidas
+    ? Object.entries(SUCURSALES).filter(([cod]) => sucursalesPermitidas.includes(Number(cod)))
+    : Object.entries(SUCURSALES);
+
+  const [sucursal, setSucursal] = useState<number>(
+    sucursalesPermitidas ? (sucursalesPermitidas[0] ?? 4) : 4
+  );
   const [estados, setEstados]       = useState<number[]>([3, 6]);
   const [barrios, setBarrios]       = useState<Barrio[]>([]);
   const [barriosSel, setBarriosSel] = useState<number[]>([]);
@@ -233,7 +239,7 @@ export default function MapaView({ onClose }: { onClose: () => void }) {
 
         {/* Sucursal */}
         <div className="flex items-center gap-1 bg-slate-800 border border-slate-700 rounded-xl p-1 overflow-x-auto max-w-full">
-          {Object.entries(SUCURSALES).map(([cod, nombre]) => (
+          {sucursalesDisponibles.map(([cod, nombre]) => (
             <button
               key={cod}
               onClick={() => setSucursal(Number(cod))}

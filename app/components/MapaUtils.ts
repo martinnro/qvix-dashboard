@@ -9,7 +9,8 @@ export interface NapItem {
 }
 
 export function getNapColor(cantidad: number): string {
-  if (cantidad > 8) return "#ef4444";
+  if (cantidad === 0) return "#ffffff";
+  if (cantidad >= 8) return "#ef4444";
   if (cantidad >= 6) return "#f59e0b";
   return "#a855f7";
 }

@@ -142,9 +142,9 @@ export default function MapaLeaflet({
       style={{ height: "100%", width: "100%", borderRadius: "0 0 1rem 1rem" }}
       className="z-0"
     >
-      <TileLayer url={style.url} attribution={style.attribution} />
+      <TileLayer url={style.url} attribution={style.attribution} maxNativeZoom={17} maxZoom={22} />
       {mapStyle === "satellite-labels" && (
-        <TileLayer url={labelsUrl} attribution="" />
+        <TileLayer url={labelsUrl} attribution="" maxNativeZoom={19} maxZoom={22} />
       )}
       <FitBounds puntos={puntos} />
 

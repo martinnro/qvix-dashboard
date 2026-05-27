@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Ultranet Analytics",
-  description: "Plataforma de analítica y toma de decisiones",
+  description: "Centro de monitoreo, analítica y visualización de datos de Ultranet.",
 };
 
 export default function RootLayout({

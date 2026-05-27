@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { ArrowLeft, Plus, Trash2, Pencil, X, Check, AlertCircle, Package, Wrench, RefreshCw } from "lucide-react";
 
 const CUADRILLAS = [
@@ -65,6 +65,7 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
   // Control state
   const [controlRows, setControlRows] = useState<ControlRow[]>([]);
   const [controlLoading, setControlLoading] = useState(false);
+  const [controlError, setControlError] = useState("");
   const [fechaDesde, setFechaDesde] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() - 30);
@@ -80,21 +81,32 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
       .catch(() => {});
   };
 
-  const loadControl = useCallback(() => {
+  // loadControl es una función regular (sin useCallback) para que siempre lea
+  // los valores actuales de fechaDesde/fechaHasta/tieneFuente desde el estado.
+  // Con useCallback([subView]) los filtros quedaban "congelados" al cambiar de tab
+  // y el botón Buscar enviaba siempre los valores del primer render (stale closure).
+  const loadControl = () => {
     setControlLoading(true);
+    setControlError("");
+    setControlRows([]);
     const params = new URLSearchParams();
     if (fechaDesde) params.set("fecha_desde", fechaDesde);
     if (fechaHasta) params.set("fecha_hasta", fechaHasta);
     if (tieneFuente) params.set("tiene_fuente", tieneFuente);
     fetch(`/api/fuentes-control?${params.toString()}`)
-      .then((r) => r.json())
-      .then((d) => Array.isArray(d) && setControlRows(d))
-      .catch(() => {})
+      .then(async (r) => {
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.error ?? "Error al cargar datos del servidor.");
+        if (Array.isArray(d)) setControlRows(d);
+        else throw new Error("Respuesta inválida del servidor.");
+      })
+      .catch((e: Error) => setControlError(e.message))
       .finally(() => setControlLoading(false));
-  }, [fechaDesde, fechaHasta, tieneFuente]);
+  };
 
   useEffect(() => { load(); }, []);
-  useEffect(() => { if (subView === "control") loadControl(); }, [subView, loadControl]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (subView === "control") loadControl(); }, [subView]);
 
   const openAdd = () => {
     setEditRow(null);
@@ -363,13 +375,27 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
               <RefreshCw size={14} className={controlLoading ? "animate-spin" : ""} />
               {controlLoading ? "Cargando..." : "Buscar"}
             </button>
-            {controlRows.length > 0 && (
+            {!controlLoading && controlRows.length > 0 && (
               <span className="text-sm text-slate-400 ml-1">{controlRows.length} ODS encontradas</span>
             )}
           </div>
 
+          {/* Error */}
+          {controlError && (
+            <div className="flex items-center gap-2 text-red-400 bg-red-950/30 border border-red-800 rounded-xl px-4 py-3 text-sm">
+              <AlertCircle size={15} /> {controlError}
+            </div>
+          )}
+
           {/* Tabla */}
-          <div className="overflow-x-auto rounded-2xl border border-slate-700">
+          <div className="overflow-x-auto rounded-2xl border border-slate-700 relative">
+            {controlLoading && (
+              <div className="absolute inset-0 bg-slate-900/70 z-10 flex items-center justify-center rounded-2xl">
+                <div className="flex items-center gap-2 text-slate-300 text-sm">
+                  <RefreshCw size={16} className="animate-spin" /> Cargando datos...
+                </div>
+              </div>
+            )}
             <table className="w-full text-sm border-collapse min-w-[900px]">
               <thead>
                 <tr className="bg-slate-800 text-slate-400 text-xs uppercase tracking-wide">
@@ -386,7 +412,7 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
                 </tr>
               </thead>
               <tbody>
-                {!controlLoading && controlRows.length === 0 && (
+                {!controlLoading && controlRows.length === 0 && !controlError && (
                   <tr>
                     <td colSpan={10} className="text-center text-slate-500 py-12">
                       Sin resultados. Ajustá los filtros y presioná Buscar.

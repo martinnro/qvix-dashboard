@@ -70,6 +70,8 @@ export default function MapaView({ onClose, sucursalesPermitidas = null }: { onC
   const [puntos, setPuntos]         = useState<Punto[]>([]);
   const [naps, setNaps]             = useState<NapItem[]>([]);
   const [showNaps, setShowNaps]     = useState(false);
+  const [napSelName, setNapSelName] = useState<string | null>(null);
+  const napSelInfo = naps.find((n) => n.nap === napSelName) ?? null;
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState<string | null>(null);
   const [estadosOpts, setEstadosOpts] = useState<EstadoOpt[]>(ESTADOS_DEFAULT);
@@ -527,7 +529,7 @@ export default function MapaView({ onClose, sucursalesPermitidas = null }: { onC
       {error && <div className="text-red-400 text-sm">{error}</div>}
 
       {/* Mapa */}
-      <div className="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden" style={{ height: "600px" }}>
+      <div className="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden relative" style={{ height: "600px" }}>
         <MapaLeaflet
           puntos={puntos}
           mapStyle={mapStyle}
@@ -535,7 +537,20 @@ export default function MapaView({ onClose, sucursalesPermitidas = null }: { onC
           showNaps={showNaps}
           pinesCustom={pinesFiltrados}
           showPinesCustom={true}
+          onNapSelect={setNapSelName}
         />
+
+        {/* Panel info NAP seleccionado */}
+        {napSelInfo && (
+          <div className="absolute bottom-4 left-4 z-[1000] bg-slate-900/95 border border-slate-600 rounded-xl px-4 py-3 text-sm text-white shadow-xl min-w-[160px]">
+            <div className="flex items-center justify-between gap-4 mb-1">
+              <span className="font-bold text-base">{napSelInfo.nap}</span>
+              <button onClick={() => { setNapSelName(null); }} className="text-slate-400 hover:text-white text-xs">✕</button>
+            </div>
+            {napSelInfo.fibra && <p className="text-slate-400 text-xs">Fibra: {napSelInfo.fibra}</p>}
+            <p className="text-slate-300 text-xs">Conexiones: <span className="font-semibold text-white">{napSelInfo.cantidad}</span></p>
+          </div>
+        )}
       </div>
     </div>
   );

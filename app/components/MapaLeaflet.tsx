@@ -1,6 +1,6 @@
 "use client";
-import { useEffect } from "react";
-import { MapContainer, TileLayer, CircleMarker, Marker, Popup, useMap } from "react-leaflet";
+import { useEffect, useState } from "react";
+import { MapContainer, TileLayer, CircleMarker, Marker, Popup, Polyline, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { getColorById, getNapColor, type MapStyle, type NapItem } from "./MapaUtils";
@@ -118,6 +118,7 @@ interface Props {
   showNaps?: boolean;
   pinesCustom?: PinCustom[];
   showPinesCustom?: boolean;
+  onNapSelect?: (nap: string | null) => void;
 }
 
 export default function MapaLeaflet({
@@ -127,6 +128,7 @@ export default function MapaLeaflet({
   showNaps = false,
   pinesCustom = [],
   showPinesCustom = false,
+  onNapSelect,
 }: Props) {
   const centro: [number, number] = puntos.length > 0
     ? [puntos[0].latitud, puntos[0].longitud]
@@ -134,6 +136,9 @@ export default function MapaLeaflet({
 
   const style = MAP_STYLES.find((s) => s.key === mapStyle) ?? MAP_STYLES[0];
   const labelsUrl = "https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png";
+
+  // NAP seleccionado — dibuja líneas a todas sus conexiones
+  const [napSel, setNapSel] = useState<string | null>(null);
 
   return (
     <MapContainer
@@ -148,17 +153,35 @@ export default function MapaLeaflet({
       )}
       <FitBounds puntos={puntos} />
 
+      {/* Líneas NAP → todas sus conexiones */}
+      {napSel && (() => {
+        const nap = naps.find((n) => n.nap === napSel);
+        if (!nap) return null;
+        return puntos
+          .filter((p) => p.nap === napSel)
+          .map((p) => (
+            <Polyline
+              key={p.id_conexion}
+              positions={[[nap.latitud, nap.longitud], [p.latitud, p.longitud]]}
+              pathOptions={{ color: "#000000", weight: 1.5, dashArray: "5 4", opacity: 0.8 }}
+            />
+          ));
+      })()}
+
       {/* NAPs */}
       {showNaps && naps.map((n) => (
-        <Marker key={n.nap} position={[n.latitud, n.longitud]} icon={makeNapIcon(n.cantidad)}>
-          <Popup>
-            <div className="text-sm space-y-0.5">
-              <p><strong>NAP:</strong> {n.nap}</p>
-              <p><strong>Fibra:</strong> {n.fibra}</p>
-              <p><strong>Conexiones:</strong> {n.cantidad}</p>
-            </div>
-          </Popup>
-        </Marker>
+        <Marker
+          key={n.nap}
+          position={[n.latitud, n.longitud]}
+          icon={makeNapIcon(n.cantidad)}
+          eventHandlers={{
+            click: () => {
+              const next = napSel === n.nap ? null : n.nap;
+              setNapSel(next);
+              onNapSelect?.(next);
+            },
+          }}
+        />
       ))}
 
       {/* Conexiones */}

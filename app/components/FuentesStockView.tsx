@@ -199,7 +199,7 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-6 space-y-4">
+    <div className="w-full px-4 sm:px-6 py-6 space-y-4">
 
       {/* Header */}
       <div className="flex items-center gap-3">
@@ -256,7 +256,7 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
 
           {/* ── TABLA (desktop) ──────────────────────────────────────────────── */}
           <div className="hidden md:block overflow-x-auto rounded-2xl border border-slate-700">
-            <table className="w-full text-sm border-collapse min-w-[1200px]">
+            <table className="w-full text-sm border-collapse min-w-[900px]">
               <thead>
                 <tr>
                   <th colSpan={2} className="bg-amber-700/40 text-amber-300 font-semibold px-3 py-2 text-center border border-slate-700">Ingreso</th>
@@ -281,7 +281,9 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
                   <th className="bg-slate-800 border border-slate-700" />
                   <th className="bg-slate-800 border border-slate-700" />
                   {CUADRILLAS.map((c) => (
-                    <th key={c} className="bg-slate-800 text-slate-400 text-xs px-2 py-1.5 font-normal border border-slate-700 text-center whitespace-nowrap">({c})</th>
+                    <th key={c} className="bg-slate-800 text-slate-400 text-xs px-1 py-1.5 font-normal border border-slate-700 text-center whitespace-nowrap">
+                      {c.split("/")[0].trim()}
+                    </th>
                   ))}
                   <th className="bg-slate-800 border border-slate-700" />
                   <th className="bg-slate-800 border border-slate-700" />
@@ -308,24 +310,24 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
                       {/* Fecha */}
                       <td className="px-3 py-2 text-center text-slate-300 whitespace-nowrap">{row.fecha ? fmtFecha(row.fecha) : ""}</td>
                       {/* Egreso salón */}
-                      <td className="px-2 py-1.5 text-center">
+                      <td className="px-1 py-1.5 text-center">
                         <input
                           type="number" min={0}
                           value={draft.salon === 0 ? "" : draft.salon}
                           placeholder="0"
                           onChange={(e) => setDraftSalon(row.id, parseInt(e.target.value) || 0)}
-                          className="w-14 bg-slate-800 border border-slate-600 rounded-lg px-1 py-1 text-sm text-red-300 text-center focus:outline-none focus:border-orange-500 focus:bg-slate-700"
+                          className="w-12 bg-slate-800 border border-slate-600 rounded-lg px-1 py-1 text-sm text-red-300 text-center focus:outline-none focus:border-orange-500 focus:bg-slate-700"
                         />
                       </td>
                       {/* Egreso cuadrillas */}
                       {CUADRILLAS.map((c) => (
-                        <td key={c} className="px-1 py-1.5 text-center">
+                        <td key={c} className="px-0.5 py-1.5 text-center">
                           <input
                             type="number" min={0}
                             value={(draft.cuadrillas[c] ?? 0) === 0 ? "" : (draft.cuadrillas[c] ?? 0)}
                             placeholder="0"
                             onChange={(e) => setDraftCuad(row.id, c, parseInt(e.target.value) || 0)}
-                            className="w-14 bg-slate-800 border border-slate-600 rounded-lg px-1 py-1 text-sm text-red-300 text-center focus:outline-none focus:border-orange-500 focus:bg-slate-700"
+                            className="w-12 bg-slate-800 border border-slate-600 rounded-lg px-1 py-1 text-sm text-red-300 text-center focus:outline-none focus:border-orange-500 focus:bg-slate-700"
                           />
                         </td>
                       ))}
@@ -365,23 +367,6 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
                     </tr>
                   );
                 })}
-                {/* Totales */}
-                {rows.length > 0 && (
-                  <tr className="bg-slate-800/60 font-semibold border-t-2 border-slate-600">
-                    <td className="px-3 py-2 text-center text-amber-300">{totalIngreso}</td>
-                    <td className="px-3 py-2 text-center text-slate-500 text-xs">Total</td>
-                    <td className="px-3 py-2 text-center text-red-400">{rows.reduce((s, r) => s + r.egreso_salon, 0) || ""}</td>
-                    {CUADRILLAS.map((c) => (
-                      <td key={c} className="px-3 py-2 text-center text-red-400">
-                        {rows.reduce((s, r) => s + (r.cuadrillas[c] ?? 0), 0) || ""}
-                      </td>
-                    ))}
-                    <td className={`px-3 py-2 text-center font-bold ${totalDisponible > 0 ? "text-emerald-400" : totalDisponible < 0 ? "text-red-400" : "text-slate-500"}`}>
-                      {totalDisponible}
-                    </td>
-                    <td colSpan={2} />
-                  </tr>
-                )}
               </tbody>
             </table>
           </div>

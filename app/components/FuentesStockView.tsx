@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { ArrowLeft, Plus, Trash2, Pencil, X, Check, AlertCircle, Package, Wrench, RefreshCw } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Pencil, X, Check, AlertCircle, Package, Wrench, RefreshCw, Share2 } from "lucide-react";
 
 const CUADRILLAS = [
   "Carpio/Lopez",
@@ -32,7 +32,6 @@ interface ControlRow {
   fecha_reclamo: string;
   fecha_solucion: string;
   Motivo_Estado: string;
-  Dias: number;
 }
 
 type SubView = "stock" | "control";
@@ -53,16 +52,24 @@ function calcDisponible(row: FuentaRow) {
 export default function FuentesStockView({ onClose }: { onClose: () => void }) {
   const [subView, setSubView] = useState<SubView>("stock");
 
-  // Stock state
+  // ── Stock state ──────────────────────────────────────────────────────────
   const [rows, setRows] = useState<FuentaRow[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+
+  // Modal agregar / editar
   const [showModal, setShowModal] = useState(false);
   const [editRow, setEditRow] = useState<FuentaRow | null>(null);
   const [form, setForm] = useState(emptyForm());
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [formError, setFormError] = useState("");
 
-  // Control state
+  // Modal distribuir
+  const [distributeRow, setDistributeRow] = useState<FuentaRow | null>(null);
+  const [distributeDestino, setDistributeDestino] = useState("salon");
+  const [distributeCantidad, setDistributeCantidad] = useState(0);
+  const [distributeError, setDistributeError] = useState("");
+
+  // ── Control state ─────────────────────────────────────────────────────────
   const [controlRows, setControlRows] = useState<ControlRow[]>([]);
   const [controlLoading, setControlLoading] = useState(false);
   const [controlError, setControlError] = useState("");
@@ -74,6 +81,7 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
   const [fechaHasta, setFechaHasta] = useState("");
   const [tieneFuente, setTieneFuente] = useState("");
 
+  // ── Carga de datos ────────────────────────────────────────────────────────
   const load = () => {
     fetch("/api/fuentes-stock")
       .then((r) => r.json())
@@ -81,10 +89,6 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
       .catch(() => {});
   };
 
-  // loadControl es una función regular (sin useCallback) para que siempre lea
-  // los valores actuales de fechaDesde/fechaHasta/tieneFuente desde el estado.
-  // Con useCallback([subView]) los filtros quedaban "congelados" al cambiar de tab
-  // y el botón Buscar enviaba siempre los valores del primer render (stale closure).
   const loadControl = () => {
     setControlLoading(true);
     setControlError("");
@@ -108,17 +112,19 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (subView === "control") loadControl(); }, [subView]);
 
+  // ── Modal agregar ─────────────────────────────────────────────────────────
   const openAdd = () => {
     setEditRow(null);
     setForm(emptyForm());
-    setError("");
+    setFormError("");
     setShowModal(true);
   };
 
+  // ── Modal editar (lápiz) ──────────────────────────────────────────────────
   const openEdit = (row: FuentaRow) => {
     setEditRow(row);
     setForm({ ...row });
-    setError("");
+    setFormError("");
     setShowModal(true);
   };
 
@@ -126,9 +132,10 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
     setForm((f) => ({ ...f, cuadrillas: { ...f.cuadrillas, [name]: parseInt(val) || 0 } }));
 
   const save = async () => {
-    if (!form.fecha) { setError("La fecha es obligatoria."); return; }
+    if (!form.fecha) { setFormError("La fecha es obligatoria."); return; }
+    if (!editRow && form.ingreso <= 0) { setFormError("El ingreso debe ser mayor a 0."); return; }
     setSaving(true);
-    setError("");
+    setFormError("");
     try {
       const method = editRow ? "PUT" : "POST";
       const body = editRow ? { ...form, id: editRow.id } : form;
@@ -141,12 +148,56 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
       load();
       setShowModal(false);
     } catch (e) {
-      setError((e as Error).message);
+      setFormError((e as Error).message);
     } finally {
       setSaving(false);
     }
   };
 
+  // ── Modal distribuir ──────────────────────────────────────────────────────
+  const openDistribute = (row: FuentaRow) => {
+    setDistributeRow(row);
+    setDistributeDestino("salon");
+    setDistributeCantidad(0);
+    setDistributeError("");
+  };
+
+  const distribute = async () => {
+    if (!distributeRow) return;
+    if (distributeCantidad <= 0) { setDistributeError("La cantidad debe ser mayor a 0."); return; }
+    const disponible = calcDisponible(distributeRow);
+    if (distributeCantidad > disponible) {
+      setDistributeError(`Stock insuficiente. Disponible: ${disponible}`);
+      return;
+    }
+    setSaving(true);
+    setDistributeError("");
+    const updated: FuentaRow = { ...distributeRow };
+    if (distributeDestino === "salon") {
+      updated.egreso_salon = (updated.egreso_salon ?? 0) + distributeCantidad;
+    } else {
+      updated.cuadrillas = {
+        ...updated.cuadrillas,
+        [distributeDestino]: (updated.cuadrillas[distributeDestino] ?? 0) + distributeCantidad,
+      };
+    }
+    try {
+      const res = await fetch("/api/fuentes-stock", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updated),
+      });
+      if (!res.ok) throw new Error("Error al guardar.");
+      load();
+      setDistributeRow(null);
+    } catch (e) {
+      setDistributeError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ── Eliminar ──────────────────────────────────────────────────────────────
   const confirmDelete = async (id: string) => {
     await fetch("/api/fuentes-stock", {
       method: "DELETE",
@@ -157,6 +208,7 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
     load();
   };
 
+  // ── Totales ───────────────────────────────────────────────────────────────
   const totalIngreso = rows.reduce((s, r) => s + r.ingreso, 0);
   const totalSalon = rows.reduce((s, r) => s + r.egreso_salon, 0);
   const totalDisponible = rows.reduce((s, r) => s + calcDisponible(r), 0);
@@ -165,20 +217,18 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
   return (
     <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-6 space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onClose}
-            className="flex items-center gap-1.5 text-slate-400 hover:text-white text-sm px-3 py-2 rounded-lg hover:bg-slate-800 transition-colors"
-          >
-            <ArrowLeft size={15} /> Volver
-          </button>
-          <div>
-            <h2 className="text-xl font-bold text-white flex items-center gap-2">
-              <Package size={20} className="text-sky-400" /> Fuentes
-            </h2>
-            <p className="text-slate-400 text-sm">Stock y distribución de fuentes</p>
-          </div>
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onClose}
+          className="flex items-center gap-1.5 text-slate-400 hover:text-white text-sm px-3 py-2 rounded-lg hover:bg-slate-800 transition-colors"
+        >
+          <ArrowLeft size={15} /> Volver
+        </button>
+        <div>
+          <h2 className="text-xl font-bold text-white flex items-center gap-2">
+            <Package size={20} className="text-sky-400" /> Fuentes
+          </h2>
+          <p className="text-slate-400 text-sm">Stock y distribución de fuentes</p>
         </div>
       </div>
 
@@ -202,19 +252,18 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
         </button>
       </div>
 
+      {/* ── Vista STOCK ─────────────────────────────────────────────────────── */}
       {subView === "stock" && (
         <>
-          {/* Botón agregar */}
           <div className="flex justify-end">
             <button
               onClick={openAdd}
               className="flex items-center gap-1.5 bg-sky-600 hover:bg-sky-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
             >
-              <Plus size={15} /> Agregar registro
+              <Plus size={15} /> Agregar ingreso
             </button>
           </div>
 
-          {/* Tabla */}
           <div className="overflow-x-auto rounded-2xl border border-slate-700">
             <table className="w-full text-sm border-collapse min-w-[1100px]">
               <thead>
@@ -234,7 +283,7 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
                   </th>
                   <th className="bg-slate-700/60 px-3 py-2 border border-slate-700" />
                 </tr>
-                {/* Fila 2: sub-grupos egreso */}
+                {/* Fila 2: sub-columnas */}
                 <tr>
                   <th className="bg-amber-900/30 text-amber-200 text-xs px-3 py-1.5 border border-slate-700">
                     Fuentes (Suc. Valle Viejo)
@@ -271,7 +320,7 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
                 {rows.length === 0 && (
                   <tr>
                     <td colSpan={CUADRILLAS.length + 5} className="text-center text-slate-500 py-12">
-                      Sin registros. Usá "Agregar registro" para comenzar.
+                      Sin registros. Usá &quot;Agregar ingreso&quot; para comenzar.
                     </td>
                   </tr>
                 )}
@@ -301,10 +350,20 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
                       </td>
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-1.5">
-                          <button onClick={() => openEdit(row)} className="p-1.5 text-slate-500 hover:text-indigo-400 transition-colors rounded">
+                          {/* Distribuir — solo si hay stock disponible */}
+                          {disponible > 0 && (
+                            <button
+                              onClick={() => openDistribute(row)}
+                              title="Distribuir fuentes"
+                              className="p-1.5 text-slate-500 hover:text-sky-400 transition-colors rounded"
+                            >
+                              <Share2 size={13} />
+                            </button>
+                          )}
+                          <button onClick={() => openEdit(row)} title="Editar" className="p-1.5 text-slate-500 hover:text-indigo-400 transition-colors rounded">
                             <Pencil size={13} />
                           </button>
-                          <button onClick={() => setDeleteId(row.id)} className="p-1.5 text-slate-500 hover:text-red-400 transition-colors rounded">
+                          <button onClick={() => setDeleteId(row.id)} title="Eliminar" className="p-1.5 text-slate-500 hover:text-red-400 transition-colors rounded">
                             <Trash2 size={13} />
                           </button>
                         </div>
@@ -333,9 +392,9 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
         </>
       )}
 
+      {/* ── Vista CONTROL ────────────────────────────────────────────────────── */}
       {subView === "control" && (
         <div className="space-y-4">
-          {/* Filtros */}
           <div className="flex flex-wrap items-end gap-3">
             <div className="flex flex-col gap-1">
               <label className="text-xs text-slate-400">Desde</label>
@@ -380,14 +439,12 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
             )}
           </div>
 
-          {/* Error */}
           {controlError && (
             <div className="flex items-center gap-2 text-red-400 bg-red-950/30 border border-red-800 rounded-xl px-4 py-3 text-sm">
               <AlertCircle size={15} /> {controlError}
             </div>
           )}
 
-          {/* Tabla */}
           <div className="overflow-x-auto rounded-2xl border border-slate-700 relative">
             {controlLoading && (
               <div className="absolute inset-0 bg-slate-900/70 z-10 flex items-center justify-center rounded-2xl">
@@ -453,19 +510,21 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
         </div>
       )}
 
-      {/* Modal agregar / editar */}
+      {/* ── Modal AGREGAR / EDITAR ─────────────────────────────────────────── */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 sticky top-0 bg-slate-900 z-10">
-              <h3 className="text-slate-100 font-semibold">{editRow ? "Editar registro" : "Agregar registro"}</h3>
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+              <h3 className="text-slate-100 font-semibold">
+                {editRow ? "Editar registro" : "Agregar ingreso de fuentes"}
+              </h3>
               <button onClick={() => setShowModal(false)} className="text-slate-500 hover:text-slate-200">
                 <X size={20} />
               </button>
             </div>
 
             <div className="px-6 py-5 space-y-5">
-              {/* Fecha e ingreso */}
+              {/* Fecha + ingreso — siempre visibles */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs text-slate-400 mb-1.5">Fecha</label>
@@ -477,7 +536,7 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs text-amber-400 mb-1.5">Ingreso — Fuentes (Suc. Valle Viejo)</label>
+                  <label className="block text-xs text-amber-400 mb-1.5">Fuentes ingresadas</label>
                   <input
                     type="number"
                     min={0}
@@ -488,52 +547,56 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
                 </div>
               </div>
 
-              {/* Egreso salon */}
-              <div>
-                <label className="block text-xs text-orange-400 mb-1.5">Egreso — Fuentes (Salón Comercial)</label>
-                <input
-                  type="number"
-                  min={0}
-                  value={form.egreso_salon}
-                  onChange={(e) => setForm((f) => ({ ...f, egreso_salon: parseInt(e.target.value) || 0 }))}
-                  className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-red-300 text-center focus:outline-none focus:border-orange-500"
-                />
-              </div>
+              {/* Campos extra solo en edición */}
+              {editRow && (
+                <>
+                  <div>
+                    <label className="block text-xs text-orange-400 mb-1.5">Egreso — Salón Comercial</label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={form.egreso_salon}
+                      onChange={(e) => setForm((f) => ({ ...f, egreso_salon: parseInt(e.target.value) || 0 }))}
+                      className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-red-300 text-center focus:outline-none focus:border-orange-500"
+                    />
+                  </div>
 
-              {/* Egreso cuadrillas */}
-              <div>
-                <label className="block text-xs text-orange-400 mb-2">Egreso — Fuentes por Cuadrilla</label>
-                <div className="grid grid-cols-2 gap-2">
-                  {CUADRILLAS.map((c) => (
-                    <div key={c} className="flex items-center gap-2 bg-slate-800/60 border border-slate-700 rounded-lg px-3 py-2">
-                      <span className="text-xs text-slate-400 flex-1">{c}</span>
-                      <input
-                        type="number"
-                        min={0}
-                        value={form.cuadrillas[c] ?? 0}
-                        onChange={(e) => updateCuadrilla(c, e.target.value)}
-                        className="w-16 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm text-red-300 text-center focus:outline-none focus:border-orange-500"
-                      />
+                  <div>
+                    <label className="block text-xs text-orange-400 mb-2">Egreso — Cuadrillas</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      {CUADRILLAS.map((c) => (
+                        <div key={c} className="flex items-center gap-2 bg-slate-800/60 border border-slate-700 rounded-lg px-3 py-2">
+                          <span className="text-xs text-slate-400 flex-1">{c}</span>
+                          <input
+                            type="number"
+                            min={0}
+                            value={form.cuadrillas[c] ?? 0}
+                            onChange={(e) => updateCuadrilla(c, e.target.value)}
+                            className="w-16 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-sm text-red-300 text-center focus:outline-none focus:border-orange-500"
+                          />
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
+                  </div>
 
-              {/* Observación */}
-              <div>
-                <label className="block text-xs text-slate-400 mb-1.5">Observación</label>
-                <input
-                  type="text"
-                  value={form.observacion}
-                  onChange={(e) => setForm((f) => ({ ...f, observacion: e.target.value }))}
-                  placeholder="Ej: Fuentes De Ont Huawei"
-                  className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
-                />
-              </div>
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1.5">Observación</label>
+                    <input
+                      type="text"
+                      value={form.observacion}
+                      onChange={(e) => setForm((f) => ({ ...f, observacion: e.target.value }))}
+                      placeholder="Ej: Fuentes De Ont Huawei"
+                      className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                </>
+              )}
 
-              {/* Disponible preview */}
+              {/* Preview disponible */}
               {(() => {
-                const preview = (form.ingreso ?? 0) - (form.egreso_salon ?? 0) - CUADRILLAS.reduce((s, c) => s + (form.cuadrillas[c] ?? 0), 0);
+                const preview = editRow
+                  ? (form.ingreso ?? 0) - (form.egreso_salon ?? 0) - CUADRILLAS.reduce((s, c) => s + (form.cuadrillas[c] ?? 0), 0)
+                  : (form.ingreso ?? 0);
                 return (
                   <div className="flex items-center justify-between bg-slate-800 border border-slate-700 rounded-xl px-4 py-3">
                     <span className="text-sm text-slate-400">Disponible en stock</span>
@@ -544,9 +607,9 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
                 );
               })()}
 
-              {error && (
+              {formError && (
                 <div className="flex items-center gap-2 text-red-400 bg-red-950/30 border border-red-800 rounded-lg px-4 py-2 text-sm">
-                  <AlertCircle size={15} /> {error}
+                  <AlertCircle size={15} /> {formError}
                 </div>
               )}
             </div>
@@ -567,7 +630,98 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
         </div>
       )}
 
-      {/* Confirm delete */}
+      {/* ── Modal DISTRIBUIR ───────────────────────────────────────────────── */}
+      {distributeRow && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+              <div>
+                <h3 className="text-slate-100 font-semibold flex items-center gap-2">
+                  <Share2 size={16} className="text-sky-400" /> Distribuir fuentes
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Ingreso del {new Date(distributeRow.fecha + "T00:00:00").toLocaleDateString("es-AR")}
+                </p>
+              </div>
+              <button onClick={() => setDistributeRow(null)} className="text-slate-500 hover:text-slate-200">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              {/* Stock disponible actual */}
+              <div className="flex items-center justify-between bg-emerald-950/40 border border-emerald-800/50 rounded-xl px-4 py-3">
+                <span className="text-sm text-slate-400">Stock disponible</span>
+                <span className="text-xl font-bold text-emerald-400">{calcDisponible(distributeRow)}</span>
+              </div>
+
+              {/* Destino */}
+              <div>
+                <label className="block text-xs text-slate-400 mb-1.5">Destino</label>
+                <select
+                  value={distributeDestino}
+                  onChange={(e) => setDistributeDestino(e.target.value)}
+                  className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-sky-500"
+                >
+                  <option value="salon">Salón Comercial</option>
+                  {CUADRILLAS.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Cantidad */}
+              <div>
+                <label className="block text-xs text-slate-400 mb-1.5">Cantidad a distribuir</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={calcDisponible(distributeRow)}
+                  value={distributeCantidad}
+                  onChange={(e) => setDistributeCantidad(parseInt(e.target.value) || 0)}
+                  className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-red-300 text-center text-lg font-bold focus:outline-none focus:border-sky-500"
+                />
+              </div>
+
+              {/* Preview stock restante */}
+              {distributeCantidad > 0 && (
+                <div className="flex items-center justify-between bg-slate-800 border border-slate-700 rounded-xl px-4 py-3">
+                  <span className="text-sm text-slate-400">Stock restante</span>
+                  {(() => {
+                    const restante = calcDisponible(distributeRow) - distributeCantidad;
+                    return (
+                      <span className={`text-xl font-bold ${restante > 0 ? "text-emerald-400" : restante === 0 ? "text-slate-500" : "text-red-400"}`}>
+                        {restante}
+                      </span>
+                    );
+                  })()}
+                </div>
+              )}
+
+              {distributeError && (
+                <div className="flex items-center gap-2 text-red-400 bg-red-950/30 border border-red-800 rounded-lg px-4 py-2 text-sm">
+                  <AlertCircle size={15} /> {distributeError}
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-800 flex justify-end gap-2">
+              <button onClick={() => setDistributeRow(null)} className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
+                Cancelar
+              </button>
+              <button
+                onClick={distribute}
+                disabled={saving || distributeCantidad <= 0}
+                className="flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-medium bg-sky-600 hover:bg-sky-500 text-white disabled:opacity-50 transition-colors"
+              >
+                <Check size={15} /> {saving ? "Guardando..." : "Distribuir"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Confirm delete ────────────────────────────────────────────────── */}
       {deleteId && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
           <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-sm space-y-5 shadow-2xl">

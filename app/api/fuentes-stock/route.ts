@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readFileSync, writeFileSync } from "fs";
-import { join } from "path";
-
-const FILE = join(process.cwd(), "data", "fuentes_stock.json");
+import { getPool } from "@/app/lib/db";
+import sql from "mssql";
 
 interface FuentaRow {
   id: string;
@@ -13,41 +11,101 @@ interface FuentaRow {
   observacion: string;
 }
 
-function readData(): FuentaRow[] {
+export async function GET() {
   try {
-    return JSON.parse(readFileSync(FILE, "utf-8"));
-  } catch {
-    return [];
+    const pool = await getPool();
+    const result = await pool.request().query(`
+      SELECT id, CONVERT(VARCHAR(10), fecha, 120) AS fecha,
+             ingreso, egreso_salon, cuadrillas, observacion
+      FROM fuentes_stock
+      ORDER BY fecha DESC, id DESC
+    `);
+    const rows: FuentaRow[] = result.recordset.map((r) => ({
+      ...r,
+      cuadrillas: JSON.parse(r.cuadrillas ?? "{}"),
+    }));
+    return NextResponse.json(rows);
+  } catch (err: unknown) {
+    console.error("[fuentes-stock GET]", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : String(err) },
+      { status: 500 }
+    );
   }
 }
 
-function writeData(data: FuentaRow[]) {
-  writeFileSync(FILE, JSON.stringify(data, null, 2));
-}
-
-export async function GET() {
-  return NextResponse.json(readData());
-}
-
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const data = readData();
-  const row: FuentaRow = { ...body, id: Date.now().toString() };
-  data.push(row);
-  writeData(data);
-  return NextResponse.json({ ok: true });
+  try {
+    const body: Omit<FuentaRow, "id"> = await req.json();
+    const id = Date.now().toString();
+    const pool = await getPool();
+    await pool
+      .request()
+      .input("id", sql.VarChar(50), id)
+      .input("fecha", sql.Date, body.fecha)
+      .input("ingreso", sql.Int, body.ingreso ?? 0)
+      .input("egreso_salon", sql.Int, body.egreso_salon ?? 0)
+      .input("cuadrillas", sql.NVarChar(sql.MAX), JSON.stringify(body.cuadrillas ?? {}))
+      .input("observacion", sql.NVarChar(500), body.observacion ?? "")
+      .query(`
+        INSERT INTO fuentes_stock (id, fecha, ingreso, egreso_salon, cuadrillas, observacion)
+        VALUES (@id, @fecha, @ingreso, @egreso_salon, @cuadrillas, @observacion)
+      `);
+    return NextResponse.json({ ok: true });
+  } catch (err: unknown) {
+    console.error("[fuentes-stock POST]", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : String(err) },
+      { status: 500 }
+    );
+  }
 }
 
 export async function PUT(req: NextRequest) {
-  const body = await req.json();
-  const data = readData().map((r) => (r.id === body.id ? { ...body } : r));
-  writeData(data);
-  return NextResponse.json({ ok: true });
+  try {
+    const body: FuentaRow = await req.json();
+    const pool = await getPool();
+    await pool
+      .request()
+      .input("id", sql.VarChar(50), body.id)
+      .input("fecha", sql.Date, body.fecha)
+      .input("ingreso", sql.Int, body.ingreso ?? 0)
+      .input("egreso_salon", sql.Int, body.egreso_salon ?? 0)
+      .input("cuadrillas", sql.NVarChar(sql.MAX), JSON.stringify(body.cuadrillas ?? {}))
+      .input("observacion", sql.NVarChar(500), body.observacion ?? "")
+      .query(`
+        UPDATE fuentes_stock
+        SET fecha        = @fecha,
+            ingreso      = @ingreso,
+            egreso_salon = @egreso_salon,
+            cuadrillas   = @cuadrillas,
+            observacion  = @observacion
+        WHERE id = @id
+      `);
+    return NextResponse.json({ ok: true });
+  } catch (err: unknown) {
+    console.error("[fuentes-stock PUT]", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : String(err) },
+      { status: 500 }
+    );
+  }
 }
 
 export async function DELETE(req: NextRequest) {
-  const { id } = await req.json();
-  const data = readData().filter((r) => r.id !== id);
-  writeData(data);
-  return NextResponse.json({ ok: true });
+  try {
+    const { id }: { id: string } = await req.json();
+    const pool = await getPool();
+    await pool
+      .request()
+      .input("id", sql.VarChar(50), id)
+      .query(`DELETE FROM fuentes_stock WHERE id = @id`);
+    return NextResponse.json({ ok: true });
+  } catch (err: unknown) {
+    console.error("[fuentes-stock DELETE]", err);
+    return NextResponse.json(
+      { error: err instanceof Error ? err.message : String(err) },
+      { status: 500 }
+    );
+  }
 }

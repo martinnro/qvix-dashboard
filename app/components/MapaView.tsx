@@ -72,8 +72,16 @@ export default function MapaView({ onClose, sucursalesPermitidas = null }: { onC
   const [puntos, setPuntos]         = useState<Punto[]>([]);
   const [naps, setNaps]             = useState<NapItem[]>([]);
   const [showNaps, setShowNaps]     = useState(false);
+  const [napRangos, setNapRangos]   = useState<string[]>(["0", "1-5", "6-7", "8+"]);
   const [napSelName, setNapSelName] = useState<string | null>(null);
   const napSelInfo = naps.find((n) => n.nap === napSelName) ?? null;
+
+  const napsFiltrados = naps.filter((n) => {
+    if (n.cantidad === 0)  return napRangos.includes("0");
+    if (n.cantidad >= 8)   return napRangos.includes("8+");
+    if (n.cantidad >= 6)   return napRangos.includes("6-7");
+    return napRangos.includes("1-5");
+  });
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState<string | null>(null);
   const [estadosOpts, setEstadosOpts] = useState<EstadoOpt[]>(ESTADOS_DEFAULT);
@@ -354,8 +362,37 @@ export default function MapaView({ onClose, sucursalesPermitidas = null }: { onC
             showNaps ? "bg-yellow-500/20 border-yellow-500/50 text-yellow-400" : "bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200"
           }`}
         >
-          <Wifi size={14} /> NAPs {naps.length > 0 && <span className="text-xs opacity-70">({naps.length})</span>}
+          <Wifi size={14} /> NAPs {naps.length > 0 && <span className="text-xs opacity-70">({napsFiltrados.length}/{naps.length})</span>}
         </button>
+
+        {/* Filtro rangos NAP */}
+        {showNaps && (
+          <div className="flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5">
+            <span className="text-xs text-slate-500 whitespace-nowrap">Conexiones NAP</span>
+            <div className="w-px h-3 bg-slate-700" />
+            <div className="flex items-center gap-1">
+              {([
+                { rango: "0",   color: "#ffffff", label: "0"   },
+                { rango: "1-5", color: "#a855f7", label: "1-5" },
+                { rango: "6-7", color: "#f59e0b", label: "6-7" },
+                { rango: "8+",  color: "#ef4444", label: "8+"  },
+              ] as const).map(({ rango, color, label }) => (
+                <button
+                  key={rango}
+                  onClick={() => setNapRangos((prev) =>
+                    prev.includes(rango) ? prev.filter((r) => r !== rango) : [...prev, rango]
+                  )}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
+                    napRangos.includes(rango) ? "bg-slate-700 text-white" : "text-slate-600 hover:text-slate-400"
+                  }`}
+                >
+                  <span className="w-2 h-2 rounded-full flex-shrink-0 border border-slate-600" style={{ backgroundColor: color }} />
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Pines custom */}
         <div ref={pinesPanelRef} className="relative flex items-center gap-1">
@@ -569,7 +606,7 @@ export default function MapaView({ onClose, sucursalesPermitidas = null }: { onC
         <MapaLeaflet
           puntos={puntos}
           mapStyle={mapStyle}
-          naps={naps}
+          naps={napsFiltrados}
           showNaps={showNaps}
           pinesCustom={pinesFiltrados}
           showPinesCustom={true}

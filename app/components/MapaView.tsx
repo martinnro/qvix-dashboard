@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
-import { RefreshCw, ChevronDown, Check, Wifi, MapPin, Plus, Trash2, X, Loader2 } from "lucide-react";
+import { RefreshCw, ChevronDown, Check, Wifi, MapPin, Plus, Trash2, Loader2 } from "lucide-react";
 import { getColorById, type MapStyle, type NapItem } from "./MapaUtils";
 import type { PinCustom } from "./MapaLeaflet";
 
@@ -23,6 +23,7 @@ interface Punto {
   latitud: number;
   longitud: number;
   nap: string | null;
+  fecha_baja: string | null;
 }
 
 interface Barrio {
@@ -64,9 +65,10 @@ export default function MapaView({ onClose, sucursalesPermitidas = null }: { onC
   const [sucursal, setSucursal] = useState<number>(
     sucursalesPermitidas ? (sucursalesPermitidas[0] ?? 4) : 4
   );
-  const [estados, setEstados]       = useState<number[]>([3, 6]);
-  const [barrios, setBarrios]       = useState<Barrio[]>([]);
-  const [barriosSel, setBarriosSel] = useState<number[]>([]);
+  const [estados, setEstados]     = useState<number[]>([3, 6]);
+  const [bajaModo, setBajaModo]   = useState<"mas12" | "menos12" | null>(null);
+  const [barrios, setBarrios]           = useState<Barrio[]>([]);
+  const [barriosSel, setBarriosSel]     = useState<number[]>([]);
   const [puntos, setPuntos]         = useState<Punto[]>([]);
   const [naps, setNaps]             = useState<NapItem[]>([]);
   const [showNaps, setShowNaps]     = useState(false);
@@ -122,7 +124,7 @@ export default function MapaView({ onClose, sucursalesPermitidas = null }: { onC
         setPinesCustom(d);
         // Inicializar todos los títulos únicos como activos
         const titulos = [...new Set(d.map((p: PinCustom) => p.titulo))] as string[];
-        setActiveTitulos(titulos);
+        setActiveTitulos([]);
       })
       .catch(() => {});
   }, []);
@@ -150,6 +152,7 @@ export default function MapaView({ onClose, sucursalesPermitidas = null }: { onC
       params.set("sucursal", String(sucursal));
       params.set("estados", estados.join(","));
       if (barriosSel.length > 0) params.set("barrios", barriosSel.join(","));
+      if (estados.includes(7) && bajaModo) params.set("bajaModo", bajaModo);
       const res = await fetch(`/api/mapa?${params.toString()}`);
       const json = await res.json();
       if (json.error) throw new Error(json.error);
@@ -159,7 +162,7 @@ export default function MapaView({ onClose, sucursalesPermitidas = null }: { onC
     } finally {
       setLoading(false);
     }
-  }, [sucursal, estados, barriosSel]);
+  }, [sucursal, estados, barriosSel, bajaModo]);
 
   useEffect(() => { fetchPuntos(); }, [fetchPuntos]);
 
@@ -318,6 +321,32 @@ export default function MapaView({ onClose, sucursalesPermitidas = null }: { onC
           )}
         </div>
 
+        {/* Filtro antigüedad baja (solo cuando estado 7 está activo) */}
+        {estados.includes(7) && (
+          <div className="flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5">
+            <span className="text-xs text-slate-500 whitespace-nowrap">Antigüedad Baja</span>
+            <div className="w-px h-3 bg-slate-700" />
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setBajaModo((v) => v === "mas12" ? null : "mas12")}
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
+                  bajaModo === "mas12" ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                + 12 meses
+              </button>
+              <button
+                onClick={() => setBajaModo((v) => v === "menos12" ? null : "menos12")}
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
+                  bajaModo === "menos12" ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-slate-200"
+                }`}
+              >
+                - 12 meses
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* NAPs */}
         <button
           onClick={() => setShowNaps((v) => !v)}
@@ -329,9 +358,12 @@ export default function MapaView({ onClose, sucursalesPermitidas = null }: { onC
         </button>
 
         {/* Pines custom */}
-        <div ref={pinesPanelRef} className="relative">
+        <div ref={pinesPanelRef} className="relative flex items-center gap-1">
           <button
-            onClick={() => { setShowPinesPanel((v) => !v); setShowAddPin(false); }}
+            onClick={() => {
+              if (activeTitulos.length === titulosUnicos.length) setActiveTitulos([]);
+              else setActiveTitulos(titulosUnicos);
+            }}
             className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium border transition-colors ${
               pinesFiltrados.length > 0
                 ? "bg-orange-500/20 border-orange-500/50 text-orange-400"
@@ -345,6 +377,13 @@ export default function MapaView({ onClose, sucursalesPermitidas = null }: { onC
                 {pinesFiltrados.length}/{pinesDeSucursal.length}
               </span>
             )}
+          </button>
+          <button
+            onClick={() => { setShowPinesPanel((v) => !v); setShowAddPin(false); }}
+            className="flex items-center justify-center w-8 h-8 rounded-xl bg-slate-800 border border-slate-700 text-slate-400 hover:text-slate-200 transition-colors"
+            title="Gestionar pines"
+          >
+            <Plus size={14} />
           </button>
 
           {showPinesPanel && (
@@ -507,16 +546,13 @@ export default function MapaView({ onClose, sucursalesPermitidas = null }: { onC
             </div>
           );
         })}
-        {titulosUnicos.map((titulo) => {
+        {titulosUnicos.filter((titulo) => activeTitulos.includes(titulo)).map((titulo) => {
           const count = pinesDeSucursal.filter((p) => p.titulo === titulo).length;
-          const activo = activeTitulos.includes(titulo);
           return (
             <button
               key={titulo}
               onClick={() => toggleTitulo(titulo)}
-              className={`flex items-center gap-2 border rounded-xl px-3 py-1.5 transition-colors ${
-                activo ? "bg-slate-800 border-slate-700" : "bg-slate-900 border-slate-800 opacity-40"
-              }`}
+              className="flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 transition-colors"
             >
               <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: colorPorTitulo(titulo) }} />
               <span className="text-xs text-slate-400">{titulo}</span>

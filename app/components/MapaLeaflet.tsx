@@ -95,6 +95,7 @@ interface Punto {
   latitud: number;
   longitud: number;
   nap: string | null;
+  fecha_baja: string | null;
 }
 
 function FitBounds({ puntos }: { puntos: Punto[] }) {
@@ -202,6 +203,9 @@ export default function MapaLeaflet({
               <p><strong>Conexión:</strong> {p.id_conexion}</p>
               <p><strong>Estado:</strong> {p.estado_nombre}</p>
               {p.nap && <p><strong>NAP:</strong> {p.nap}</p>}
+              {p.fecha_baja && (
+                <p><strong>Fecha baja:</strong> {new Date(p.fecha_baja).toLocaleDateString("es-AR")}</p>
+              )}
             </div>
           </Popup>
         </CircleMarker>

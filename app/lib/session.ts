@@ -13,6 +13,7 @@ export interface SessionData {
 const sessionOptions = {
   password: process.env.SESSION_SECRET ?? "fallback_secret_minimo_32_caracteres_xx",
   cookieName: "qvix_session",
+  ttl: 60 * 60 * 8, // 8 horas
   cookieOptions: { secure: process.env.NODE_ENV === "production" },
 };
 

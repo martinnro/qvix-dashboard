@@ -1,8 +1,10 @@
 "use client";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Monitor, Smartphone, Users, TrendingUp, RefreshCw, ChevronDown, Check } from "lucide-react";
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import TiposServicioDonut from "./TiposServicioDonut";
 import DecosChart from "./DecosChart";
+import { getColorById } from "./MapaUtils";
 
 interface Sucursal {
   cod_sucursal: number;
@@ -19,6 +21,12 @@ interface Sucursal {
 interface EstadoDisponible {
   id: number;
   nombre: string;
+}
+
+interface ConexionEstado {
+  Estado_Servicio: number;
+  nombre: string;
+  cantidad: number;
 }
 
 interface DashboardData {
@@ -60,6 +68,7 @@ export default function ClientesTVDashboard({ sucursalesPermitidas = null }: { s
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [conexEstados, setConexEstados] = useState<ConexionEstado[]>([]);
   const [estados, setEstados] = useState<number[]>([3, 6]);
   const [sucursalSeleccionada, setSucursalSeleccionada] = useState<number | null>(
     sucursalesPermitidas?.length === 1 ? sucursalesPermitidas[0] : null
@@ -97,6 +106,15 @@ export default function ClientesTVDashboard({ sucursalesPermitidas = null }: { s
   }, [estados, sucursalSeleccionada]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (sucursalSeleccionada !== null) params.set("sucursal", String(sucursalSeleccionada));
+    fetch(`/api/conexiones-estado${params.size ? `?${params}` : ""}`)
+      .then((r) => r.json())
+      .then((d) => Array.isArray(d) ? setConexEstados(d) : setConexEstados([]))
+      .catch(() => setConexEstados([]));
+  }, [sucursalSeleccionada]);
 
   const toggleEstado = (id: number) => {
     setEstados((prev) =>
@@ -243,6 +261,59 @@ export default function ClientesTVDashboard({ sucursalesPermitidas = null }: { s
               </div>
             </div>
           </div>
+
+          {/* Conexiones por estado */}
+          {conexEstados.length > 0 && (() => {
+            const total = conexEstados.reduce((s, e) => s + e.cantidad, 0);
+            return (
+              <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5">
+                <h3 className="text-xs text-slate-500 uppercase tracking-wider font-medium mb-4">Conexiones por estado</h3>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
+                  <div className="flex-shrink-0 w-40 h-40 sm:w-48 sm:h-48 mx-auto sm:mx-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={conexEstados}
+                          dataKey="cantidad"
+                          nameKey="nombre"
+                          cx="50%" cy="50%"
+                          innerRadius={52} outerRadius={80}
+                          paddingAngle={2}
+                          startAngle={90} endAngle={-270}
+                        >
+                          {conexEstados.map((e) => (
+                            <Cell key={e.Estado_Servicio} fill={getColorById(e.Estado_Servicio)} stroke="transparent" />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: 8, fontSize: 12 }}
+                          formatter={(value: number | string) => [`${fmt(Number(value))} (${total > 0 ? ((Number(value) / total) * 100).toFixed(1) : 0}%)`, "Conexiones"]}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    {conexEstados.map((e) => {
+                      const pct = total > 0 ? ((e.cantidad / total) * 100).toFixed(1) : "0.0";
+                      return (
+                        <div key={e.Estado_Servicio} className="flex items-center gap-3">
+                          <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: getColorById(e.Estado_Servicio) }} />
+                          <span className="text-slate-400 text-sm flex-1">{e.nombre}</span>
+                          <span className="text-white font-semibold text-sm">{fmt(e.cantidad)}</span>
+                          <span className="text-slate-500 text-xs w-10 text-right">{pct}%</span>
+                        </div>
+                      );
+                    })}
+                    <div className="border-t border-slate-700 pt-2 flex items-center gap-3">
+                      <div className="w-2.5 h-2.5 flex-shrink-0" />
+                      <span className="text-slate-400 text-sm flex-1 font-medium">Total</span>
+                      <span className="text-white font-bold text-sm">{fmt(total)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Desglose por combinación de servicios */}
           <TiposServicioDonut tipos={data.tipos} />

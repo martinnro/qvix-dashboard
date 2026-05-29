@@ -287,7 +287,7 @@ export default function ClientesTVDashboard({ sucursalesPermitidas = null }: { s
                         </Pie>
                         <Tooltip
                           contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: 8, fontSize: 12 }}
-                          formatter={(value: number | string) => [`${fmt(Number(value))} (${total > 0 ? ((Number(value) / total) * 100).toFixed(1) : 0}%)`, "Conexiones"]}
+                          formatter={(value: unknown) => [`${fmt(Number(value))} (${total > 0 ? ((Number(value) / total) * 100).toFixed(1) : 0}%)`, "Conexiones"]}
                         />
                       </PieChart>
                     </ResponsiveContainer>

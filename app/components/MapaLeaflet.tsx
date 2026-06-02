@@ -18,6 +18,18 @@ export interface PinCustom {
   url_origen?: string;
 }
 
+function distanciaM(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+    Math.cos((lat2 * Math.PI) / 180) *
+    Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 function makeNapIcon(cantidad: number) {
   const color = getNapColor(cantidad);
   return L.divIcon({
@@ -160,13 +172,24 @@ export default function MapaLeaflet({
         if (!nap) return null;
         return puntos
           .filter((p) => p.nap === napSel)
-          .map((p) => (
-            <Polyline
-              key={p.id_conexion}
-              positions={[[nap.latitud, nap.longitud], [p.latitud, p.longitud]]}
-              pathOptions={{ color: "#000000", weight: 1.5, dashArray: "5 4", opacity: 0.8 }}
-            />
-          ));
+          .map((p) => {
+            const metros = Math.round(distanciaM(nap.latitud, nap.longitud, p.latitud, p.longitud));
+            return (
+              <Polyline
+                key={p.id_conexion}
+                positions={[[nap.latitud, nap.longitud], [p.latitud, p.longitud]]}
+                pathOptions={{ color: "#000000", weight: 1.5, dashArray: "5 4", opacity: 0.8 }}
+              >
+                <Popup>
+                  <div className="text-sm space-y-0.5">
+                    <p><strong>NAP:</strong> {nap.nap}</p>
+                    <p><strong>Conexión:</strong> {p.id_conexion}</p>
+                    <p><strong>Distancia:</strong> {metros} m</p>
+                  </div>
+                </Popup>
+              </Polyline>
+            );
+          });
       })()}
 
       {/* NAPs */}

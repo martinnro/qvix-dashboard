@@ -73,14 +73,41 @@ export default function MapaView({ onClose, sucursalesPermitidas = null }: { onC
   const [naps, setNaps]             = useState<NapItem[]>([]);
   const [showNaps, setShowNaps]     = useState(false);
   const [napRangos, setNapRangos]   = useState<string[]>(["0", "1-5", "6-7", "8+"]);
+  const [napDropRangos, setNapDropRangos] = useState<string[]>(["<50", "50-150", "150-400", ">400"]);
   const [napSelName, setNapSelName] = useState<string | null>(null);
   const napSelInfo = naps.find((n) => n.nap === napSelName) ?? null;
 
+  function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): number {
+    const R = 6371000;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLng = ((lng2 - lng1) * Math.PI) / 180;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  const napDropProm = new Map<string, number>();
+  for (const nap of naps) {
+    const conxNap = puntos.filter((p) => p.nap === nap.nap);
+    if (conxNap.length === 0) continue;
+    const avg = conxNap.reduce((s, p) => s + haversineM(nap.latitud, nap.longitud, p.latitud, p.longitud), 0) / conxNap.length;
+    napDropProm.set(nap.nap, avg);
+  }
+
+  function napDropRango(nap: string): string {
+    const m = napDropProm.get(nap);
+    if (m === undefined) return "<50";
+    if (m >= 400) return ">400";
+    if (m >= 150) return "150-400";
+    if (m >= 50)  return "50-150";
+    return "<50";
+  }
+
   const napsFiltrados = naps.filter((n) => {
-    if (n.cantidad === 0)  return napRangos.includes("0");
-    if (n.cantidad >= 8)   return napRangos.includes("8+");
-    if (n.cantidad >= 6)   return napRangos.includes("6-7");
-    return napRangos.includes("1-5");
+    if (n.cantidad === 0)  { if (!napRangos.includes("0"))   return false; }
+    else if (n.cantidad >= 8) { if (!napRangos.includes("8+"))  return false; }
+    else if (n.cantidad >= 6) { if (!napRangos.includes("6-7")) return false; }
+    else                      { if (!napRangos.includes("1-5")) return false; }
+    return napDropRangos.includes(napDropRango(n.nap));
   });
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState<string | null>(null);
@@ -387,6 +414,35 @@ export default function MapaView({ onClose, sucursalesPermitidas = null }: { onC
                   }`}
                 >
                   <span className="w-2 h-2 rounded-full flex-shrink-0 border border-slate-600" style={{ backgroundColor: color }} />
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Filtro drop promedio NAP */}
+        {showNaps && (
+          <div className="flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5">
+            <span className="text-xs text-slate-500 whitespace-nowrap">Distancia prom.</span>
+            <div className="w-px h-3 bg-slate-700" />
+            <div className="flex items-center gap-1">
+              {([
+                { rango: "<50",     color: "#22c55e", label: "<50m"     },
+                { rango: "50-150",  color: "#3b82f6", label: "50–150m"  },
+                { rango: "150-400", color: "#f97316", label: "150–400m" },
+                { rango: ">400",    color: "#ef4444", label: ">400m"    },
+              ] as const).map(({ rango, color, label }) => (
+                <button
+                  key={rango}
+                  onClick={() => setNapDropRangos((prev) =>
+                    prev.includes(rango) ? prev.filter((r) => r !== rango) : [...prev, rango]
+                  )}
+                  className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
+                    napDropRangos.includes(rango) ? "bg-slate-700 text-white" : "text-slate-600 hover:text-slate-400"
+                  }`}
+                >
+                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
                   {label}
                 </button>
               ))}

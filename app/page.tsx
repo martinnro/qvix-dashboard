@@ -346,7 +346,7 @@ function Home() {
       <main className={`max-w-screen-xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8 ${showLicencias || showSucursales || showMapa || showFuentesStock ? "hidden" : ""}`}>
 
         {/* ── Dashboard principal — solo en home ── */}
-        {!showServiceView && sessionUser !== null && (
+        {!showServiceView && sessionUser !== null && puedeVer("tv") && (
           <ClientesTVDashboard sucursalesPermitidas={sessionUser.sucursales} />
         )}
 

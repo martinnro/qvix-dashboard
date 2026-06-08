@@ -189,7 +189,7 @@ export default function MacScannerView({ onClose }: { onClose: () => void }) {
     try {
       const { BrowserMultiFormatReader } = await import("@zxing/browser");
       const reader = new BrowserMultiFormatReader();
-      readerRef.current = reader as { reset: () => void };
+      readerRef.current = reader as unknown as { reset: () => void };
       setScanning(true);
       reader.decodeFromVideoDevice(undefined, videoRef.current, (res) => {
         if (res) {
@@ -216,7 +216,7 @@ export default function MacScannerView({ onClose }: { onClose: () => void }) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-white">Escáner MAC</h2>
+          <h2 className="text-xl font-bold text-white">Rastreo de dispositivo</h2>
           <p className="text-slate-400 text-sm mt-0.5">Buscá un dispositivo por código de barras o MAC</p>
         </div>
         <button onClick={onClose} className="text-slate-400 hover:text-white text-sm transition-colors">

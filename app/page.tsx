@@ -273,7 +273,7 @@ function Home() {
                     </button>
                     {showReclamosSubmenu && (
                       <button
-                        onClick={() => { setShowReclamos(true); setShowReportesMenu(false); setShowReclamosSubmenu(false); }}
+                        onClick={() => { goHome(); setShowReclamos(true); setShowReportesMenu(false); setShowReclamosSubmenu(false); }}
                         className={`${menuItem} pl-9 text-xs`}
                       >
                         <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-rose-400" />
@@ -286,7 +286,7 @@ function Home() {
                       Instalaciones
                       <span className="ml-auto text-xs text-slate-600">pronto</span>
                     </button>
-                    <button onClick={() => { setShowMapa(true); setShowReportesMenu(false); }} className={menuItem}>
+                    <button onClick={() => { goHome(); setShowMapa(true); setShowReportesMenu(false); }} className={menuItem}>
                       <span className="w-2 h-2 rounded-full flex-shrink-0 bg-emerald-500" />
                       Mapa
                     </button>
@@ -297,7 +297,7 @@ function Home() {
                     <p className="px-3 py-1.5 text-xs text-slate-500 uppercase tracking-wider">Stock</p>
                     {puedeVer("fuentes") && (
                       <button
-                        onClick={() => { setShowFuentesStock(true); setShowReportesMenu(false); }}
+                        onClick={() => { goHome(); setShowFuentesStock(true); setShowReportesMenu(false); }}
                         className={menuItem}
                       >
                         <span className="w-2 h-2 rounded-full flex-shrink-0 bg-sky-400" />
@@ -306,7 +306,7 @@ function Home() {
                     )}
                     {puedeVer("dispositivos") && (
                       <button
-                        onClick={() => { setShowDispositivos(true); setShowReportesMenu(false); }}
+                        onClick={() => { goHome(); setShowDispositivos(true); setShowReportesMenu(false); }}
                         className={menuItem}
                       >
                         <span className="w-2 h-2 rounded-full flex-shrink-0 bg-violet-400" />
@@ -315,11 +315,11 @@ function Home() {
                     )}
                     {puedeVer("dispositivos") && (
                       <button
-                        onClick={() => { setShowMacScanner(true); setShowReportesMenu(false); }}
+                        onClick={() => { goHome(); setShowMacScanner(true); setShowReportesMenu(false); }}
                         className={menuItem}
                       >
                         <span className="w-2 h-2 rounded-full flex-shrink-0 bg-cyan-400" />
-                        Escáner MAC
+                        Rastreo de dispositivo
                       </button>
                     )}
                   </>}

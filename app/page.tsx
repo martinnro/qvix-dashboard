@@ -21,6 +21,8 @@ import Image from "next/image";
 import ClientesTVDashboard from "./components/ClientesTVDashboard";
 import MapaView from "./components/MapaView";
 import FuentesStockView from "./components/FuentesStockView";
+import DispositivosView from "./components/DispositivosView";
+import MacScannerView from "./components/MacScannerView";
 import { buildOrgStats, buildSummaries, buildTotales } from "./lib/dataUtils";
 import { exportToPDF } from "./lib/exportPDF";
 import { exportToExcel } from "./lib/exportExcel";
@@ -44,6 +46,8 @@ function Home() {
   const [showReportesMenu, setShowReportesMenu] = useState(false);
   const [showMapa, setShowMapa] = useState(false);
   const [showFuentesStock, setShowFuentesStock] = useState(false);
+  const [showDispositivos, setShowDispositivos] = useState(false);
+  const [showMacScanner, setShowMacScanner] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [sessionUser, setSessionUser] = useState<{
     user: string;
@@ -110,7 +114,7 @@ function Home() {
   const selectedOrgIndex = singleOrg ? orgStats.findIndex((o) => o.organizacion === singleOrg) : -1;
 
   // ── Vista activa (mutuamente exclusivas) ───────────────────────────────────
-  const goHome = () => { setShowServiceView(false); setShowLicencias(false); setShowSucursales(false); setShowMapa(false); setShowFuentesStock(false); };
+  const goHome = () => { setShowServiceView(false); setShowLicencias(false); setShowSucursales(false); setShowMapa(false); setShowFuentesStock(false); setShowDispositivos(false); setShowMacScanner(false); };
   const goTo = (view: "licencias" | "sucursales") => {
     setShowLicencias(view === "licencias");
     setShowSucursales(view === "sucursales");
@@ -240,7 +244,7 @@ function Home() {
             </div>}
 
             {/* Reportes dropdown */}
-            {(puedeVer("mapa") || puedeVer("fuentes")) && <div ref={reportesRef} className="relative">
+            {(puedeVer("mapa") || puedeVer("fuentes") || puedeVer("dispositivos")) && <div ref={reportesRef} className="relative">
               <button
                 onClick={() => { setShowReportesMenu(v => !v); setShowTVMenu(false); }}
                 className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
@@ -270,21 +274,36 @@ function Home() {
                     ))}
                   </>}
 
-                  {puedeVer("fuentes") && <>
+                  {(puedeVer("fuentes") || puedeVer("dispositivos")) && <>
                     <div className="border-t border-slate-800 my-1" />
                     <p className="px-3 py-1.5 text-xs text-slate-500 uppercase tracking-wider">Stock</p>
-                    <button
-                      onClick={() => { setShowFuentesStock(true); setShowReportesMenu(false); }}
-                      className={menuItem}
-                    >
-                      <span className="w-2 h-2 rounded-full flex-shrink-0 bg-sky-400" />
-                      Fuentes
-                    </button>
-                    <button className={`${menuItem} opacity-50 cursor-not-allowed`} disabled>
-                      <span className="w-2 h-2 rounded-full flex-shrink-0 bg-violet-400" />
-                      Controles
-                      <span className="ml-auto text-xs text-slate-600">pronto</span>
-                    </button>
+                    {puedeVer("fuentes") && (
+                      <button
+                        onClick={() => { setShowFuentesStock(true); setShowReportesMenu(false); }}
+                        className={menuItem}
+                      >
+                        <span className="w-2 h-2 rounded-full flex-shrink-0 bg-sky-400" />
+                        Fuentes
+                      </button>
+                    )}
+                    {puedeVer("dispositivos") && (
+                      <button
+                        onClick={() => { setShowDispositivos(true); setShowReportesMenu(false); }}
+                        className={menuItem}
+                      >
+                        <span className="w-2 h-2 rounded-full flex-shrink-0 bg-violet-400" />
+                        Dispositivos
+                      </button>
+                    )}
+                    {puedeVer("dispositivos") && (
+                      <button
+                        onClick={() => { setShowMacScanner(true); setShowReportesMenu(false); }}
+                        className={menuItem}
+                      >
+                        <span className="w-2 h-2 rounded-full flex-shrink-0 bg-cyan-400" />
+                        Escáner MAC
+                      </button>
+                    )}
                   </>}
                 </div>
               )}
@@ -342,8 +361,10 @@ function Home() {
 
       {showMapa && <MapaView onClose={goHome} sucursalesPermitidas={sessionUser?.sucursales ?? null} />}
       {showFuentesStock && <FuentesStockView onClose={goHome} />}
+      {showDispositivos && <DispositivosView onClose={goHome} sucursalesPermitidas={sessionUser?.sucursales ?? null} />}
+      {showMacScanner && <MacScannerView onClose={goHome} />}
 
-      <main className={`max-w-screen-xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8 ${showLicencias || showSucursales || showMapa || showFuentesStock ? "hidden" : ""}`}>
+      <main className={`max-w-screen-xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8 ${showLicencias || showSucursales || showMapa || showFuentesStock || showDispositivos || showMacScanner ? "hidden" : ""}`}>
 
         {/* ── Dashboard principal — solo en home ── */}
         {!showServiceView && sessionUser !== null && puedeVer("tv") && (

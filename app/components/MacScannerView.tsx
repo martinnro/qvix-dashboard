@@ -149,7 +149,7 @@ function ResultCard({ result }: { result: MacResult }) {
 
 export default function MacScannerView({ onClose }: { onClose: () => void }) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const readerRef = useRef<{ reset: () => void } | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [scanning, setScanning] = useState(false);
   const [macInput, setMacInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -158,8 +158,9 @@ export default function MacScannerView({ onClose }: { onClose: () => void }) {
   const [cameraError, setCameraError] = useState<string | null>(null);
 
   const stopCamera = useCallback(() => {
-    try { readerRef.current?.reset(); } catch {}
-    readerRef.current = null;
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
     setScanning(false);
   }, []);
 
@@ -184,14 +185,27 @@ export default function MacScannerView({ onClose }: { onClose: () => void }) {
   }, []);
 
   const startCamera = useCallback(async () => {
-    if (!videoRef.current) return;
     setCameraError(null);
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setCameraError("Tu navegador no soporta acceso a la cámara.");
+      return;
+    }
+    // Iniciar getUserMedia ANTES de cualquier await para mantener el contexto
+    // de gesto de usuario requerido por iOS Safari
+    const streamP = navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" } },
+      audio: false,
+    });
+    setScanning(true);
+    // Esperar que React renderice el contenedor del video (double rAF)
+    await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
     try {
+      const stream = await streamP;
+      streamRef.current = stream;
+      if (!videoRef.current) { stopCamera(); return; }
       const { BrowserMultiFormatReader } = await import("@zxing/browser");
       const reader = new BrowserMultiFormatReader();
-      readerRef.current = reader as unknown as { reset: () => void };
-      setScanning(true);
-      reader.decodeFromVideoDevice(undefined, videoRef.current, (res) => {
+      reader.decodeFromStream(stream, videoRef.current, (res) => {
         if (res) {
           const text = res.getText();
           setMacInput(text);
@@ -199,8 +213,13 @@ export default function MacScannerView({ onClose }: { onClose: () => void }) {
           lookup(text);
         }
       });
-    } catch {
-      setCameraError("No se pudo acceder a la cámara. Verificá los permisos.");
+    } catch (e) {
+      const name = e instanceof Error ? e.name : "";
+      setCameraError(
+        name === "NotAllowedError"
+          ? "Permiso de cámara denegado."
+          : "No se pudo acceder a la cámara. Verificá los permisos."
+      );
       setScanning(false);
     }
   }, [lookup, stopCamera]);
@@ -241,8 +260,6 @@ export default function MacScannerView({ onClose }: { onClose: () => void }) {
             Apuntá al código de barras de la etiqueta MAC
           </p>
         </div>
-        {/* Ref placeholder cuando la cámara está oculta */}
-        {!scanning && <video ref={videoRef} className="hidden" />}
 
         <div className="flex gap-2">
           <button

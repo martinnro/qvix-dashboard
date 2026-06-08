@@ -205,14 +205,11 @@ export default function MacScannerView({ onClose }: { onClose: () => void }) {
       if (!videoRef.current) { stopCamera(); return; }
       const { BrowserMultiFormatReader } = await import("@zxing/browser");
       const reader = new BrowserMultiFormatReader();
-      reader.decodeFromStream(stream, videoRef.current, (res) => {
-        if (res) {
-          const text = res.getText();
-          setMacInput(text);
-          stopCamera();
-          lookup(text);
-        }
-      });
+      const decoded = await reader.decodeOnceFromStream(stream, videoRef.current);
+      const text = decoded.getText();
+      setMacInput(text);
+      stopCamera();
+      lookup(text);
     } catch (e) {
       const name = e instanceof Error ? e.name : "";
       setCameraError(

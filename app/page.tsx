@@ -20,6 +20,7 @@ import SucursalesView from "./components/SucursalesView";
 import Image from "next/image";
 import ClientesTVDashboard from "./components/ClientesTVDashboard";
 import MapaView from "./components/MapaView";
+import ReclamosView from "./components/ReclamosView";
 import FuentesStockView from "./components/FuentesStockView";
 import { buildOrgStats, buildSummaries, buildTotales } from "./lib/dataUtils";
 import { exportToPDF } from "./lib/exportPDF";
@@ -42,7 +43,9 @@ function Home() {
   const [showSucursales, setShowSucursales] = useState(false);
   const [showTVMenu, setShowTVMenu] = useState(false);
   const [showReportesMenu, setShowReportesMenu] = useState(false);
+  const [showReclamosSubmenu, setShowReclamosSubmenu] = useState(false);
   const [showMapa, setShowMapa] = useState(false);
+  const [showReclamos, setShowReclamos] = useState(false);
   const [showFuentesStock, setShowFuentesStock] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [sessionUser, setSessionUser] = useState<{
@@ -110,7 +113,7 @@ function Home() {
   const selectedOrgIndex = singleOrg ? orgStats.findIndex((o) => o.organizacion === singleOrg) : -1;
 
   // ── Vista activa (mutuamente exclusivas) ───────────────────────────────────
-  const goHome = () => { setShowServiceView(false); setShowLicencias(false); setShowSucursales(false); setShowMapa(false); setShowFuentesStock(false); };
+  const goHome = () => { setShowServiceView(false); setShowLicencias(false); setShowSucursales(false); setShowMapa(false); setShowReclamos(false); setShowFuentesStock(false); };
   const goTo = (view: "licencias" | "sucursales") => {
     setShowLicencias(view === "licencias");
     setShowSucursales(view === "sucursales");
@@ -121,7 +124,7 @@ function Home() {
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (tvRef.current && !tvRef.current.contains(e.target as Node)) setShowTVMenu(false);
-      if (reportesRef.current && !reportesRef.current.contains(e.target as Node)) setShowReportesMenu(false);
+      if (reportesRef.current && !reportesRef.current.contains(e.target as Node)) { setShowReportesMenu(false); setShowReclamosSubmenu(false); }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -253,21 +256,36 @@ function Home() {
               {showReportesMenu && (
                 <div className="absolute left-0 top-full mt-2 w-52 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 p-1.5">
                   {puedeVer("mapa") && <>
-                    {[
-                      { label: "Reclamos", color: "bg-rose-500", disabled: true },
-                      { label: "Instalaciones", color: "bg-amber-400", disabled: true },
-                      { label: "Mapa", color: "bg-emerald-500", disabled: false },
-                    ].map(({ label, color, disabled }) => (
-                      <button key={label}
-                        className={`${menuItem} ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
-                        disabled={disabled}
-                        onClick={!disabled && label === "Mapa" ? () => { setShowMapa(true); setShowReportesMenu(false); } : undefined}
+                    {/* Reclamos — submenú */}
+                    <button
+                      onClick={() => setShowReclamosSubmenu((v) => !v)}
+                      className={`${menuItem} justify-between`}
+                    >
+                      <span className="flex items-center gap-2.5">
+                        <span className="w-2 h-2 rounded-full flex-shrink-0 bg-rose-500" />
+                        Reclamos
+                      </span>
+                      <ChevronDown size={13} className={`transition-transform ${showReclamosSubmenu ? "rotate-180" : ""}`} />
+                    </button>
+                    {showReclamosSubmenu && (
+                      <button
+                        onClick={() => { setShowReclamos(true); setShowReportesMenu(false); setShowReclamosSubmenu(false); }}
+                        className={`${menuItem} pl-9 text-xs`}
                       >
-                        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${color}`} />
-                        {label}
-                        {disabled && <span className="ml-auto text-xs text-slate-600">pronto</span>}
+                        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-rose-400" />
+                        Cambio de Drop
                       </button>
-                    ))}
+                    )}
+
+                    <button className={`${menuItem} opacity-50 cursor-not-allowed`} disabled>
+                      <span className="w-2 h-2 rounded-full flex-shrink-0 bg-amber-400" />
+                      Instalaciones
+                      <span className="ml-auto text-xs text-slate-600">pronto</span>
+                    </button>
+                    <button onClick={() => { setShowMapa(true); setShowReportesMenu(false); }} className={menuItem}>
+                      <span className="w-2 h-2 rounded-full flex-shrink-0 bg-emerald-500" />
+                      Mapa
+                    </button>
                   </>}
 
                   {puedeVer("fuentes") && <>
@@ -341,9 +359,10 @@ function Home() {
       )}
 
       {showMapa && <MapaView onClose={goHome} sucursalesPermitidas={sessionUser?.sucursales ?? null} />}
+      {showReclamos && <ReclamosView onClose={goHome} />}
       {showFuentesStock && <FuentesStockView onClose={goHome} />}
 
-      <main className={`max-w-screen-xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8 ${showLicencias || showSucursales || showMapa || showFuentesStock ? "hidden" : ""}`}>
+      <main className={`max-w-screen-xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8 ${showLicencias || showSucursales || showMapa || showReclamos || showFuentesStock ? "hidden" : ""}`}>
 
         {/* ── Dashboard principal — solo en home ── */}
         {!showServiceView && sessionUser !== null && puedeVer("tv") && (

@@ -157,12 +157,14 @@ export default function MacScannerView({ onClose }: { onClose: () => void }) {
   const [result, setResult] = useState<MacResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [scanHint, setScanHint] = useState<string | null>(null);
 
   const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
     if (videoRef.current) videoRef.current.srcObject = null;
     setScanning(false);
+    setScanHint(null);
   }, []);
 
   useEffect(() => () => { stopCamera(); }, [stopCamera]);
@@ -206,12 +208,23 @@ export default function MacScannerView({ onClose }: { onClose: () => void }) {
       if (!videoRef.current) { stopCamera(); return; }
       const { BrowserMultiFormatReader } = await import("@zxing/browser");
       const reader = new BrowserMultiFormatReader();
-      const decoded = await reader.decodeOnceFromStream(stream, videoRef.current);
-      const text = decoded.getText();
-      setMacInput(text);
-      stopCamera();
-      lookup(text);
+      const MAC_RE = /^[0-9A-Fa-f]{12}$|^([0-9A-Fa-f]{2}[:\-. ]){5}[0-9A-Fa-f]{2}$/;
+      // Loop hasta encontrar un código que sea una MAC válida
+      while (streamRef.current) {
+        const decoded = await reader.decodeOnceFromStream(stream, videoRef.current);
+        const text = decoded.getText();
+        if (MAC_RE.test(text.trim())) {
+          setScanHint(null);
+          setMacInput(text);
+          stopCamera();
+          lookup(text);
+          break;
+        }
+        // El código escaneado no es una MAC — avisar y reintentar
+        setScanHint(`"${text.slice(0, 24)}" no es el código MAC. Apuntá al del medio.`);
+      }
     } catch (e) {
+      if (!streamRef.current) return; // cancelado por el usuario
       const name = e instanceof Error ? e.name : "";
       setCameraError(
         name === "NotAllowedError"
@@ -254,8 +267,8 @@ export default function MacScannerView({ onClose }: { onClose: () => void }) {
             className="absolute top-3 right-3 p-2 rounded-full bg-slate-900/80 text-slate-300 hover:text-white transition-colors">
             <X size={15} />
           </button>
-          <p className="absolute bottom-3 left-0 right-0 text-center text-xs text-slate-400">
-            Apuntá al código de barras de la etiqueta MAC
+          <p className={`absolute bottom-3 left-0 right-0 text-center text-xs px-4 ${scanHint ? "text-amber-400" : "text-slate-400"}`}>
+            {scanHint ?? "Apuntá al código de barras de la etiqueta MAC"}
           </p>
         </div>
 

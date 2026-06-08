@@ -4,6 +4,7 @@ import { Camera, Search, X, AlertCircle, Wifi, Monitor, RefreshCw } from "lucide
 import { getColorById } from "./MapaUtils";
 
 const SUCURSALES: Record<number, string> = {
+  0: "Central",
   1: "Chumbicha", 4: "Valle Viejo", 5: "Tinogasta",
   6: "Rodeo", 7: "La Puerta", 8: "Fiambalá",
 };

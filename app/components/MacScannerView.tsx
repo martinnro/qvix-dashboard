@@ -258,17 +258,39 @@ export default function MacScannerView({ onClose }: { onClose: () => void }) {
       <div className="space-y-3">
         {/* Video preview — siempre en DOM para mantener el ref */}
         <div className={`relative rounded-2xl overflow-hidden bg-black border border-slate-700 ${scanning ? "block" : "hidden"}`}>
+          <style>{`
+            @keyframes scan-sweep {
+              0%   { top: 2px; }
+              100% { top: calc(100% - 2px); }
+            }
+            .scan-line-anim {
+              animation: scan-sweep 1.2s linear infinite alternate;
+            }
+          `}</style>
           <video ref={videoRef} className="w-full h-64 object-cover" autoPlay muted playsInline />
-          {/* Retícula de encuadre */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="w-56 h-28 border-2 border-cyan-400 rounded-lg opacity-80" />
+          {/* Overlay oscuro + slot angosto tipo scanner láser */}
+          <div className="absolute inset-0 pointer-events-none flex flex-col">
+            {/* zona superior oscurecida */}
+            <div className="flex-1 bg-black/50" />
+            {/* slot de lectura */}
+            <div className="relative mx-6 h-10 border-2 border-cyan-400 rounded overflow-hidden">
+              {/* línea animada */}
+              <div className="scan-line-anim absolute inset-x-0 h-px bg-red-500 opacity-90" />
+              {/* esquinas reforzadas */}
+              <div className="absolute top-0 left-0 w-4 h-0.5 bg-cyan-400" />
+              <div className="absolute top-0 right-0 w-4 h-0.5 bg-cyan-400" />
+              <div className="absolute bottom-0 left-0 w-4 h-0.5 bg-cyan-400" />
+              <div className="absolute bottom-0 right-0 w-4 h-0.5 bg-cyan-400" />
+            </div>
+            {/* zona inferior oscurecida */}
+            <div className="flex-1 bg-black/50" />
           </div>
           <button onClick={stopCamera}
             className="absolute top-3 right-3 p-2 rounded-full bg-slate-900/80 text-slate-300 hover:text-white transition-colors">
             <X size={15} />
           </button>
-          <p className={`absolute bottom-3 left-0 right-0 text-center text-xs px-4 ${scanHint ? "text-amber-400" : "text-slate-400"}`}>
-            {scanHint ?? "Apuntá al código de barras de la etiqueta MAC"}
+          <p className={`absolute bottom-3 left-0 right-0 text-center text-xs px-4 ${scanHint ? "text-amber-400 font-medium" : "text-slate-400"}`}>
+            {scanHint ?? "Centrá el código de barras MAC en la línea roja"}
           </p>
         </div>
 

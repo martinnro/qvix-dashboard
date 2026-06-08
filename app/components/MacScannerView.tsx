@@ -193,35 +193,66 @@ export default function MacScannerView({ onClose }: { onClose: () => void }) {
       setCameraError("Tu navegador no soporta acceso a la cámara.");
       return;
     }
-    // Iniciar getUserMedia ANTES de cualquier await para mantener el contexto
-    // de gesto de usuario requerido por iOS Safari
+    // getUserMedia ANTES de cualquier await (requisito de iOS Safari)
     const streamP = navigator.mediaDevices.getUserMedia({
       video: { facingMode: { ideal: "environment" } },
       audio: false,
     });
     setScanning(true);
-    // Esperar que React renderice el contenedor del video (double rAF)
     await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
     try {
       const stream = await streamP;
       streamRef.current = stream;
       if (!videoRef.current) { stopCamera(); return; }
+
+      // Adjuntar stream al video manualmente
+      videoRef.current.srcObject = stream;
+      await new Promise<void>((r) => {
+        const v = videoRef.current!;
+        if (v.readyState >= 2) { r(); return; }
+        v.addEventListener("loadeddata", () => r(), { once: true });
+      });
+
       const { BrowserMultiFormatReader } = await import("@zxing/browser");
       const reader = new BrowserMultiFormatReader();
       const MAC_RE = /^[0-9A-Fa-f]{12}$|^([0-9A-Fa-f]{2}[:\-. ]){5}[0-9A-Fa-f]{2}$/;
-      // Loop hasta encontrar un código que sea una MAC válida
+
+      // Canvas offscreen — solo la franja central del video (≈22% de altura)
+      // Esto es lo que realmente ve el decoder, no el frame completo
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d")!;
+
       while (streamRef.current) {
-        const decoded = await reader.decodeOnceFromStream(stream, videoRef.current);
-        const text = decoded.getText();
-        if (MAC_RE.test(text.trim())) {
-          setScanHint(null);
-          setMacInput(text);
-          stopCamera();
-          lookup(text);
-          break;
+        const vw = videoRef.current?.videoWidth ?? 0;
+        const vh = videoRef.current?.videoHeight ?? 0;
+        if (vw === 0 || vh === 0) {
+          await new Promise<void>((r) => requestAnimationFrame(() => r()));
+          continue;
         }
-        // El código escaneado no es una MAC — avisar y reintentar
-        setScanHint(`"${text.slice(0, 24)}" no es el código MAC. Apuntá al del medio.`);
+        // Cropear solo la franja del slot (centro 22% del frame)
+        const slotH = Math.round(vh * 0.22);
+        const srcY  = Math.round((vh - slotH) / 2);
+        canvas.width  = vw;
+        canvas.height = slotH;
+        ctx.drawImage(videoRef.current!, 0, srcY, vw, slotH, 0, 0, vw, slotH);
+
+        try {
+          const decoded = reader.decodeFromCanvas(canvas);
+          const text = decoded.getText();
+          if (MAC_RE.test(text.trim())) {
+            setScanHint(null);
+            setMacInput(text);
+            stopCamera();
+            lookup(text);
+            break;
+          }
+          setScanHint(`"${text.slice(0, 24)}" no es MAC. Apuntá al código del medio.`);
+        } catch {
+          // NotFoundException — frame sin código visible, continuar
+        }
+
+        // ~20 fps es suficiente para escaneo de código de barras
+        await new Promise<void>((r) => setTimeout(r, 50));
       }
     } catch (e) {
       if (!streamRef.current) return; // cancelado por el usuario

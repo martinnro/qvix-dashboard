@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
         tes.descripcion                          AS Estado_Servicio,
         p2.problema_descripcion,
         ta.asistencia,
+        u.desc_usr                               AS creado_por,
         CASE
             WHEN SUM(CASE WHEN im.id_dispositivo = 342 THEN 1 ELSE 0 END) > 0
             THEN 'SI' ELSE 'NO'
@@ -58,6 +59,7 @@ export async function GET(req: NextRequest) {
     LEFT JOIN v_con_dom vcd              WITH (NOLOCK) ON vcd.id_conexion        = vos.id_conexion
     LEFT JOIN tipo_estado_servicio tes   WITH (NOLOCK) ON tes.id_estado_servicio = vcd.Estado_Servicio
     LEFT JOIN incidencias_header ih      WITH (NOLOCK) ON ih.id_incidencia       = vos.id_incidencia
+    LEFT JOIN usuarios u                 WITH (NOLOCK) ON u.id_usuario            = ih.id_usuario
     LEFT JOIN tipo_motivos_estado tme    WITH (NOLOCK) ON tme.id_motivo          = ih.id_motivo
     LEFT JOIN incidencias_soluciones is2 WITH (NOLOCK) ON is2.id_incidencia      = ih.id_incidencia
     LEFT JOIN tipo_asistencia ta         WITH (NOLOCK) ON ta.tipo_asistencia     = is2.tipo_asistencia
@@ -74,7 +76,7 @@ export async function GET(req: NextRequest) {
     GROUP BY
         vcd.id_conexion, vos.id_Orden_Servicio, tes.descripcion, p2.problema_descripcion,
         is2.tipo_asistencia, ta.asistencia, ih.id_incidencia,
-        vos.fecha_reclamo, vos.fecha_solucion, tme.descripcion
+        vos.fecha_reclamo, vos.fecha_solucion, tme.descripcion, u.desc_usr
     ORDER BY vos.id_Orden_Servicio DESC
   `;
 

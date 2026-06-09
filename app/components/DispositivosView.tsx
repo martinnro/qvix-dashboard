@@ -386,13 +386,13 @@ export default function DispositivosView({
               <div className="text-2xl font-bold text-cyan-400">{fmt(totalOnts)}</div>
             </div>
           </div>
-          {/* Decos activas */}
+          {/* Decos activos */}
           <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5 flex items-center gap-4">
             <div className="w-10 h-10 rounded-xl bg-violet-500/20 flex items-center justify-center flex-shrink-0">
               <Monitor size={18} className="text-violet-400" />
             </div>
             <div>
-              <div className="text-xs text-slate-400">Decos activas</div>
+              <div className="text-xs text-slate-400">Decos activos</div>
               <div className="text-2xl font-bold text-violet-400">{fmt(totalActivos)}</div>
             </div>
           </div>
@@ -407,11 +407,11 @@ export default function DispositivosView({
               <div className="flex items-center gap-3 mt-1">
                 <span className="text-xs text-cyan-400 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 inline-block" />
-                  {fmt(totalStockOnts)} ONT
+                  {fmt(totalStockOnts)} ONTs
                 </span>
                 <span className="text-xs text-violet-400 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-violet-400 inline-block" />
-                  {fmt(totalStockDecos)} Deco
+                  {fmt(totalStockDecos)} Decos
                 </span>
               </div>
             </div>

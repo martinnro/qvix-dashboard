@@ -95,7 +95,7 @@ function ResultCard({ result }: { result: MacResult }) {
         <div className="bg-slate-800 border border-indigo-700/50 rounded-2xl p-4 space-y-2.5">
           <div className="text-xs font-semibold uppercase tracking-wider text-indigo-400 mb-1">Conexión activa</div>
           {[
-            ["ID Conexión", `#${activa.id_conexion}`, "font-mono"],
+            ["ID Conexión", `${activa.id_conexion}`, "font-mono"],
             ["Sucursal", SUCURSALES[activa.cod_sucursal] ?? activa.cod_sucursal, ""],
             ["Asignado el", fmtDate(activa.fecha_asignacion), ""],
           ].map(([label, value, extra]) => (
@@ -128,7 +128,7 @@ function ResultCard({ result }: { result: MacResult }) {
               <div key={i} className="px-4 py-3 flex items-center justify-between text-sm">
                 <div>
                   <div className={`font-mono text-xs font-medium ${c.estado_asignacion === 0 ? "text-indigo-400" : "text-white"}`}>
-                    #{c.id_conexion}
+                    ID Conexión: {c.id_conexion}
                     {c.estado_asignacion === 0 && <span className="ml-2 text-indigo-300 font-sans font-normal">(activa)</span>}
                   </div>
                   <div className="text-slate-500 text-xs mt-0.5">

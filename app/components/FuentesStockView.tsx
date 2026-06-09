@@ -97,6 +97,7 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
   const [fechaHasta, setFechaHasta] = useState("");
   const [tieneFuente, setTieneFuente] = useState("");
   const [filtroTipo, setFiltroTipo] = useState<"" | "comercial" | "cuadrilla">("");
+  const [expandedOds, setExpandedOds] = useState<number | null>(null);
 
   // ── Carga ──────────────────────────────────────────────────────────────────
   const load = () => {
@@ -532,14 +533,14 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
             <table className="w-full text-sm border-collapse min-w-[1000px]">
               <thead>
                 <tr className="bg-slate-800 text-slate-400 text-xs uppercase tracking-wide">
-                  {["ODS", "Conexión", "Estado Servicio", "Asistencia", "Creado por", "Tipo", "Problema", "Fuente 12V", "Otros materiales", "Reclamo", "Solución"].map((h) => (
+                  {["ODS", "Conexión", "Estado Servicio", "Asistencia", "Tipo", "Problema", "Fuente 12V", "Otros materiales", "Reclamo", "Solución"].map((h) => (
                     <th key={h} className="px-3 py-2.5 text-left border-b border-slate-700">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {!controlLoading && controlRows.length === 0 && !controlError && (
-                  <tr><td colSpan={11} className="text-center text-slate-500 py-12">Sin resultados. Ajustá los filtros y presioná Buscar.</td></tr>
+                  <tr><td colSpan={10} className="text-center text-slate-500 py-12">Sin resultados. Ajustá los filtros y presioná Buscar.</td></tr>
                 )}
                 {controlRows
                   .filter((row) => !filtroTipo || tipoCreador(row.creado_por) === filtroTipo)
@@ -551,11 +552,16 @@ export default function FuentesStockView({ onClose }: { onClose: () => void }) {
                     <td className="px-3 py-2 text-slate-300">{row.id_conexion}</td>
                     <td className="px-3 py-2 text-slate-300 whitespace-nowrap">{row.Estado_Servicio ?? "—"}</td>
                     <td className="px-3 py-2 text-slate-300 whitespace-nowrap">{row.asistencia ?? "—"}</td>
-                    <td className="px-3 py-2 text-slate-200 whitespace-nowrap">{row.creado_por ?? "—"}</td>
                     <td className="px-3 py-2">
-                      <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${tipo === "comercial" ? "bg-indigo-900/60 text-indigo-300" : "bg-amber-900/60 text-amber-300"}`}>
+                      <button
+                        onClick={() => setExpandedOds(expandedOds === row.id_Orden_Servicio ? null : row.id_Orden_Servicio)}
+                        className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full cursor-pointer transition-opacity hover:opacity-80 ${tipo === "comercial" ? "bg-indigo-900/60 text-indigo-300" : "bg-amber-900/60 text-amber-300"}`}
+                      >
                         {tipo === "comercial" ? "Comercial" : "Cuadrilla"}
-                      </span>
+                      </button>
+                      {expandedOds === row.id_Orden_Servicio && (
+                        <p className="text-xs text-slate-400 mt-1 whitespace-nowrap">{row.creado_por ?? "—"}</p>
+                      )}
                     </td>
                     <td className="px-3 py-2 text-slate-400 max-w-[180px] truncate" title={row.problema_descripcion ?? ""}>{row.problema_descripcion ?? "—"}</td>
                     <td className="px-3 py-2 text-center">

@@ -346,7 +346,7 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
                       ))}
                       {ei === eventos.length - 1 && (
                         <LabelList dataKey={ev} position="top"
-                          formatter={(v: number) => `${v}%`}
+                          formatter={(v: unknown) => typeof v === "number" ? `${v}%` : ""}
                           style={{ fill: chart.axis, fontSize: 12, fontWeight: 700 }} />
                       )}
                     </Bar>
@@ -375,7 +375,7 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
                       ))}
                       {ei === eventos.length - 1 && (
                         <LabelList dataKey={ev} position="top"
-                          formatter={(v: number) => `${v}%`}
+                          formatter={(v: unknown) => typeof v === "number" ? `${v}%` : ""}
                           style={{ fill: chart.axis, fontSize: 12, fontWeight: 700 }} />
                       )}
                     </Bar>
@@ -468,7 +468,7 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
                       contentStyle={tooltipContentStyle}
                       labelStyle={{ color: chart.tooltipLabel }}
                       itemStyle={{ color: chart.tooltipItem }}
-                      formatter={(v: unknown, name: string) => [Number(v).toLocaleString("es-AR"), name]}
+                      formatter={(v: unknown, name) => [Number(v).toLocaleString("es-AR"), String(name ?? "")]}
                     />
                     <Legend wrapperStyle={{ color: chart.legend, fontSize: 12 }} />
                     {tiposDisp.map((tipo, i) => (
@@ -476,7 +476,7 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
                         <LabelList
                           dataKey={tipo}
                           position="top"
-                          formatter={(v: number) => v > 0 ? v.toLocaleString("es-AR") : ""}
+                          formatter={(v: unknown) => typeof v === "number" && v > 0 ? v.toLocaleString("es-AR") : ""}
                           style={{ fill: chart.axis, fontSize: 11, fontWeight: 600 }}
                         />
                       </Bar>

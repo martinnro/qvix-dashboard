@@ -1,0 +1,72 @@
+[
+  {
+    "id": "1781719901604",
+    "fecha": "2026-06-16",
+    "evento": "Argentina vs Argelia",
+    "sucursal": "Valle Viejo",
+    "clientes_online": 1877,
+    "clientes_total": 3230,
+    "dispositivos_online": 2214,
+    "dispositivos_total": 5766
+  },
+  {
+    "id": "1781719901616",
+    "fecha": "2026-06-16",
+    "evento": "Argentina vs Argelia",
+    "sucursal": "Chumbicha",
+    "clientes_online": 312,
+    "clientes_total": 476,
+    "dispositivos_online": 376,
+    "dispositivos_total": 934
+  },
+  {
+    "id": "1781719901627",
+    "fecha": "2026-06-16",
+    "evento": "Argentina vs Argelia",
+    "sucursal": "La Puerta",
+    "clientes_online": 83,
+    "clientes_total": 154,
+    "dispositivos_online": 106,
+    "dispositivos_total": 297
+  },
+  {
+    "id": "1781719901660",
+    "fecha": "2026-06-16",
+    "evento": "Argentina vs Argelia",
+    "sucursal": "Tinogasta",
+    "clientes_online": 333,
+    "clientes_total": 556,
+    "dispositivos_online": 394,
+    "dispositivos_total": 972
+  },
+  {
+    "id": "1781719901678",
+    "fecha": "2026-06-16",
+    "evento": "Argentina vs Argelia",
+    "sucursal": "El Rodeo",
+    "clientes_online": 173,
+    "clientes_total": 359,
+    "dispositivos_online": 214,
+    "dispositivos_total": 684
+  },
+  {
+    "id": "1781719901693",
+    "fecha": "2026-06-16",
+    "evento": "Argentina vs Argelia",
+    "sucursal": "Fiambalá",
+    "clientes_online": 227,
+    "clientes_total": 359,
+    "dispositivos_online": 245,
+    "dispositivos_total": 507
+  },
+  {
+    "id": "1781721155409",
+    "fecha": "2026-06-16",
+    "evento": "Argentina vs Argelia",
+    "sucursal": "ViewTV",
+    "clientes_online": 11300,
+    "clientes_total": 17308,
+    "dispositivos_online": 12732,
+    "dispositivos_total": 31887
+  }
+]

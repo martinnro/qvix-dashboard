@@ -1,0 +1,146 @@
+[
+  {
+    "id": "1781720892379",
+    "fecha": "2026-06-16T22:00",
+    "evento": "Argentina vs Argelia",
+    "tipo": "App Android TV",
+    "sucursal": "Valle Viejo",
+    "cantidad": 2466
+  },
+  {
+    "id": "1781720892394",
+    "fecha": "2026-06-16T22:00",
+    "evento": "Argentina vs Argelia",
+    "tipo": "App Android TV",
+    "sucursal": "Chumbicha",
+    "cantidad": 244
+  },
+  {
+    "id": "1781720892421",
+    "fecha": "2026-06-16T22:00",
+    "evento": "Argentina vs Argelia",
+    "tipo": "App Android TV",
+    "sucursal": "Tinogasta",
+    "cantidad": 421
+  },
+  {
+    "id": "1781720892431",
+    "fecha": "2026-06-16T22:00",
+    "evento": "Argentina vs Argelia",
+    "tipo": "App Android TV",
+    "sucursal": "El Rodeo",
+    "cantidad": 239
+  },
+  {
+    "id": "1781720892446",
+    "fecha": "2026-06-16T22:00",
+    "evento": "Argentina vs Argelia",
+    "tipo": "App Android TV",
+    "sucursal": "La Puerta",
+    "cantidad": 119
+  },
+  {
+    "id": "1781720892468",
+    "fecha": "2026-06-16T22:00",
+    "evento": "Argentina vs Argelia",
+    "tipo": "App Android TV",
+    "sucursal": "Fiambalá",
+    "cantidad": 272
+  },
+  {
+    "id": "1781720892490",
+    "fecha": "2026-06-16T22:00",
+    "evento": "Argentina vs Argelia",
+    "tipo": "App Android TV",
+    "sucursal": "ViewTV",
+    "cantidad": 13900
+  },
+  {
+    "id": "1781720928787",
+    "fecha": "2026-06-16T22:00",
+    "evento": "Argentina vs Argelia",
+    "tipo": "App Phone",
+    "sucursal": "Valle Viejo",
+    "cantidad": 27
+  },
+  {
+    "id": "1781720928883",
+    "fecha": "2026-06-16T22:00",
+    "evento": "Argentina vs Argelia",
+    "tipo": "App Phone",
+    "sucursal": "Chumbicha",
+    "cantidad": 10
+  },
+  {
+    "id": "1781720928915",
+    "fecha": "2026-06-16T22:00",
+    "evento": "Argentina vs Argelia",
+    "tipo": "App Phone",
+    "sucursal": "Tinogasta",
+    "cantidad": 10
+  },
+  {
+    "id": "1781720928938",
+    "fecha": "2026-06-16T22:00",
+    "evento": "Argentina vs Argelia",
+    "tipo": "App Phone",
+    "sucursal": "El Rodeo",
+    "cantidad": 3
+  },
+  {
+    "id": "1781720928965",
+    "fecha": "2026-06-16T22:00",
+    "evento": "Argentina vs Argelia",
+    "tipo": "App Phone",
+    "sucursal": "La Puerta",
+    "cantidad": 1
+  },
+  {
+    "id": "1781720928992",
+    "fecha": "2026-06-16T22:00",
+    "evento": "Argentina vs Argelia",
+    "tipo": "App Phone",
+    "sucursal": "Fiambalá",
+    "cantidad": 0
+  },
+  {
+    "id": "1781720929046",
+    "fecha": "2026-06-16T22:00",
+    "evento": "Argentina vs Argelia",
+    "tipo": "App Phone",
+    "sucursal": "ViewTV",
+    "cantidad": 237
+  },
+  {
+    "id": "1781720960519",
+    "fecha": "2026-06-16T22:00",
+    "evento": "Argentina vs Argelia",
+    "tipo": "App Tablet",
+    "sucursal": "Tinogasta",
+    "cantidad": 1
+  },
+  {
+    "id": "1781720960530",
+    "fecha": "2026-06-16T22:00",
+    "evento": "Argentina vs Argelia",
+    "tipo": "App Tablet",
+    "sucursal": "ViewTV",
+    "cantidad": 35
+  },
+  {
+    "id": "1781720960572",
+    "fecha": "2026-06-16T22:00",
+    "evento": "Argentina vs Argelia",
+    "tipo": "App Tablet",
+    "sucursal": "Chumbicha",
+    "cantidad": 1
+  },
+  {
+    "id": "1781720960597",
+    "fecha": "2026-06-16T22:00",
+    "evento": "Argentina vs Argelia",
+    "tipo": "App Tablet",
+    "sucursal": "Valle Viejo",
+    "cantidad": 1
+  }
+]

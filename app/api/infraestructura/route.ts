@@ -1,44 +1,61 @@
 import { NextRequest, NextResponse } from "next/server";
-import path from "path";
-import fs from "fs";
+import { getPool } from "@/app/lib/db";
 
-const DATA_FILE = path.join(process.cwd(), "data", "infraestructura.json");
-
-interface EventoRow {
-  id: string;
-  fecha: string;
-  evento: string;
-  sucursal: string;
-  clientes_online: number;
-  clientes_total: number;
-  dispositivos_online: number;
-  dispositivos_total: number;
-}
-
-function readData(): EventoRow[] {
-  try {
-    if (!fs.existsSync(DATA_FILE)) return [];
-    return JSON.parse(fs.readFileSync(DATA_FILE, "utf-8"));
-  } catch {
-    return [];
-  }
-}
-
-function writeData(data: EventoRow[]) {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), "utf-8");
-}
+const ENSURE_TABLE = `
+  IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='dashboard_infraestructura' AND xtype='U')
+  CREATE TABLE dashboard_infraestructura (
+    id NVARCHAR(50) NOT NULL PRIMARY KEY,
+    fecha NVARCHAR(20) NOT NULL,
+    evento NVARCHAR(200) NOT NULL,
+    sucursal NVARCHAR(100) NOT NULL,
+    clientes_online INT NOT NULL DEFAULT 0,
+    clientes_total INT NOT NULL DEFAULT 0,
+    dispositivos_online INT NOT NULL DEFAULT 0,
+    dispositivos_total INT NOT NULL DEFAULT 0,
+    fecha_carga DATETIME NOT NULL DEFAULT GETDATE()
+  )
+`;
 
 export async function GET() {
-  return NextResponse.json(readData());
+  try {
+    const pool = await getPool();
+    await pool.request().query(ENSURE_TABLE);
+    const result = await pool.request().query(`
+      SELECT id, fecha, evento, sucursal,
+             clientes_online, clientes_total,
+             dispositivos_online, dispositivos_total
+      FROM dashboard_infraestructura
+      ORDER BY fecha DESC, evento
+    `);
+    return NextResponse.json(result.recordset);
+  } catch (e) {
+    return NextResponse.json({ error: String(e) }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const body: Omit<EventoRow, "id"> = await req.json();
-    const data = readData();
-    const newRow: EventoRow = { id: Date.now().toString(), ...body };
-    writeData([...data, newRow]);
-    return NextResponse.json(newRow);
+    const body = await req.json();
+    const { fecha, evento, sucursal, clientes_online, clientes_total, dispositivos_online, dispositivos_total } = body;
+    const id = Date.now().toString();
+    const pool = await getPool();
+    await pool.request().query(ENSURE_TABLE);
+    await pool.request()
+      .input("id", id)
+      .input("fecha", fecha)
+      .input("evento", evento)
+      .input("sucursal", sucursal)
+      .input("clientes_online", Number(clientes_online ?? 0))
+      .input("clientes_total", Number(clientes_total ?? 0))
+      .input("dispositivos_online", Number(dispositivos_online ?? 0))
+      .input("dispositivos_total", Number(dispositivos_total ?? 0))
+      .query(`
+        INSERT INTO dashboard_infraestructura
+          (id, fecha, evento, sucursal, clientes_online, clientes_total, dispositivos_online, dispositivos_total)
+        VALUES
+          (@id, @fecha, @evento, @sucursal, @clientes_online, @clientes_total, @dispositivos_online, @dispositivos_total)
+      `);
+    return NextResponse.json({ ok: true, id });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
@@ -46,8 +63,11 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const { id }: { id: string } = await req.json();
-    writeData(readData().filter((r) => r.id !== id));
+    const { id } = await req.json();
+    const pool = await getPool();
+    await pool.request()
+      .input("id", id)
+      .query("DELETE FROM dashboard_infraestructura WHERE id = @id");
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ error: String(e) }, { status: 500 });

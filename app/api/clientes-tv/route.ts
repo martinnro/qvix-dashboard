@@ -98,7 +98,17 @@ export async function GET(req: NextRequest) {
       SUM(CASE WHEN is_cubiware=1 AND is_qvix=1 AND is_app=0 THEN 1 ELSE 0 END)      AS iptv_ott,
       SUM(CASE WHEN is_cubiware=1 AND is_qvix=1 AND is_app=1 THEN 1 ELSE 0 END)      AS iptv_ott_app,
       SUM(CASE WHEN is_cubiware=0 AND is_qvix=1 AND is_app=0 THEN 1 ELSE 0 END)      AS ott,
-      SUM(CASE WHEN is_cubiware=0 AND is_qvix=1 AND is_app=1 THEN 1 ELSE 0 END)      AS ott_app
+      SUM(CASE WHEN is_cubiware=0 AND is_qvix=1 AND is_app=1 THEN 1 ELSE 0 END)      AS ott_app,
+      (SELECT ISNULL(COUNT(*), 0)
+       FROM conexion_dispostivos cd2
+       JOIN DISPOSITIVOS d2 ON cd2.id_dispositivo = d2.id_dispositivo
+       JOIN tipo_dispositivos td2 ON d2.tipo_dispositivo = td2.tipo_dispositivo
+       JOIN v_con_dom vcd2 ON cd2.id_conexion = vcd2.id_conexion
+       WHERE (td2.tipo_dispositivo = 'T' OR td2.tipo_dispositivo = 'M')
+         AND cd2.estado = 0
+         AND vcd2.Estado_Servicio IN (${estadosIn})
+         AND vcd2.cod_sucursal IN (${sucursalesIn})
+      ) AS total_decos_stb
     FROM tv_classified
   `;
 
@@ -238,6 +248,7 @@ export async function GET(req: NextRequest) {
       posicionamiento: totalClientes > 0 ? Math.round((totalTV / totalClientes) * 100) : 0,
       con_deco: Number(global.con_deco),
       solo_app: Number(global.solo_app),
+      total_decos_stb: Number(global.total_decos_stb),
       tipos: {
         iptv:         Number(global.iptv),
         iptv_app:     Number(global.iptv_app),

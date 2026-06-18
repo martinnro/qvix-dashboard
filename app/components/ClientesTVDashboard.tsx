@@ -35,6 +35,7 @@ interface DashboardData {
   posicionamiento: number;
   con_deco: number;
   solo_app: number;
+  total_decos_stb: number;
   tipos: {
     iptv: number;
     iptv_app: number;
@@ -240,24 +241,54 @@ export default function ClientesTVDashboard({ sucursalesPermitidas = null }: { s
             </div>
           </div>
 
-          {/* Con Deco vs Solo APP */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-slate-800 border border-slate-700 rounded-2xl p-4 sm:p-6 flex items-center gap-3 sm:gap-5">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-violet-500/20 flex items-center justify-center flex-shrink-0">
-                <Monitor size={20} className="text-violet-400" />
+          {/* Clientes */}
+          <div className="space-y-2">
+            <p className="text-xs text-slate-500 uppercase tracking-wider font-medium px-1">Clientes</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-slate-800 border border-slate-700 rounded-2xl p-4 sm:p-6 flex items-center gap-3 sm:gap-5">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-violet-500/20 flex items-center justify-center flex-shrink-0">
+                  <Monitor size={20} className="text-violet-400" />
+                </div>
+                <div>
+                  <div className="text-slate-400 text-xs sm:text-sm">Con Deco (STB)</div>
+                  <div className="text-2xl sm:text-3xl font-bold text-white">{fmt(data.con_deco)}</div>
+                </div>
               </div>
-              <div>
-                <div className="text-slate-400 text-xs sm:text-sm">Con Deco (STB)</div>
-                <div className="text-2xl sm:text-3xl font-bold text-white">{fmt(data.con_deco)}</div>
+              <div className="bg-slate-800 border border-slate-700 rounded-2xl p-4 sm:p-6 flex items-center gap-3 sm:gap-5">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-teal-500/20 flex items-center justify-center flex-shrink-0">
+                  <Smartphone size={20} className="text-teal-400" />
+                </div>
+                <div>
+                  <div className="text-slate-400 text-xs sm:text-sm">Solo APP</div>
+                  <div className="text-2xl sm:text-3xl font-bold text-white">{fmt(data.solo_app)}</div>
+                </div>
               </div>
             </div>
-            <div className="bg-slate-800 border border-slate-700 rounded-2xl p-4 sm:p-6 flex items-center gap-3 sm:gap-5">
-              <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-teal-500/20 flex items-center justify-center flex-shrink-0">
-                <Smartphone size={20} className="text-teal-400" />
+          </div>
+
+          {/* Dispositivos */}
+          <div className="space-y-2">
+            <p className="text-xs text-slate-500 uppercase tracking-wider font-medium px-1">Dispositivos</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-slate-800 border border-slate-700 rounded-2xl p-4 sm:p-6 flex items-center gap-3 sm:gap-5">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-indigo-500/20 flex items-center justify-center flex-shrink-0">
+                  <Monitor size={20} className="text-indigo-400" />
+                </div>
+                <div>
+                  <div className="text-slate-400 text-xs sm:text-sm">Decos (STB)</div>
+                  <div className="text-2xl sm:text-3xl font-bold text-white">{fmt(data.total_decos_stb)}</div>
+                </div>
               </div>
-              <div>
-                <div className="text-slate-400 text-xs sm:text-sm">Solo APP</div>
-                <div className="text-2xl sm:text-3xl font-bold text-white">{fmt(data.solo_app)}</div>
+              <div className="bg-slate-800 border border-slate-700 rounded-2xl p-4 sm:p-6 flex items-center gap-3 sm:gap-5">
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                  <Smartphone size={20} className="text-emerald-400" />
+                </div>
+                <div>
+                  <div className="text-slate-400 text-xs sm:text-sm">Licencias APP</div>
+                  <div className="text-2xl sm:text-3xl font-bold text-white">
+                    {fmt(data.tipos.iptv_app + data.tipos.iptv_ott_app + data.tipos.ott_app + data.solo_app)}
+                  </div>
+                </div>
               </div>
             </div>
           </div>

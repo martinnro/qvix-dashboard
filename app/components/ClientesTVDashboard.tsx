@@ -238,6 +238,11 @@ export default function ClientesTVDashboard({ sucursalesPermitidas = null }: { s
               <div className="w-full mt-3 bg-slate-700 rounded-full h-1.5">
                 <div className="bg-cyan-500 h-1.5 rounded-full transition-all" style={{ width: `${data.posicionamiento}%` }} />
               </div>
+              {data.con_deco > 0 && (
+                <div className="mt-2 text-xs text-slate-500">
+                  {(data.total_decos_stb / data.con_deco).toFixed(2)} decos por cliente STB
+                </div>
+              )}
             </div>
           </div>
 

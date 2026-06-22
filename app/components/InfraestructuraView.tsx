@@ -5,7 +5,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip,
   Legend, ResponsiveContainer, ReferenceLine,
 } from "recharts";
-import { X, Plus, Trash2, Activity } from "lucide-react";
+import { X, Plus, Trash2, Activity, Pencil } from "lucide-react";
 import { getColor } from "../lib/dataUtils";
 import { useTheme } from "../lib/useTheme";
 
@@ -66,6 +66,8 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
   const [showDispForm, setShowDispForm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [selectedSucs, setSelectedSucs] = useState<string[]>([]);
+  const [editingRow, setEditingRow] = useState<EventoRow | null>(null);
+  const [editingDispRow, setEditingDispRow] = useState<DispositivoRow | null>(null);
 
   // Multi-sucursal event form
   const [formBase, setFormBase] = useState(initFormBase());
@@ -117,6 +119,19 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
     load();
   };
 
+  const handleUpdate = async () => {
+    if (!editingRow) return;
+    setSaving(true);
+    await fetch("/api/infraestructura", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editingRow),
+    });
+    setSaving(false);
+    setEditingRow(null);
+    load();
+  };
+
   const handleSaveDisp = async () => {
     const selectedDisp = SUCURSALES_DISP.filter((s) => dispFormSucs[s] !== null);
     if (!dispForm.evento.trim() || !dispForm.tipo.trim() || selectedDisp.length === 0) return;
@@ -143,6 +158,19 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id }),
     });
+    load();
+  };
+
+  const handleUpdateDisp = async () => {
+    if (!editingDispRow) return;
+    setSaving(true);
+    await fetch("/api/dispositivos-evento", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(editingDispRow),
+    });
+    setSaving(false);
+    setEditingDispRow(null);
     load();
   };
 
@@ -391,8 +419,8 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-slate-400 text-xs uppercase tracking-wider border-b border-slate-700">
-                      {["Fecha", "Evento", "Sucursal", "Cli. Online", "Cli. Total", "% Cli.", "Disp. Online", "Disp. Total", "% Disp.", ""].map((h) => (
-                        <th key={h} className="text-center py-2 px-3">{h}</th>
+                      {["Fecha", "Evento", "Sucursal", "Cli. Online", "Cli. Total", "% Cli.", "Disp. Online", "Disp. Total", "% Disp.", "", ""].map((h, i) => (
+                        <th key={i} className="text-center py-2 px-3">{h}</th>
                       ))}
                     </tr>
                   </thead>
@@ -417,6 +445,11 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
                             <span className={`font-semibold ${(pct(r.dispositivos_online, r.dispositivos_total) ?? 0) >= 80 ? "text-emerald-400" : "text-amber-400"}`}>
                               {pct(r.dispositivos_online, r.dispositivos_total) ?? "—"}%
                             </span>
+                          </td>
+                          <td className="py-2 px-3 text-center">
+                            <button onClick={() => setEditingRow({ ...r })} className="text-slate-600 hover:text-indigo-400 transition-colors">
+                              <Pencil size={14} />
+                            </button>
                           </td>
                           <td className="py-2 px-3 text-center">
                             <button onClick={() => handleDelete(r.id)} className="text-slate-600 hover:text-red-400 transition-colors">
@@ -491,8 +524,8 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="text-slate-400 text-xs uppercase tracking-wider border-b border-slate-700">
-                        {["Fecha", "Evento", "Sucursal", "Tipo", "Cantidad", ""].map((h) => (
-                          <th key={h} className="text-left py-2 px-3">{h}</th>
+                        {["Fecha", "Evento", "Sucursal", "Tipo", "Cantidad", "", ""].map((h, i) => (
+                          <th key={i} className="text-left py-2 px-3">{h}</th>
                         ))}
                       </tr>
                     </thead>
@@ -514,6 +547,11 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
                               </span>
                             </td>
                             <td className="py-2 px-3 text-slate-200 font-semibold">{r.cantidad.toLocaleString("es-AR")}</td>
+                            <td className="py-2 px-3">
+                              <button onClick={() => setEditingDispRow({ ...r })} className="text-slate-600 hover:text-sky-400 transition-colors">
+                                <Pencil size={14} />
+                              </button>
+                            </td>
                             <td className="py-2 px-3">
                               <button onClick={() => handleDeleteDisp(r.id)} className="text-slate-600 hover:text-red-400 transition-colors">
                                 <Trash2 size={14} />
@@ -628,6 +666,114 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
                 className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg transition-colors"
               >
                 {saving ? "Guardando..." : `Guardar (${selectedSucsInForm.length} sucursal${selectedSucsInForm.length !== 1 ? "es" : ""})`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: editar registro infraestructura */}
+      {editingRow && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setEditingRow(null)}>
+          <div className="bg-slate-800 border border-slate-700 rounded-xl max-w-lg w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-slate-100 font-semibold">Editar registro</h3>
+              <button onClick={() => setEditingRow(null)} className="text-slate-400 hover:text-slate-200"><X size={18} /></button>
+            </div>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1.5">Fecha</label>
+                  <input type="date" value={editingRow.fecha}
+                    onChange={(e) => setEditingRow((r) => r ? { ...r, fecha: e.target.value } : r)}
+                    className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1.5">Evento</label>
+                  <input type="text" value={editingRow.evento}
+                    onChange={(e) => setEditingRow((r) => r ? { ...r, evento: e.target.value } : r)}
+                    className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1.5">Sucursal</label>
+                <input type="text" value={editingRow.sucursal} readOnly
+                  className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-400 cursor-not-allowed" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                {([
+                  ["clientes_online", "Cli. Online"],
+                  ["clientes_total", "Cli. Total"],
+                  ["dispositivos_online", "Disp. Online"],
+                  ["dispositivos_total", "Disp. Total"],
+                ] as [keyof EventoRow, string][]).map(([key, label]) => (
+                  <div key={key}>
+                    <label className="block text-xs text-slate-400 mb-1.5">{label}</label>
+                    <input type="number" min={0} value={editingRow[key] as number}
+                      onChange={(e) => setEditingRow((r) => r ? { ...r, [key]: Number(e.target.value) } : r)}
+                      className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 text-center" />
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-6">
+              <button onClick={() => setEditingRow(null)} className="px-4 py-2 text-sm text-slate-400 hover:text-slate-200 transition-colors">Cancelar</button>
+              <button onClick={handleUpdate} disabled={saving}
+                className="px-4 py-2 text-sm bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg transition-colors">
+                {saving ? "Guardando..." : "Guardar cambios"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: editar registro dispositivos */}
+      {editingDispRow && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setEditingDispRow(null)}>
+          <div className="bg-slate-800 border border-slate-700 rounded-xl max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-5">
+              <h3 className="text-slate-100 font-semibold">Editar dispositivo</h3>
+              <button onClick={() => setEditingDispRow(null)} className="text-slate-400 hover:text-slate-200"><X size={18} /></button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs text-slate-400 mb-1.5">Fecha y hora</label>
+                <input type="datetime-local" value={editingDispRow.fecha.length > 10 ? editingDispRow.fecha.slice(0, 16) : editingDispRow.fecha + "T00:00"}
+                  onChange={(e) => setEditingDispRow((r) => r ? { ...r, fecha: e.target.value } : r)}
+                  className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-sky-500" />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1.5">Evento</label>
+                <input type="text" value={editingDispRow.evento}
+                  onChange={(e) => setEditingDispRow((r) => r ? { ...r, evento: e.target.value } : r)}
+                  className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-sky-500" />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1.5">Sucursal</label>
+                <input type="text" value={editingDispRow.sucursal ?? ""} readOnly
+                  className="w-full bg-slate-900/50 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-400 cursor-not-allowed" />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1.5">Tipo</label>
+                <input type="text" value={editingDispRow.tipo} list="edit-tipos-disp-list"
+                  onChange={(e) => setEditingDispRow((r) => r ? { ...r, tipo: e.target.value } : r)}
+                  className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-sky-500" />
+                <datalist id="edit-tipos-disp-list">
+                  {TIPOS_DISPOSITIVO.map((t) => <option key={t} value={t} />)}
+                </datalist>
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1.5">Cantidad</label>
+                <input type="number" min={0} value={editingDispRow.cantidad}
+                  onChange={(e) => setEditingDispRow((r) => r ? { ...r, cantidad: Number(e.target.value) } : r)}
+                  className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-sky-500 text-center" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-6">
+              <button onClick={() => setEditingDispRow(null)} className="px-4 py-2 text-sm text-slate-400 hover:text-slate-200 transition-colors">Cancelar</button>
+              <button onClick={handleUpdateDisp} disabled={saving}
+                className="px-4 py-2 text-sm bg-sky-700 hover:bg-sky-600 disabled:opacity-50 text-white rounded-lg transition-colors">
+                {saving ? "Guardando..." : "Guardar cambios"}
               </button>
             </div>
           </div>

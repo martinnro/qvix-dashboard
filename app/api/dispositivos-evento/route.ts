@@ -40,6 +40,30 @@ export async function POST(req: NextRequest) {
   }
 }
 
+export async function PUT(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { id, fecha, evento, tipo, sucursal, cantidad } = body;
+    const pool = await getPool();
+    await pool.request()
+      .input("id", id)
+      .input("fecha", fecha)
+      .input("evento", evento)
+      .input("tipo", tipo)
+      .input("sucursal", sucursal)
+      .input("cantidad", Number(cantidad ?? 0))
+      .query(`
+        UPDATE dashboard_dispositivos_evento
+        SET fecha = @fecha, evento = @evento, tipo = @tipo,
+            sucursal = @sucursal, cantidad = @cantidad
+        WHERE id = @id
+      `);
+    return NextResponse.json({ ok: true });
+  } catch (e) {
+    return NextResponse.json({ error: String(e) }, { status: 500 });
+  }
+}
+
 export async function DELETE(req: NextRequest) {
   try {
     const { id } = await req.json();

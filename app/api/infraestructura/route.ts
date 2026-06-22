@@ -67,6 +67,7 @@ export async function PUT(req: NextRequest) {
       `);
     return NextResponse.json({ ok: true });
   } catch (e) {
+    console.error("[infraestructura PUT]", e);
     return NextResponse.json({ error: String(e) }, { status: 500 });
   }
 }

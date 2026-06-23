@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo } from "react";
 import {
   BarChart, Bar, Cell, LabelList,
+  LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip,
   Legend, ResponsiveContainer, ReferenceLine,
 } from "recharts";
@@ -324,6 +325,53 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
     return { cliOnlineA, cliOnlineB, deltaCliOnline: cliOnlineB - cliOnlineA, dispOnlineA, dispOnlineB, deltaDispOnline: dispOnlineB - dispOnlineA, best, worst };
   }, [compareA, compareB, rows, comparisonData]);
 
+  const historicData = useMemo(() => {
+    return eventos.map((ev) => {
+      const entry: Record<string, string | number> = { evento: ev };
+      for (const suc of visibleSucs) {
+        const r = rows.find((x) => x.evento === ev && x.sucursal === suc);
+        const v = r ? pct(r.clientes_online, r.clientes_total) : null;
+        if (v !== null) entry[suc] = v;
+      }
+      return entry;
+    });
+  }, [eventos, visibleSucs, rows]);
+
+  const ratioData = useMemo(() => {
+    return visibleSucs.map((suc) => {
+      const entry: Record<string, string | number> = { sucursal: suc };
+      for (const ev of eventos) {
+        const r = rows.find((x) => x.evento === ev && x.sucursal === suc);
+        if (r && r.clientes_online > 0) {
+          entry[ev] = Math.round((r.dispositivos_online / r.clientes_online) * 100) / 100;
+        }
+      }
+      return entry;
+    }).filter((e) => Object.keys(e).length > 1);
+  }, [visibleSucs, eventos, rows]);
+
+  const consistencyData = useMemo(() => {
+    return visibleSucs.map((suc) => {
+      const values = rows
+        .filter((r) => r.sucursal === suc)
+        .map((r) => pct(r.clientes_online, r.clientes_total))
+        .filter((v): v is number => v !== null);
+      if (values.length === 0) return null;
+      const avg = values.reduce((s, v) => s + v, 0) / values.length;
+      const variance = values.reduce((s, v) => s + Math.pow(v - avg, 2), 0) / values.length;
+      const stddev = Math.sqrt(variance);
+      return {
+        sucursal: suc,
+        avg: Math.round(avg * 10) / 10,
+        stddev: Math.round(stddev * 10) / 10,
+        count: values.length,
+        min: Math.round(Math.min(...values) * 10) / 10,
+        max: Math.round(Math.max(...values) * 10) / 10,
+      };
+    }).filter((x): x is NonNullable<typeof x> => x !== null)
+      .sort((a, b) => b.avg - a.avg);
+  }, [visibleSucs, rows]);
+
   const tooltipContentStyle = {
     background: chart.tooltipBg,
     border: `1px solid ${chart.tooltipBorder}`,
@@ -642,6 +690,112 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
                     </p>
                   </>
                 )}
+              </section>
+            )}
+
+            {/* ── EVOLUCIÓN HISTÓRICA ── */}
+            {eventos.length >= 2 && (
+              <section className="bg-slate-800 border border-slate-700 rounded-xl p-5">
+                <h3 className="text-slate-200 font-semibold mb-1">Evolución histórica — % Clientes Online</h3>
+                <p className="text-xs text-slate-500 mb-4">Tendencia por sucursal a lo largo de todos los eventos registrados</p>
+                <ResponsiveContainer width="100%" height={320}>
+                  <LineChart data={historicData} margin={{ top: 16, right: 24, left: 8, bottom: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} vertical={false} />
+                    <XAxis {...xAxisProps} />
+                    <YAxis domain={[0, 105]} tickFormatter={(v) => `${v}%`} tick={{ fill: chart.axis, fontSize: 12 }} width={40} hide />
+                    <Tooltip contentStyle={tooltipContentStyle} labelStyle={{ color: chart.tooltipLabel }} itemStyle={{ color: chart.tooltipItem }} formatter={(v) => `${v}%`} />
+                    <Legend wrapperStyle={{ color: chart.legend, fontSize: 12 }} />
+                    <ReferenceLine y={80} stroke="#ef4444" strokeDasharray="4 4" label={{ value: "80%", fill: "#ef4444", fontSize: 11, position: "insideTopRight" }} />
+                    {visibleSucs.map((suc, i) => (
+                      <Line key={suc} type="monotone" dataKey={suc} stroke={getColor(suc, i)} strokeWidth={2} dot={{ r: 3 }} connectNulls activeDot={{ r: 5 }} />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              </section>
+            )}
+
+            {/* ── RATIO DISPOSITIVOS / CLIENTES ── */}
+            {ratioData.length > 0 && (
+              <section className="bg-slate-800 border border-slate-700 rounded-xl p-5">
+                <h3 className="text-slate-200 font-semibold mb-1">Ratio dispositivos / clientes online</h3>
+                <p className="text-xs text-slate-500 mb-4">Dispositivos conectados por cliente online en cada evento · Valores &gt; 1 indican clientes con múltiples pantallas</p>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={ratioData} margin={{ top: 28, right: 24, left: 8, bottom: 8 }} barCategoryGap="30%">
+                    <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} vertical={false} />
+                    <XAxis dataKey="sucursal" tick={{ fill: chart.axis, fontSize: 12 }} axisLine={false} tickLine={false} />
+                    <YAxis hide />
+                    <Tooltip contentStyle={tooltipContentStyle} labelStyle={{ color: chart.tooltipLabel }} itemStyle={{ color: chart.tooltipItem }} formatter={(v) => `${v}x`} />
+                    {eventos.length > 1 && <Legend wrapperStyle={{ color: chart.legend, fontSize: 12 }} />}
+                    <ReferenceLine y={1} stroke="#64748b" strokeDasharray="4 4" label={{ value: "1x", fill: "#64748b", fontSize: 11, position: "insideTopRight" }} />
+                    {eventos.map((ev, ei) => (
+                      <Bar key={ev} dataKey={ev} radius={[4, 4, 0, 0]} maxBarSize={64} fill={DISP_COLORS[ei % DISP_COLORS.length]}>
+                        {eventos.length === 1 && ratioData.map((_, si) => (
+                          <Cell key={si} fill={getColor(ratioData[si].sucursal as string, si)} />
+                        ))}
+                        {ei === eventos.length - 1 && (
+                          <LabelList dataKey={ev} position="top"
+                            formatter={(v: unknown) => typeof v === "number" ? `${v}x` : ""}
+                            style={{ fill: chart.axis, fontSize: 12, fontWeight: 700 }} />
+                        )}
+                      </Bar>
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+              </section>
+            )}
+
+            {/* ── RANKING CONSISTENCIA ── */}
+            {consistencyData.length > 0 && (
+              <section className="bg-slate-800 border border-slate-700 rounded-xl p-5">
+                <h3 className="text-slate-200 font-semibold mb-1">Ranking de consistencia</h3>
+                <p className="text-xs text-slate-500 mb-4">Promedio y estabilidad del % clientes online a lo largo de todos los eventos · Menor desvío = más estable</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-slate-500 text-xs uppercase tracking-wider border-b border-slate-700">
+                        <th className="text-left py-2 px-3">Sucursal</th>
+                        <th className="text-center py-2 px-3">Promedio</th>
+                        <th className="text-center py-2 px-3">Desvío</th>
+                        <th className="text-center py-2 px-3">Mín</th>
+                        <th className="text-center py-2 px-3">Máx</th>
+                        <th className="text-center py-2 px-3">Eventos</th>
+                        <th className="text-center py-2 px-3">Estabilidad</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {consistencyData.map((d, i) => {
+                        const stability = d.stddev < 3
+                          ? { label: "Estable", cls: "text-emerald-400 bg-emerald-900/30 border-emerald-800/40" }
+                          : d.stddev < 7
+                          ? { label: "Moderada", cls: "text-amber-400 bg-amber-900/30 border-amber-800/40" }
+                          : { label: "Inestable", cls: "text-red-400 bg-red-900/30 border-red-800/40" };
+                        return (
+                          <tr key={d.sucursal} className="border-b border-slate-700/40 hover:bg-slate-700/20 transition-colors">
+                            <td className="py-2 px-3 text-slate-200 font-medium">
+                              <span className="inline-block w-5 text-xs text-slate-600">{i + 1}.</span>
+                              {d.sucursal}
+                            </td>
+                            <td className="py-2 px-3 text-center">
+                              <span className={`font-semibold ${d.avg >= 80 ? "text-emerald-400" : d.avg >= 65 ? "text-amber-400" : "text-red-400"}`}>
+                                {d.avg}%
+                              </span>
+                            </td>
+                            <td className="py-2 px-3 text-center text-slate-300">±{d.stddev}%</td>
+                            <td className="py-2 px-3 text-center text-slate-400">{d.min}%</td>
+                            <td className="py-2 px-3 text-center text-slate-400">{d.max}%</td>
+                            <td className="py-2 px-3 text-center text-slate-500">{d.count}</td>
+                            <td className="py-2 px-3 text-center">
+                              <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${stability.cls}`}>
+                                {stability.label}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-xs text-slate-600 mt-3">Desvío &lt;3%: Estable · 3–7%: Moderada · &gt;7%: Inestable</p>
               </section>
             )}
           </>

@@ -92,17 +92,6 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
 
   useEffect(() => { load(); }, []);
 
-  useEffect(() => {
-    if (eventos.length >= 2) {
-      setCompareA(eventos[eventos.length - 2]);
-      setCompareB(eventos[eventos.length - 1]);
-    } else if (eventos.length === 1) {
-      setCompareA(eventos[0]);
-      setCompareB("");
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [eventos.join(",")]);
-
   const handleSave = async () => {
     const selected = SUCURSALES.filter((s) => formSucs[s] !== null);
     if (!formBase.evento.trim() || selected.length === 0) return;
@@ -202,6 +191,17 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
 
   const sucursales = useMemo(() => [...new Set(rows.map((r) => r.sucursal))].sort(), [rows]);
   const visibleSucs = selectedSucs.length > 0 ? selectedSucs : sucursales;
+
+  useEffect(() => {
+    if (eventos.length >= 2) {
+      setCompareA(eventos[eventos.length - 2]);
+      setCompareB(eventos[eventos.length - 1]);
+    } else if (eventos.length === 1) {
+      setCompareA(eventos[0]);
+      setCompareB("");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventos.join(",")]);
 
   const buildRanking = (
     field1: "clientes_online" | "dispositivos_online",

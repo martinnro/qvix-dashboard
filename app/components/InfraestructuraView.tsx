@@ -68,6 +68,8 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
   const [selectedSucs, setSelectedSucs] = useState<string[]>([]);
   const [editingRow, setEditingRow] = useState<EventoRow | null>(null);
   const [editingDispRow, setEditingDispRow] = useState<DispositivoRow | null>(null);
+  const [compareA, setCompareA] = useState("");
+  const [compareB, setCompareB] = useState("");
 
   // Multi-sucursal event form
   const [formBase, setFormBase] = useState(initFormBase());
@@ -89,6 +91,17 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
   };
 
   useEffect(() => { load(); }, []);
+
+  useEffect(() => {
+    if (eventos.length >= 2) {
+      setCompareA(eventos[eventos.length - 2]);
+      setCompareB(eventos[eventos.length - 1]);
+    } else if (eventos.length === 1) {
+      setCompareA(eventos[0]);
+      setCompareB("");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventos.join(",")]);
 
   const handleSave = async () => {
     const selected = SUCURSALES.filter((s) => formSucs[s] !== null);
@@ -269,6 +282,48 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
       });
   }, [filteredDispRows, tiposDisp]);
 
+  const comparisonData = useMemo(() => {
+    if (!compareA || !compareB || compareA === compareB) return [];
+    return visibleSucs.map((suc) => {
+      const rA = rows.find((r) => r.evento === compareA && r.sucursal === suc);
+      const rB = rows.find((r) => r.evento === compareB && r.sucursal === suc);
+      if (!rA && !rB) return null;
+      const pctCliA = rA ? pct(rA.clientes_online, rA.clientes_total) : null;
+      const pctCliB = rB ? pct(rB.clientes_online, rB.clientes_total) : null;
+      const pctDispA = rA ? pct(rA.dispositivos_online, rA.dispositivos_total) : null;
+      const pctDispB = rB ? pct(rB.dispositivos_online, rB.dispositivos_total) : null;
+      return {
+        sucursal: suc,
+        pct_cli_a: pctCliA,
+        pct_cli_b: pctCliB,
+        delta_pct_cli: pctCliA !== null && pctCliB !== null ? Math.round((pctCliB - pctCliA) * 10) / 10 : null,
+        cli_online_a: rA?.clientes_online ?? null,
+        cli_online_b: rB?.clientes_online ?? null,
+        delta_cli_online: rA && rB ? rB.clientes_online - rA.clientes_online : null,
+        pct_disp_a: pctDispA,
+        pct_disp_b: pctDispB,
+        delta_pct_disp: pctDispA !== null && pctDispB !== null ? Math.round((pctDispB - pctDispA) * 10) / 10 : null,
+        disp_online_a: rA?.dispositivos_online ?? null,
+        disp_online_b: rB?.dispositivos_online ?? null,
+        delta_disp_online: rA && rB ? rB.dispositivos_online - rA.dispositivos_online : null,
+      };
+    }).filter((x): x is NonNullable<typeof x> => x !== null);
+  }, [compareA, compareB, visibleSucs, rows]);
+
+  const comparisonSummary = useMemo(() => {
+    if (!compareA || !compareB || compareA === compareB) return null;
+    const rA = rows.filter((r) => r.evento === compareA);
+    const rB = rows.filter((r) => r.evento === compareB);
+    const cliOnlineA = rA.reduce((s, r) => s + r.clientes_online, 0);
+    const cliOnlineB = rB.reduce((s, r) => s + r.clientes_online, 0);
+    const dispOnlineA = rA.reduce((s, r) => s + r.dispositivos_online, 0);
+    const dispOnlineB = rB.reduce((s, r) => s + r.dispositivos_online, 0);
+    const withDelta = comparisonData.filter((d) => d.delta_pct_cli !== null);
+    const best = withDelta.length ? withDelta.reduce((a, b) => (b.delta_pct_cli! > a.delta_pct_cli! ? b : a)) : null;
+    const worst = withDelta.length ? withDelta.reduce((a, b) => (b.delta_pct_cli! < a.delta_pct_cli! ? b : a)) : null;
+    return { cliOnlineA, cliOnlineB, deltaCliOnline: cliOnlineB - cliOnlineA, dispOnlineA, dispOnlineB, deltaDispOnline: dispOnlineB - dispOnlineA, best, worst };
+  }, [compareA, compareB, rows, comparisonData]);
+
   const tooltipContentStyle = {
     background: chart.tooltipBg,
     border: `1px solid ${chart.tooltipBorder}`,
@@ -283,6 +338,13 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
     interval: 0,
     height: 70,
     tickFormatter: (v: string) => v.length > 16 ? v.slice(0, 15) + "…" : v,
+  };
+
+  const renderDelta = (val: number | null, suffix = "") => {
+    if (val === null) return <span className="text-slate-600">—</span>;
+    const sign = val > 0 ? "+" : "";
+    const color = val > 0 ? "text-emerald-400" : val < 0 ? "text-red-400" : "text-slate-500";
+    return <span className={`font-semibold ${color}`}>{sign}{val}{suffix}</span>;
   };
 
   const selectedSucsInForm = SUCURSALES.filter((s) => formSucs[s] !== null);
@@ -462,6 +524,126 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
                 </table>
               </div>
             </section>
+
+            {/* ── COMPARATIVA ENTRE EVENTOS ── */}
+            {eventos.length >= 2 && (
+              <section className="bg-slate-800 border border-slate-700 rounded-xl p-5 space-y-5">
+                <div>
+                  <h3 className="text-slate-200 font-semibold">Comparativa entre eventos</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Diferencias de métricas clave entre dos eventos seleccionados</p>
+                </div>
+
+                {/* Selectores */}
+                <div className="flex items-center gap-3 flex-wrap">
+                  <select value={compareA} onChange={(e) => setCompareA(e.target.value)}
+                    className="bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 max-w-xs">
+                    {eventos.map((ev) => <option key={ev} value={ev}>{ev}</option>)}
+                  </select>
+                  <span className="text-slate-500 text-sm font-medium">→</span>
+                  <select value={compareB} onChange={(e) => setCompareB(e.target.value)}
+                    className="bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 focus:outline-none focus:border-indigo-500 max-w-xs">
+                    {eventos.map((ev) => <option key={ev} value={ev}>{ev}</option>)}
+                  </select>
+                </div>
+
+                {compareA === compareB ? (
+                  <p className="text-slate-500 text-sm">Seleccioná dos eventos distintos para comparar.</p>
+                ) : (
+                  <>
+                    {/* Resumen global */}
+                    {comparisonSummary && (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {[
+                          {
+                            label: "Clientes online",
+                            a: comparisonSummary.cliOnlineA,
+                            b: comparisonSummary.cliOnlineB,
+                            delta: comparisonSummary.deltaCliOnline,
+                            suffix: "",
+                          },
+                          {
+                            label: "Dispositivos online",
+                            a: comparisonSummary.dispOnlineA,
+                            b: comparisonSummary.dispOnlineB,
+                            delta: comparisonSummary.deltaDispOnline,
+                            suffix: "",
+                          },
+                        ].map(({ label, a, b, delta, suffix }) => (
+                          <div key={label} className="bg-slate-900/60 rounded-lg p-3 border border-slate-700">
+                            <p className="text-xs text-slate-500 mb-2">{label} (total)</p>
+                            <div className="flex items-end gap-2">
+                              <div>
+                                <p className="text-slate-500 text-xs">{compareA.length > 14 ? compareA.slice(0,13)+"…" : compareA}</p>
+                                <p className="text-slate-300 font-semibold text-sm">{a.toLocaleString("es-AR")}{suffix}</p>
+                              </div>
+                              <span className="text-slate-600 text-xs mb-0.5">→</span>
+                              <div>
+                                <p className="text-slate-500 text-xs">{compareB.length > 14 ? compareB.slice(0,13)+"…" : compareB}</p>
+                                <p className="text-slate-300 font-semibold text-sm">{b.toLocaleString("es-AR")}{suffix}</p>
+                              </div>
+                            </div>
+                            <div className="mt-1.5">{renderDelta(delta, suffix)}</div>
+                          </div>
+                        ))}
+                        {comparisonSummary.best && (
+                          <div className="bg-emerald-900/20 border border-emerald-800/40 rounded-lg p-3">
+                            <p className="text-xs text-slate-500 mb-1">Mejor % clientes</p>
+                            <p className="text-emerald-400 font-semibold text-sm">{comparisonSummary.best.sucursal}</p>
+                            <p className="text-xs text-emerald-500 mt-0.5">{renderDelta(comparisonSummary.best.delta_pct_cli, "%")}</p>
+                          </div>
+                        )}
+                        {comparisonSummary.worst && comparisonSummary.worst.sucursal !== comparisonSummary.best?.sucursal && (
+                          <div className="bg-red-900/20 border border-red-800/40 rounded-lg p-3">
+                            <p className="text-xs text-slate-500 mb-1">Peor % clientes</p>
+                            <p className="text-red-400 font-semibold text-sm">{comparisonSummary.worst.sucursal}</p>
+                            <p className="text-xs text-red-500 mt-0.5">{renderDelta(comparisonSummary.worst.delta_pct_cli, "%")}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Tabla por sucursal */}
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-slate-500 text-xs uppercase tracking-wider border-b border-slate-700">
+                            <th className="text-left py-2 px-3">Sucursal</th>
+                            <th className="text-center py-2 px-2 text-indigo-400/70">% Cli A</th>
+                            <th className="text-center py-2 px-2 text-indigo-400/70">% Cli B</th>
+                            <th className="text-center py-2 px-2">Δ Cli %</th>
+                            <th className="text-center py-2 px-2">Δ Online Cli</th>
+                            <th className="text-center py-2 px-2 text-sky-400/70">% Disp A</th>
+                            <th className="text-center py-2 px-2 text-sky-400/70">% Disp B</th>
+                            <th className="text-center py-2 px-2">Δ Disp %</th>
+                            <th className="text-center py-2 px-2">Δ Online Disp</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {comparisonData
+                            .sort((a, b) => (b.delta_pct_cli ?? -999) - (a.delta_pct_cli ?? -999))
+                            .map((d) => (
+                              <tr key={d.sucursal} className="border-b border-slate-700/40 hover:bg-slate-700/20 transition-colors">
+                                <td className="py-2 px-3 text-slate-200 font-medium">{d.sucursal}</td>
+                                <td className="py-2 px-2 text-center text-slate-400">{d.pct_cli_a !== null ? `${d.pct_cli_a}%` : "—"}</td>
+                                <td className="py-2 px-2 text-center text-slate-300">{d.pct_cli_b !== null ? `${d.pct_cli_b}%` : "—"}</td>
+                                <td className="py-2 px-2 text-center">{renderDelta(d.delta_pct_cli, "%")}</td>
+                                <td className="py-2 px-2 text-center">{renderDelta(d.delta_cli_online)}</td>
+                                <td className="py-2 px-2 text-center text-slate-400">{d.pct_disp_a !== null ? `${d.pct_disp_a}%` : "—"}</td>
+                                <td className="py-2 px-2 text-center text-slate-300">{d.pct_disp_b !== null ? `${d.pct_disp_b}%` : "—"}</td>
+                                <td className="py-2 px-2 text-center">{renderDelta(d.delta_pct_disp, "%")}</td>
+                                <td className="py-2 px-2 text-center">{renderDelta(d.delta_disp_online)}</td>
+                              </tr>
+                            ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <p className="text-xs text-slate-600">
+                      A = {compareA} &nbsp;|&nbsp; B = {compareB} &nbsp;·&nbsp; Positivo indica mejora en B respecto a A
+                    </p>
+                  </>
+                )}
+              </section>
+            )}
           </>
         )}
 

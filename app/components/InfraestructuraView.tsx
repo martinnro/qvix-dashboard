@@ -473,7 +473,11 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
                   <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} vertical={false} />
                   <XAxis dataKey="sucursal" tick={{ fill: chart.axis, fontSize: 12 }} axisLine={false} tickLine={false} />
                   <YAxis domain={[0, 105]} tickFormatter={(v) => `${v}%`} tick={{ fill: chart.axis, fontSize: 12 }} width={40} hide />
-                  <Tooltip contentStyle={tooltipContentStyle} labelStyle={{ color: chart.tooltipLabel }} itemStyle={{ color: chart.tooltipItem }} formatter={(v) => `${v}%`} />
+                  <Tooltip contentStyle={tooltipContentStyle} labelStyle={{ color: chart.tooltipLabel }} itemStyle={{ color: chart.tooltipItem }} formatter={(v, name, item) => {
+                    const suc = (item.payload as Record<string, unknown>)?.sucursal as string | undefined;
+                    const r = suc ? rows.find((x) => x.evento === String(name) && x.sucursal === suc) : undefined;
+                    return r ? `${v}%  (${r.clientes_online.toLocaleString("es-AR")} / ${r.clientes_total.toLocaleString("es-AR")} cli)` : `${v}%`;
+                  }} />
                   {eventos.length > 1 && <Legend wrapperStyle={{ color: chart.legend, fontSize: 12 }} />}
                   <ReferenceLine y={80} stroke="#ef4444" strokeDasharray="4 4" label={{ value: "80%", fill: "#ef4444", fontSize: 11, position: "insideTopRight" }} />
                   {eventos.map((ev, ei) => (
@@ -724,7 +728,11 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
                     <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} vertical={false} />
                     <XAxis dataKey="sucursal" tick={{ fill: chart.axis, fontSize: 12 }} axisLine={false} tickLine={false} />
                     <YAxis hide />
-                    <Tooltip contentStyle={tooltipContentStyle} labelStyle={{ color: chart.tooltipLabel }} itemStyle={{ color: chart.tooltipItem }} formatter={(v) => `${v}x`} />
+                    <Tooltip contentStyle={tooltipContentStyle} labelStyle={{ color: chart.tooltipLabel }} itemStyle={{ color: chart.tooltipItem }} formatter={(v, name, item) => {
+                      const suc = (item.payload as Record<string, unknown>)?.sucursal as string | undefined;
+                      const r = suc ? rows.find((x) => x.evento === String(name) && x.sucursal === suc) : undefined;
+                      return r ? `${v}x  (${r.dispositivos_online.toLocaleString("es-AR")} disp / ${r.clientes_online.toLocaleString("es-AR")} cli)` : `${v}x`;
+                    }} />
                     {eventos.length > 1 && <Legend wrapperStyle={{ color: chart.legend, fontSize: 12 }} />}
                     <ReferenceLine y={1} stroke="#64748b" strokeDasharray="4 4" label={{ value: "1x", fill: "#64748b", fontSize: 11, position: "insideTopRight" }} />
                     {eventos.map((ev, ei) => (

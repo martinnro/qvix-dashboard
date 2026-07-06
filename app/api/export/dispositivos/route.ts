@@ -51,10 +51,20 @@ export async function GET(req: NextRequest) {
         s.mac,
         s.mta_mac,
         s.fecha_carga,
-        tms.DESCRIPCION AS estado_stock
+        tms.DESCRIPCION AS estado_stock,
+        ult.id_conexion  AS ultima_conexion,
+        ts.descripcion   AS ultimo_estado_servicio
       FROM stock s
       JOIN DISPOSITIVOS d ON d.id_dispositivo = s.id_dispositivo
       LEFT JOIN tipo_movimiento_stock tms ON tms.tipo_movimiento_stock = s.tipo_movimiento_stock
+      OUTER APPLY (
+        SELECT TOP 1 cd.id_conexion, vcd.Estado_Servicio
+        FROM conexion_dispostivos cd
+        JOIN v_con_dom vcd ON vcd.id_conexion = cd.id_conexion
+        WHERE cd.mac = s.mac
+        ORDER BY cd.fecha_carga DESC
+      ) ult
+      LEFT JOIN tipo_estado_servicio ts ON ts.id_estado_servicio = ult.Estado_Servicio
       WHERE s.mac IS NOT NULL
         AND d.tipo_dispositivo IN ('T', 'M', 'B')
         ${tipoClause}
@@ -70,13 +80,15 @@ export async function GET(req: NextRequest) {
       .filter((r) => modelosFiltro === null || modelosFiltro.has(String(r.modelo)));
 
     const rows = registros.map((r) => ({
-      Sucursal:     SUCURSALES[Number(r.cod_sucursal)] ?? r.cod_sucursal,
-      Tipo:         r.tipo,
-      Modelo:       r.modelo,
-      MAC:          r.mac,
-      MTA_MAC:      r.mta_mac ?? "",
-      Fecha_Carga:  r.fecha_carga ? new Date(String(r.fecha_carga)).toLocaleDateString("es-AR") : "",
-      Estado_Stock: r.estado_stock ?? "",
+      Sucursal:               SUCURSALES[Number(r.cod_sucursal)] ?? r.cod_sucursal,
+      Tipo:                   r.tipo,
+      Modelo:                 r.modelo,
+      MAC:                    r.mac,
+      MTA_MAC:                r.mta_mac ?? "",
+      Fecha_Carga:            r.fecha_carga ? new Date(String(r.fecha_carga)).toLocaleDateString("es-AR") : "",
+      Estado_Stock:           r.estado_stock ?? "",
+      Ultima_Conexion:        r.ultima_conexion ?? "",
+      Ultimo_Estado_Servicio: r.ultimo_estado_servicio ?? "",
     }));
 
     const wb = XLSX.utils.book_new();

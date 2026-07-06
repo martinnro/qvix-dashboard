@@ -349,6 +349,7 @@ export default function DispositivosView({
     : Object.entries(SUCURSALES);
 
   const [sucursal, setSucursal]     = useState<number | null>(sucursalesPermitidas?.length === 1 ? sucursalesPermitidas[0] : null);
+  const [seccionSel, setSeccionSel] = useState<"all" | "activos" | "stock">("all");
   const [tipoSel, setTipoSel]       = useState<"all" | "ont" | "deco">("all");
   const [modelosSel, setModelosSel] = useState<Set<string> | null>(null);
   const [modeloOpen, setModeloOpen] = useState(false);
@@ -375,6 +376,7 @@ export default function DispositivosView({
 
   useEffect(() => { fetchData(); }, [fetchData]);
   useEffect(() => { setModelosSel(null); setModeloOpen(false); }, [tipoSel]);
+  useEffect(() => { setModelosSel(null); }, [seccionSel]);
 
   const sucFiltro = (r: DispositivoRow) => sucursal === null || r.cod_sucursal === sucursal;
 
@@ -389,9 +391,10 @@ export default function DispositivosView({
     tipoSel === "deco" ? rows.filter((r) => !esOnt(r.tipo_dispositivo)) :
     rows;
 
-  // Modelos disponibles combinando activos + stock
+  // Modelos disponibles según la sección activa
   const allRows        = [...(data?.activos ?? []), ...(data?.stock ?? [])];
-  const rowsFiltroBase = filtrarTipo(allRows.filter(sucFiltro));
+  const seccionRows    = seccionSel === "activos" ? (data?.activos ?? []) : seccionSel === "stock" ? (data?.stock ?? []) : allRows;
+  const rowsFiltroBase = filtrarTipo(seccionRows.filter(sucFiltro));
   const modelosOnt     = Array.from(new Set(rowsFiltroBase.filter((r) =>  esOnt(r.tipo_dispositivo)).map((r) => r.modelo))).sort();
   const modelosDeco    = Array.from(new Set(rowsFiltroBase.filter((r) => !esOnt(r.tipo_dispositivo)).map((r) => r.modelo))).sort();
   const modelosDisponibles = [...modelosOnt, ...modelosDeco];
@@ -419,8 +422,10 @@ export default function DispositivosView({
   const ontStock    = stockVista.filter((r) =>    esOnt(r.tipo_dispositivo));
   const decoStock   = stockVista.filter((r) =>   !esOnt(r.tipo_dispositivo));
 
-  const showOnts  = ontActivos.some((r) => sucursal === null || r.cod_sucursal === sucursal)  || ontStock.some((r) => sucursal === null || r.cod_sucursal === sucursal);
-  const showDecos = decoActivos.some((r) => sucursal === null || r.cod_sucursal === sucursal) || decoStock.some((r) => sucursal === null || r.cod_sucursal === sucursal);
+  const showOnts  = (seccionSel !== "stock"   && ontActivos.some((r) => sucursal === null || r.cod_sucursal === sucursal))
+                 || (seccionSel !== "activos" && ontStock.some((r) => sucursal === null || r.cod_sucursal === sucursal));
+  const showDecos = (seccionSel !== "stock"   && decoActivos.some((r) => sucursal === null || r.cod_sucursal === sucursal))
+                 || (seccionSel !== "activos" && decoStock.some((r) => sucursal === null || r.cod_sucursal === sucursal));
 
   const buildExportUrl = (base: string) => {
     const params = new URLSearchParams();
@@ -507,6 +512,16 @@ export default function DispositivosView({
           </div>
         )}
         <div className="flex flex-wrap items-center gap-3">
+          {/* Filtro: sección */}
+          <div className="flex gap-1 bg-slate-800 border border-slate-700 rounded-xl p-1">
+            {([["all", "Todos"], ["activos", "Activos en conexiones"], ["stock", "Stock disponible"]] as const).map(([val, label]) => (
+              <button key={val} onClick={() => setSeccionSel(val)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${seccionSel === val ? "bg-slate-600 text-white" : "text-slate-400 hover:text-slate-200"}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {/* Filtro: tipo */}
           <div className="flex gap-1 bg-slate-800 border border-slate-700 rounded-xl p-1">
             {([["all", "Todos"], ["ont", "ONTs"], ["deco", "Deco/STB"]] as const).map(([val, label]) => (
               <button key={val} onClick={() => setTipoSel(val)}
@@ -516,6 +531,17 @@ export default function DispositivosView({
             ))}
           </div>
           {ModeloDropdown}
+          {/* Exportar */}
+          <div className="pl-1 border-l border-slate-700">
+            <a href={buildExportUrl(
+                seccionSel === "activos" ? "/api/export/dispositivos-activos"
+              : seccionSel === "stock"   ? "/api/export/dispositivos"
+              :                            "/api/export/dispositivos-completo"
+            )}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 text-xs transition-colors">
+              <Download size={11} /> Exportar Excel
+            </a>
+          </div>
         </div>
       </div>
 
@@ -558,13 +584,15 @@ export default function DispositivosView({
                 <Wifi size={13} className="text-cyan-400" />
                 <span className="text-sm font-semibold text-cyan-400">ONTs</span>
               </div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-                <TablaActivos rows={ontActivos} sucursalSel={sucursal}
-                  colTitulo="Activos en conexiones" colSubtitulo="Dispositivos en uso"
-                  excelHref={buildExportUrl("/api/export/dispositivos-activos")} />
-                <TablaStock rows={ontStock} sucursalSel={sucursal}
-                  colTitulo="Stock disponible" colSubtitulo="Dispositivos sin asignar"
-                  excelHref={buildExportUrl("/api/export/dispositivos")} />
+              <div className={`grid grid-cols-1 ${seccionSel === "all" ? "lg:grid-cols-2" : ""} gap-6 items-start`}>
+                {seccionSel !== "stock" && (
+                  <TablaActivos rows={ontActivos} sucursalSel={sucursal}
+                    colTitulo="Activos en conexiones" colSubtitulo="Dispositivos en uso" />
+                )}
+                {seccionSel !== "activos" && (
+                  <TablaStock rows={ontStock} sucursalSel={sucursal}
+                    colTitulo="Stock disponible" colSubtitulo="Dispositivos sin asignar" />
+                )}
               </div>
             </div>
           )}
@@ -576,13 +604,15 @@ export default function DispositivosView({
                 <Monitor size={13} className="text-violet-400" />
                 <span className="text-sm font-semibold text-violet-400">Decos / STB</span>
               </div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-                <TablaActivos rows={decoActivos} sucursalSel={sucursal}
-                  colTitulo="Activos en conexiones" colSubtitulo="Dispositivos en uso"
-                  excelHref={buildExportUrl("/api/export/dispositivos-activos")} />
-                <TablaStock rows={decoStock} sucursalSel={sucursal}
-                  colTitulo="Stock disponible" colSubtitulo="Dispositivos sin asignar"
-                  excelHref={buildExportUrl("/api/export/dispositivos")} />
+              <div className={`grid grid-cols-1 ${seccionSel === "all" ? "lg:grid-cols-2" : ""} gap-6 items-start`}>
+                {seccionSel !== "stock" && (
+                  <TablaActivos rows={decoActivos} sucursalSel={sucursal}
+                    colTitulo="Activos en conexiones" colSubtitulo="Dispositivos en uso" />
+                )}
+                {seccionSel !== "activos" && (
+                  <TablaStock rows={decoStock} sucursalSel={sucursal}
+                    colTitulo="Stock disponible" colSubtitulo="Dispositivos sin asignar" />
+                )}
               </div>
             </div>
           )}

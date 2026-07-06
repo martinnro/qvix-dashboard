@@ -73,7 +73,13 @@ function buildChartData(data: DispositivoRow[]) {
   return { chartData, allStates, states };
 }
 
-function TablaActivos({ rows, sucursalSel }: { rows: DispositivoRow[]; sucursalSel: number | null }) {
+function TablaActivos({ rows, sucursalSel, colTitulo, colSubtitulo, excelHref }: {
+  rows: DispositivoRow[];
+  sucursalSel: number | null;
+  colTitulo?: string;
+  colSubtitulo?: string;
+  excelHref?: string;
+}) {
   const filtrados = sucursalSel !== null ? rows.filter((r) => r.cod_sucursal === sucursalSel) : rows;
   if (filtrados.length === 0) return <p className="text-slate-500 text-sm">Sin datos para mostrar.</p>;
 
@@ -116,16 +122,23 @@ function TablaActivos({ rows, sucursalSel }: { rows: DispositivoRow[]; sucursalS
 
     return (
       <div>
-        <div className="mb-4 flex items-stretch bg-slate-800/60 border border-slate-700 rounded-xl overflow-hidden">
+        <div className="mb-4 flex items-stretch bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
           <div className="w-1 flex-shrink-0" style={{ backgroundColor: color }} />
-          <div className="px-4 py-3 flex items-center justify-between flex-1 gap-4">
+          <div className="px-4 py-3 flex items-center justify-between flex-1 gap-3">
             <div>
-              <div className="text-xs font-semibold uppercase tracking-wider" style={{ color }}>{titulo}</div>
-              <div className="text-xs text-slate-500 mt-0.5">Activos en conexiones</div>
+              {colTitulo && <p className="text-xs font-semibold text-slate-200">{colTitulo}</p>}
+              {colSubtitulo && <p className="text-xs text-slate-500 mt-0.5">{colSubtitulo}</p>}
             </div>
-            <div className="text-right">
-              <div className="text-2xl font-bold text-white">{fmt(total)}</div>
-              <div className="text-xs text-slate-500">dispositivos</div>
+            <div className="flex items-center gap-3 flex-shrink-0">
+              <div className="text-right">
+                <div className="text-xl font-bold text-white">{fmt(total)}</div>
+                <div className="text-xs text-slate-500">dispositivos</div>
+              </div>
+              {excelHref && (
+                <a href={excelHref} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-700 border border-slate-600 text-slate-300 hover:text-white text-xs transition-colors">
+                  <Download size={12} /> Excel
+                </a>
+              )}
             </div>
           </div>
         </div>
@@ -184,7 +197,13 @@ function TablaActivos({ rows, sucursalSel }: { rows: DispositivoRow[]; sucursalS
   );
 }
 
-function TablaStock({ rows, sucursalSel }: { rows: DispositivoRow[]; sucursalSel: number | null }) {
+function TablaStock({ rows, sucursalSel, colTitulo, colSubtitulo, excelHref }: {
+  rows: DispositivoRow[];
+  sucursalSel: number | null;
+  colTitulo?: string;
+  colSubtitulo?: string;
+  excelHref?: string;
+}) {
   const filtrados = sucursalSel !== null ? rows.filter((r) => r.cod_sucursal === sucursalSel) : rows;
   if (filtrados.length === 0) return <p className="text-slate-500 text-sm">Sin datos para mostrar.</p>;
 
@@ -241,16 +260,23 @@ function TablaStock({ rows, sucursalSel }: { rows: DispositivoRow[]; sucursalSel
 
     return (
       <div>
-        <div className="mb-4 flex items-stretch bg-slate-800/60 border border-slate-700 rounded-xl overflow-hidden">
+        <div className="mb-4 flex items-stretch bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
           <div className="w-1 flex-shrink-0" style={{ backgroundColor: color }} />
-          <div className="px-4 py-3 flex items-center justify-between flex-1 gap-4">
+          <div className="px-4 py-3 flex items-center justify-between flex-1 gap-3">
             <div>
-              <div className="text-xs font-semibold uppercase tracking-wider" style={{ color }}>{titulo}</div>
-              <div className="text-xs text-slate-500 mt-0.5">Stock disponible</div>
+              {colTitulo && <p className="text-xs font-semibold text-slate-200">{colTitulo}</p>}
+              {colSubtitulo && <p className="text-xs text-slate-500 mt-0.5">{colSubtitulo}</p>}
             </div>
-            <div className="text-right">
-              <div className="text-2xl font-bold text-white">{fmt(total)}</div>
-              <div className="text-xs text-slate-500">dispositivos</div>
+            <div className="flex items-center gap-3 flex-shrink-0">
+              <div className="text-right">
+                <div className="text-xl font-bold text-white">{fmt(total)}</div>
+                <div className="text-xs text-slate-500">dispositivos</div>
+              </div>
+              {excelHref && (
+                <a href={excelHref} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-700 border border-slate-600 text-slate-300 hover:text-white text-xs transition-colors">
+                  <Download size={12} /> Excel
+                </a>
+              )}
             </div>
           </div>
         </div>
@@ -521,52 +547,42 @@ export default function DispositivosView({
         </div>
       )}
 
-      {/* Gráficos: tipo primero, activos | stock lado a lado */}
+      {/* Gráficos: una tarjeta por tipo con activos | stock adentro */}
       {data && (
-        <div className="space-y-8">
+        <div className="space-y-6">
 
-          {/* Cabecera de columnas con botones Excel */}
-          <div className="grid grid-cols-2 gap-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-slate-200">Activos en conexiones</h3>
-              <a href={buildExportUrl("/api/export/dispositivos-activos")}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white text-xs transition-colors">
-                <Download size={12} /> Excel
-              </a>
-            </div>
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-slate-200">Stock disponible</h3>
-              <a href={buildExportUrl("/api/export/dispositivos")}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white text-xs transition-colors">
-                <Download size={12} /> Excel
-              </a>
-            </div>
-          </div>
-
-          {/* Fila ONTs */}
+          {/* Tarjeta ONTs */}
           {showOnts && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+            <div className="bg-slate-800/40 border border-slate-700 rounded-2xl p-5">
+              <div className="flex items-center gap-2 pb-4 mb-5 border-b border-slate-700/60">
                 <Wifi size={13} className="text-cyan-400" />
-                <span className="text-xs font-semibold uppercase tracking-wider text-cyan-400">ONTs</span>
+                <span className="text-sm font-semibold text-cyan-400">ONTs</span>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-                <TablaActivos rows={ontActivos} sucursalSel={sucursal} />
-                <TablaStock rows={ontStock} sucursalSel={sucursal} />
+                <TablaActivos rows={ontActivos} sucursalSel={sucursal}
+                  colTitulo="Activos en conexiones" colSubtitulo="Dispositivos en uso"
+                  excelHref={buildExportUrl("/api/export/dispositivos-activos")} />
+                <TablaStock rows={ontStock} sucursalSel={sucursal}
+                  colTitulo="Stock disponible" colSubtitulo="Dispositivos sin asignar"
+                  excelHref={buildExportUrl("/api/export/dispositivos")} />
               </div>
             </div>
           )}
 
-          {/* Fila Decos / STB */}
+          {/* Tarjeta Decos / STB */}
           {showDecos && (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+            <div className="bg-slate-800/40 border border-slate-700 rounded-2xl p-5">
+              <div className="flex items-center gap-2 pb-4 mb-5 border-b border-slate-700/60">
                 <Monitor size={13} className="text-violet-400" />
-                <span className="text-xs font-semibold uppercase tracking-wider text-violet-400">Decos / STB</span>
+                <span className="text-sm font-semibold text-violet-400">Decos / STB</span>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-                <TablaActivos rows={decoActivos} sucursalSel={sucursal} />
-                <TablaStock rows={decoStock} sucursalSel={sucursal} />
+                <TablaActivos rows={decoActivos} sucursalSel={sucursal}
+                  colTitulo="Activos en conexiones" colSubtitulo="Dispositivos en uso"
+                  excelHref={buildExportUrl("/api/export/dispositivos-activos")} />
+                <TablaStock rows={decoStock} sucursalSel={sucursal}
+                  colTitulo="Stock disponible" colSubtitulo="Dispositivos sin asignar"
+                  excelHref={buildExportUrl("/api/export/dispositivos")} />
               </div>
             </div>
           )}

@@ -25,6 +25,7 @@ interface StockInfo {
   mac: string;
   modelo: string;
   tipo: string;
+  estado_stock: string | null;
 }
 
 interface MacResult {
@@ -82,8 +83,14 @@ function ResultCard({ result }: { result: MacResult }) {
             </div>
             <div>
               <div className="text-slate-500 text-xs">Estado</div>
-              <div className={`text-sm font-medium ${activa ? "text-amber-400" : stock.cantidad_actual === 1 ? "text-emerald-400" : "text-red-400"}`}>
-                {activa ? "Asignado" : stock.cantidad_actual === 1 ? "Disponible" : "Sin stock"}
+              <div className={`text-sm font-medium ${
+                activa
+                  ? "text-amber-400"
+                  : stock.estado_stock === "DISPONIBLE"
+                  ? "text-emerald-400"
+                  : "text-slate-400"
+              }`}>
+                {activa ? "Asignado" : (stock.estado_stock ?? "Desconocido")}
               </div>
             </div>
           </div>

@@ -25,9 +25,11 @@ export async function GET(req: NextRequest) {
           s.fecha_carga,
           s.mac,
           d.nombre_dispositivo AS modelo,
-          CASE d.tipo_dispositivo WHEN 'B' THEN 'ONT' ELSE 'Deco/STB' END AS tipo
+          CASE d.tipo_dispositivo WHEN 'B' THEN 'ONT' ELSE 'Deco/STB' END AS tipo,
+          tms.DESCRIPCION AS estado_stock
         FROM stock s
         JOIN DISPOSITIVOS d ON d.id_dispositivo = s.id_dispositivo
+        LEFT JOIN tipo_movimiento_stock tms ON tms.tipo_movimiento_stock = s.tipo_movimiento_stock
         WHERE UPPER(REPLACE(REPLACE(REPLACE(s.mac, ':', ''), '-', ''), ' ', '')) = @mac
       `),
       pool.request().input("mac", mac).query(`
@@ -35,7 +37,7 @@ export async function GET(req: NextRequest) {
           cd.id_conexion,
           cd.estado        AS estado_asignacion,
           cd.fecha_carga   AS fecha_asignacion,
-          cd.cod_sucursal,
+          vcd.cod_sucursal,
           vcd.Estado_Servicio,
           ts.descripcion   AS estado_nombre
         FROM conexion_dispostivos cd

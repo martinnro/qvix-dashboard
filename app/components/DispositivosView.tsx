@@ -1,12 +1,14 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
-import { RefreshCw, Monitor, Wifi, Download, PackageOpen } from "lucide-react";
+import { RefreshCw, Monitor, Wifi, Download, PackageOpen, ChevronDown } from "lucide-react";
 import { getColorById } from "./MapaUtils";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList } from "recharts";
 
 const SUCURSALES: Record<number, string> = {
-  4: "Valle Viejo",
+  0: "Central",
   1: "Chumbicha",
+  3: "SonoVision",
+  4: "Valle Viejo",
   5: "Tinogasta",
   6: "Rodeo",
   7: "La Puerta",
@@ -14,7 +16,9 @@ const SUCURSALES: Record<number, string> = {
 };
 
 const SUCURSAL_COLORS: Record<number, string> = {
+  0: "#64748b",
   1: "#06b6d4",
+  3: "#f97316",
   4: "#6366f1",
   5: "#10b981",
   6: "#f59e0b",
@@ -70,7 +74,7 @@ function buildChartData(data: DispositivoRow[]) {
 }
 
 function TablaActivos({ rows, sucursalSel }: { rows: DispositivoRow[]; sucursalSel: number | null }) {
-  const filtrados = sucursalSel ? rows.filter((r) => r.cod_sucursal === sucursalSel) : rows;
+  const filtrados = sucursalSel !== null ? rows.filter((r) => r.cod_sucursal === sucursalSel) : rows;
   if (filtrados.length === 0) return <p className="text-slate-500 text-sm">Sin datos para mostrar.</p>;
 
   const decos = filtrados.filter((r) => !esOnt(r.tipo_dispositivo));
@@ -112,9 +116,18 @@ function TablaActivos({ rows, sucursalSel }: { rows: DispositivoRow[]; sucursalS
 
     return (
       <div>
-        <div className="flex items-center gap-2 mb-4">
-          <span className="text-xs font-semibold uppercase tracking-wider" style={{ color }}>{titulo}</span>
-          <span className="text-xs text-slate-500">— {fmt(total)} total</span>
+        <div className="mb-4 flex items-stretch bg-slate-800/60 border border-slate-700 rounded-xl overflow-hidden">
+          <div className="w-1 flex-shrink-0" style={{ backgroundColor: color }} />
+          <div className="px-4 py-3 flex items-center justify-between flex-1 gap-4">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wider" style={{ color }}>{titulo}</div>
+              <div className="text-xs text-slate-500 mt-0.5">Activos en conexiones</div>
+            </div>
+            <div className="text-right">
+              <div className="text-2xl font-bold text-white">{fmt(total)}</div>
+              <div className="text-xs text-slate-500">dispositivos</div>
+            </div>
+          </div>
         </div>
         <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5">
           <ResponsiveContainer width="100%" height={chartH}>
@@ -172,7 +185,7 @@ function TablaActivos({ rows, sucursalSel }: { rows: DispositivoRow[]; sucursalS
 }
 
 function TablaStock({ rows, sucursalSel }: { rows: DispositivoRow[]; sucursalSel: number | null }) {
-  const filtrados = sucursalSel ? rows.filter((r) => r.cod_sucursal === sucursalSel) : rows;
+  const filtrados = sucursalSel !== null ? rows.filter((r) => r.cod_sucursal === sucursalSel) : rows;
   if (filtrados.length === 0) return <p className="text-slate-500 text-sm">Sin datos para mostrar.</p>;
 
   const decos = filtrados.filter((r) => !esOnt(r.tipo_dispositivo));
@@ -228,9 +241,18 @@ function TablaStock({ rows, sucursalSel }: { rows: DispositivoRow[]; sucursalSel
 
     return (
       <div>
-        <div className="flex items-center gap-2 mb-4">
-          <span className="text-xs font-semibold uppercase tracking-wider" style={{ color }}>{titulo}</span>
-          <span className="text-xs text-slate-500">— {fmt(total)} total</span>
+        <div className="mb-4 flex items-stretch bg-slate-800/60 border border-slate-700 rounded-xl overflow-hidden">
+          <div className="w-1 flex-shrink-0" style={{ backgroundColor: color }} />
+          <div className="px-4 py-3 flex items-center justify-between flex-1 gap-4">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wider" style={{ color }}>{titulo}</div>
+              <div className="text-xs text-slate-500 mt-0.5">Stock disponible</div>
+            </div>
+            <div className="text-right">
+              <div className="text-2xl font-bold text-white">{fmt(total)}</div>
+              <div className="text-xs text-slate-500">dispositivos</div>
+            </div>
+          </div>
         </div>
         <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5">
           <ResponsiveContainer width="100%" height={chartH}>
@@ -300,13 +322,13 @@ export default function DispositivosView({
     ? Object.entries(SUCURSALES).filter(([cod]) => sucursalesPermitidas.includes(Number(cod)))
     : Object.entries(SUCURSALES);
 
-  const [sucursal, setSucursal] = useState<number | null>(
-    sucursalesPermitidas?.length === 1 ? sucursalesPermitidas[0] : null
-  );
-  const [tab, setTab]     = useState<"activos" | "stock">("activos");
-  const [data, setData]   = useState<Data | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [sucursal, setSucursal]     = useState<number | null>(sucursalesPermitidas?.length === 1 ? sucursalesPermitidas[0] : null);
+  const [tipoSel, setTipoSel]       = useState<"all" | "ont" | "deco">("all");
+  const [modelosSel, setModelosSel] = useState<Set<string> | null>(null);
+  const [modeloOpen, setModeloOpen] = useState(false);
+  const [data, setData]             = useState<Data | null>(null);
+  const [loading, setLoading]       = useState(false);
+  const [error, setError]           = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -314,7 +336,7 @@ export default function DispositivosView({
     try {
       const params = new URLSearchParams();
       if (sucursal !== null) params.set("sucursal", String(sucursal));
-      const res = await fetch(`/api/dispositivos?${params}`);
+      const res  = await fetch(`/api/dispositivos?${params}`);
       const json = await res.json();
       if (json.error) throw new Error(json.error);
       setData(json);
@@ -326,16 +348,107 @@ export default function DispositivosView({
   }, [sucursal]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => { setModelosSel(null); setModeloOpen(false); }, [tipoSel]);
 
   const sucFiltro = (r: DispositivoRow) => sucursal === null || r.cod_sucursal === sucursal;
-  const totalActivos    = data ? data.activos.filter((r) => !esOnt(r.tipo_dispositivo) && sucFiltro(r)).reduce((s, r) => s + r.cantidad, 0) : 0;
-  const totalOnts       = data ? data.activos.filter((r) =>  esOnt(r.tipo_dispositivo) && sucFiltro(r)).reduce((s, r) => s + r.cantidad, 0) : 0;
-  const totalStock      = data ? data.stock.filter(sucFiltro).reduce((s, r) => s + r.cantidad, 0) : 0;
-  const totalStockOnts  = data ? data.stock.filter((r) =>  esOnt(r.tipo_dispositivo) && sucFiltro(r)).reduce((s, r) => s + r.cantidad, 0) : 0;
-  const totalStockDecos = data ? data.stock.filter((r) => !esOnt(r.tipo_dispositivo) && sucFiltro(r)).reduce((s, r) => s + r.cantidad, 0) : 0;
+
+  // KPIs — solo filtro de sucursal, sin tipo ni modelo
+  const totalOntsActivas  = data ? data.activos.filter((r) =>  esOnt(r.tipo_dispositivo) && sucFiltro(r)).reduce((s, r) => s + r.cantidad, 0) : 0;
+  const totalDecosActivos = data ? data.activos.filter((r) => !esOnt(r.tipo_dispositivo) && sucFiltro(r)).reduce((s, r) => s + r.cantidad, 0) : 0;
+  const totalStockOnts    = data ? data.stock.filter((r) =>   esOnt(r.tipo_dispositivo) && sucFiltro(r)).reduce((s, r) => s + r.cantidad, 0) : 0;
+  const totalStockDecos   = data ? data.stock.filter((r) =>  !esOnt(r.tipo_dispositivo) && sucFiltro(r)).reduce((s, r) => s + r.cantidad, 0) : 0;
+
+  const filtrarTipo = (rows: DispositivoRow[]) =>
+    tipoSel === "ont"  ? rows.filter((r) =>  esOnt(r.tipo_dispositivo)) :
+    tipoSel === "deco" ? rows.filter((r) => !esOnt(r.tipo_dispositivo)) :
+    rows;
+
+  // Modelos disponibles combinando activos + stock
+  const allRows        = [...(data?.activos ?? []), ...(data?.stock ?? [])];
+  const rowsFiltroBase = filtrarTipo(allRows.filter(sucFiltro));
+  const modelosOnt     = Array.from(new Set(rowsFiltroBase.filter((r) =>  esOnt(r.tipo_dispositivo)).map((r) => r.modelo))).sort();
+  const modelosDeco    = Array.from(new Set(rowsFiltroBase.filter((r) => !esOnt(r.tipo_dispositivo)).map((r) => r.modelo))).sort();
+  const modelosDisponibles = [...modelosOnt, ...modelosDeco];
+
+  const toggleModelo = (modelo: string) => {
+    setModelosSel((prev) => {
+      const base = prev ?? new Set(modelosDisponibles);
+      const next = new Set(base);
+      next.has(modelo) ? next.delete(modelo) : next.add(modelo);
+      if (next.size === modelosDisponibles.length) return null;
+      return next;
+    });
+  };
+  const toggleTodos = () => setModelosSel((prev) => prev === null ? new Set() : null);
+
+  const modeloLabel = modelosSel === null ? "Todos los modelos"
+    : modelosSel.size === 0 ? "Ningún modelo"
+    : `${modelosSel.size} modelo${modelosSel.size !== 1 ? "s" : ""}`;
+
+  const activosVista = filtrarTipo(data?.activos ?? []).filter((r) => modelosSel === null || modelosSel.has(r.modelo));
+  const stockVista   = filtrarTipo(data?.stock   ?? []).filter((r) => modelosSel === null || modelosSel.has(r.modelo));
+
+  const ontActivos  = activosVista.filter((r) =>  esOnt(r.tipo_dispositivo));
+  const decoActivos = activosVista.filter((r) => !esOnt(r.tipo_dispositivo));
+  const ontStock    = stockVista.filter((r) =>    esOnt(r.tipo_dispositivo));
+  const decoStock   = stockVista.filter((r) =>   !esOnt(r.tipo_dispositivo));
+
+  const showOnts  = ontActivos.some((r) => sucursal === null || r.cod_sucursal === sucursal)  || ontStock.some((r) => sucursal === null || r.cod_sucursal === sucursal);
+  const showDecos = decoActivos.some((r) => sucursal === null || r.cod_sucursal === sucursal) || decoStock.some((r) => sucursal === null || r.cod_sucursal === sucursal);
+
+  const buildExportUrl = (base: string) => {
+    const params = new URLSearchParams();
+    if (sucursal !== null) params.set("sucursal", String(sucursal));
+    if (tipoSel !== "all") params.set("tipo", tipoSel);
+    if (modelosSel !== null && modelosSel.size > 0) params.set("modelos", [...modelosSel].join(","));
+    const qs = params.toString();
+    return qs ? `${base}?${qs}` : base;
+  };
+
+  const ModeloDropdown = (
+    <div className="relative">
+      <button onClick={() => setModeloOpen((o) => !o)}
+        className="flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-xs text-slate-300 hover:text-white transition-colors">
+        {modeloLabel}
+        <ChevronDown size={12} className={`transition-transform ${modeloOpen ? "rotate-180" : ""}`} />
+      </button>
+      {modeloOpen && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setModeloOpen(false)} />
+          <div className="absolute top-full mt-1 left-0 z-20 bg-slate-800 border border-slate-700 rounded-xl shadow-xl w-72 max-h-72 overflow-y-auto p-2">
+            <label className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-700 cursor-pointer text-xs text-slate-200 font-medium">
+              <input type="checkbox" checked={modelosSel === null} onChange={toggleTodos} className="accent-indigo-500" />
+              Todos los modelos
+            </label>
+            <div className="border-t border-slate-700 my-1.5" />
+            {modelosOnt.length > 0 && (<>
+              <div className="px-2 py-1 text-xs font-semibold uppercase tracking-wider text-cyan-500">ONTs</div>
+              {modelosOnt.map((m) => (
+                <label key={m} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-700 cursor-pointer text-xs text-slate-300">
+                  <input type="checkbox" checked={modelosSel === null || modelosSel.has(m)} onChange={() => toggleModelo(m)} className="accent-indigo-500" />
+                  {m}
+                </label>
+              ))}
+            </>)}
+            {modelosOnt.length > 0 && modelosDeco.length > 0 && <div className="border-t border-slate-700 my-1.5" />}
+            {modelosDeco.length > 0 && (<>
+              <div className="px-2 py-1 text-xs font-semibold uppercase tracking-wider text-violet-400">Deco/STB</div>
+              {modelosDeco.map((m) => (
+                <label key={m} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-700 cursor-pointer text-xs text-slate-300">
+                  <input type="checkbox" checked={modelosSel === null || modelosSel.has(m)} onChange={() => toggleModelo(m)} className="accent-indigo-500" />
+                  {m}
+                </label>
+              ))}
+            </>)}
+          </div>
+        </>
+      )}
+    </div>
+  );
 
   return (
     <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -344,124 +457,121 @@ export default function DispositivosView({
         </div>
         <div className="flex items-center gap-2">
           <button onClick={fetchData} disabled={loading}
-            className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-colors disabled:opacity-50"
-          >
+            className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-colors disabled:opacity-50">
             <RefreshCw size={15} className={loading ? "animate-spin" : ""} />
           </button>
-          <button onClick={onClose} className="text-slate-400 hover:text-white text-sm transition-colors">
-            ← Volver
-          </button>
+          <button onClick={onClose} className="text-slate-400 hover:text-white text-sm transition-colors">← Volver</button>
         </div>
       </div>
 
-      {/* Filtro sucursal */}
-      {sucursalesDisponibles.length > 1 && (
-        <div className="flex items-center gap-1 bg-slate-800 border border-slate-700 rounded-xl p-1 w-fit flex-wrap">
-          <button
-            onClick={() => setSucursal(null)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${sucursal === null ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-slate-200"}`}
-          >
-            Todas
-          </button>
-          {sucursalesDisponibles.map(([cod, nombre]) => (
-            <button key={cod} onClick={() => setSucursal(Number(cod))}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${sucursal === Number(cod) ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-slate-200"}`}
-            >
-              {nombre}
+      {/* Filtros globales */}
+      <div className="space-y-3">
+        {sucursalesDisponibles.length > 1 && (
+          <div className="flex items-center gap-1 bg-slate-800 border border-slate-700 rounded-xl p-1 w-fit flex-wrap">
+            <button onClick={() => setSucursal(null)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${sucursal === null ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-slate-200"}`}>
+              Todas
             </button>
-          ))}
+            {sucursalesDisponibles.map(([cod, nombre]) => (
+              <button key={cod} onClick={() => setSucursal(Number(cod))}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${sucursal === Number(cod) ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-slate-200"}`}>
+                {nombre}
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex gap-1 bg-slate-800 border border-slate-700 rounded-xl p-1">
+            {([["all", "Todos"], ["ont", "ONTs"], ["deco", "Deco/STB"]] as const).map(([val, label]) => (
+              <button key={val} onClick={() => setTipoSel(val)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${tipoSel === val ? "bg-slate-600 text-white" : "text-slate-400 hover:text-slate-200"}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {ModeloDropdown}
         </div>
-      )}
+      </div>
 
-      {/* KPIs */}
+      {/* KPIs — 4 tarjetas */}
       {data && (
-        <div className="grid grid-cols-3 gap-4">
-          {/* ONTs activas */}
-          <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5 flex items-center gap-4">
-            <div className="w-10 h-10 rounded-xl bg-cyan-500/20 flex items-center justify-center flex-shrink-0">
-              <Wifi size={18} className="text-cyan-400" />
-            </div>
-            <div>
-              <div className="text-xs text-slate-400">ONTs activas</div>
-              <div className="text-2xl font-bold text-cyan-400">{fmt(totalOnts)}</div>
-            </div>
-          </div>
-          {/* Decos activos */}
-          <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5 flex items-center gap-4">
-            <div className="w-10 h-10 rounded-xl bg-violet-500/20 flex items-center justify-center flex-shrink-0">
-              <Monitor size={18} className="text-violet-400" />
-            </div>
-            <div>
-              <div className="text-xs text-slate-400">Decos activos</div>
-              <div className="text-2xl font-bold text-violet-400">{fmt(totalActivos)}</div>
-            </div>
-          </div>
-          {/* En stock con desglose */}
-          <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5 flex items-center gap-4">
-            <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
-              <PackageOpen size={18} className="text-emerald-400" />
-            </div>
-            <div className="min-w-0">
-              <div className="text-xs text-slate-400">En stock</div>
-              <div className="text-2xl font-bold text-emerald-400">{fmt(totalStock)}</div>
-              <div className="flex items-center gap-3 mt-1">
-                <span className="text-xs text-cyan-400 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 inline-block" />
-                  {fmt(totalStockOnts)} ONTs
-                </span>
-                <span className="text-xs text-violet-400 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-violet-400 inline-block" />
-                  {fmt(totalStockDecos)} Decos
-                </span>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {[
+            { label: "ONTs activas",  value: totalOntsActivas,  icon: <Wifi size={16} className="text-cyan-400" />,    bg: "bg-cyan-500/20",    text: "text-cyan-400",    border: "border-slate-700" },
+            { label: "Decos activos", value: totalDecosActivos, icon: <Monitor size={16} className="text-violet-400" />, bg: "bg-violet-500/20", text: "text-violet-400", border: "border-slate-700" },
+            { label: "Stock ONTs",    value: totalStockOnts,    icon: <PackageOpen size={16} className="text-emerald-400" />, bg: "bg-emerald-500/20", text: "text-emerald-400", border: "border-emerald-800/40" },
+            { label: "Stock Decos",   value: totalStockDecos,   icon: <PackageOpen size={16} className="text-emerald-400" />, bg: "bg-emerald-500/20", text: "text-emerald-400", border: "border-emerald-800/40" },
+          ].map(({ label, value, icon, bg, text, border }) => (
+            <div key={label} className={`bg-slate-800 border ${border} rounded-2xl p-5 flex items-center gap-3`}>
+              <div className={`w-9 h-9 rounded-xl ${bg} flex items-center justify-center flex-shrink-0`}>{icon}</div>
+              <div>
+                <div className="text-xs text-slate-400">{label}</div>
+                <div className={`text-xl font-bold ${text}`}>{fmt(value)}</div>
               </div>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Tabs */}
-      <div className="flex gap-1 bg-slate-800 border border-slate-700 rounded-xl p-1 w-fit">
-        <button
-          onClick={() => setTab("activos")}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === "activos" ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-slate-200"}`}
-        >
-          Activos en conexiones
-        </button>
-        <button
-          onClick={() => setTab("stock")}
-          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${tab === "stock" ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-slate-200"}`}
-        >
-          Stock disponible
-        </button>
-      </div>
-
-      {error && (
-        <div className="bg-red-900/30 border border-red-700/50 rounded-xl px-4 py-3 text-red-400 text-sm">{error}</div>
-      )}
-
-      {loading && !data && (
-        <div className="space-y-3">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="h-12 bg-slate-800/50 rounded-2xl animate-pulse" />
           ))}
         </div>
       )}
 
-      {data && tab === "activos" && (
-        <TablaActivos rows={data.activos} sucursalSel={sucursal} />
+      {error && <div className="bg-red-900/30 border border-red-700/50 rounded-xl px-4 py-3 text-red-400 text-sm">{error}</div>}
+
+      {loading && !data && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {[...Array(4)].map((_, i) => <div key={i} className="h-40 bg-slate-800/50 rounded-2xl animate-pulse" />)}
+        </div>
       )}
-      {data && tab === "stock" && (
-        <>
-          <div className="flex justify-end">
-            <a
-              href={`/api/export/dispositivos${sucursal ? `?sucursal=${sucursal}` : ""}`}
-              className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-300 hover:text-white text-sm transition-colors"
-            >
-              <Download size={14} /> Exportar Excel
-            </a>
+
+      {/* Gráficos: tipo primero, activos | stock lado a lado */}
+      {data && (
+        <div className="space-y-8">
+
+          {/* Cabecera de columnas con botones Excel */}
+          <div className="grid grid-cols-2 gap-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-slate-200">Activos en conexiones</h3>
+              <a href={buildExportUrl("/api/export/dispositivos-activos")}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white text-xs transition-colors">
+                <Download size={12} /> Excel
+              </a>
+            </div>
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-slate-200">Stock disponible</h3>
+              <a href={buildExportUrl("/api/export/dispositivos")}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white text-xs transition-colors">
+                <Download size={12} /> Excel
+              </a>
+            </div>
           </div>
-          <TablaStock rows={data.stock} sucursalSel={sucursal} />
-        </>
+
+          {/* Fila ONTs */}
+          {showOnts && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+                <Wifi size={13} className="text-cyan-400" />
+                <span className="text-xs font-semibold uppercase tracking-wider text-cyan-400">ONTs</span>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                <TablaActivos rows={ontActivos} sucursalSel={sucursal} />
+                <TablaStock rows={ontStock} sucursalSel={sucursal} />
+              </div>
+            </div>
+          )}
+
+          {/* Fila Decos / STB */}
+          {showDecos && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 border-b border-slate-800 pb-2">
+                <Monitor size={13} className="text-violet-400" />
+                <span className="text-xs font-semibold uppercase tracking-wider text-violet-400">Decos / STB</span>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+                <TablaActivos rows={decoActivos} sucursalSel={sucursal} />
+                <TablaStock rows={decoStock} sucursalSel={sucursal} />
+              </div>
+            </div>
+          )}
+
+        </div>
       )}
     </div>
   );

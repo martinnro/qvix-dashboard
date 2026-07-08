@@ -2,11 +2,10 @@
 import { useState, useEffect, useMemo } from "react";
 import {
   BarChart, Bar, Cell, LabelList,
-  LineChart, Line,
   XAxis, YAxis, CartesianGrid, Tooltip,
   Legend, ResponsiveContainer, ReferenceLine,
 } from "recharts";
-import { X, Plus, Trash2, Activity, Pencil } from "lucide-react";
+import { X, Plus, Trash2, Activity, Pencil, ChevronDown, ChevronRight } from "lucide-react";
 import { getColor } from "../lib/dataUtils";
 import { useTheme } from "../lib/useTheme";
 
@@ -71,6 +70,7 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
   const [editingDispRow, setEditingDispRow] = useState<DispositivoRow | null>(null);
   const [compareA, setCompareA] = useState("");
   const [compareB, setCompareB] = useState("");
+  const [expandedRegistros, setExpandedRegistros] = useState<Set<string>>(new Set());
 
   // Multi-sucursal event form
   const [formBase, setFormBase] = useState(initFormBase());
@@ -325,18 +325,6 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
     return { cliOnlineA, cliOnlineB, deltaCliOnline: cliOnlineB - cliOnlineA, dispOnlineA, dispOnlineB, deltaDispOnline: dispOnlineB - dispOnlineA, best, worst };
   }, [compareA, compareB, rows, comparisonData]);
 
-  const historicData = useMemo(() => {
-    return eventos.map((ev) => {
-      const entry: Record<string, string | number> = { evento: ev };
-      for (const suc of visibleSucs) {
-        const r = rows.find((x) => x.evento === ev && x.sucursal === suc);
-        const v = r ? pct(r.clientes_online, r.clientes_total) : null;
-        if (v !== null) entry[suc] = v;
-      }
-      return entry;
-    });
-  }, [eventos, visibleSucs, rows]);
-
   const ratioData = useMemo(() => {
     return visibleSucs.map((suc) => {
       const entry: Record<string, string | number> = { sucursal: suc };
@@ -372,20 +360,44 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
       .sort((a, b) => b.avg - a.avg);
   }, [visibleSucs, rows]);
 
+  const highlights = useMemo(() => {
+    if (!comparisonSummary || comparisonData.length === 0) return [];
+    type HL = { text: string; type: "good" | "bad" | "neutral" };
+    const items: HL[] = [];
+    const improved = comparisonData.filter((d) => (d.delta_pct_cli ?? 0) > 0).length;
+    const worsened = comparisonData.filter((d) => (d.delta_pct_cli ?? 0) < 0).length;
+    const total = comparisonData.length;
+    const deltaCliPct = comparisonSummary.cliOnlineA > 0
+      ? Math.round((comparisonSummary.deltaCliOnline / comparisonSummary.cliOnlineA) * 1000) / 10
+      : 0;
+    items.push({
+      text: `Clientes online totales: ${comparisonSummary.deltaCliOnline >= 0 ? "+" : ""}${comparisonSummary.deltaCliOnline.toLocaleString("es-AR")} (${deltaCliPct >= 0 ? "+" : ""}${deltaCliPct}% respecto a ${compareA})`,
+      type: comparisonSummary.deltaCliOnline >= 0 ? "good" : "bad",
+    });
+    items.push({
+      text: `${improved} de ${total} sucursales mejoraron en % clientes, ${worsened} empeoraron`,
+      type: improved > worsened ? "good" : improved < worsened ? "bad" : "neutral",
+    });
+    const withDelta = comparisonData.filter((d) => d.delta_cli_online !== null);
+    if (withDelta.length) {
+      const topGainer = withDelta.reduce((a, b) => (b.delta_cli_online! > a.delta_cli_online! ? b : a));
+      const topLoser = withDelta.reduce((a, b) => (b.delta_cli_online! < a.delta_cli_online! ? b : a));
+      if (topGainer.delta_cli_online! > 0)
+        items.push({ text: `Mayor ganancia absoluta: ${topGainer.sucursal} +${topGainer.delta_cli_online!.toLocaleString("es-AR")} clientes online`, type: "good" });
+      if (topLoser.delta_cli_online! < 0 && topLoser.sucursal !== topGainer.sucursal)
+        items.push({ text: `Mayor pérdida absoluta: ${topLoser.sucursal} ${topLoser.delta_cli_online!.toLocaleString("es-AR")} clientes online`, type: "bad" });
+    }
+    items.push({
+      text: `Dispositivos online totales: ${comparisonSummary.deltaDispOnline >= 0 ? "+" : ""}${comparisonSummary.deltaDispOnline.toLocaleString("es-AR")}`,
+      type: comparisonSummary.deltaDispOnline >= 0 ? "good" : "bad",
+    });
+    return items;
+  }, [compareA, comparisonData, comparisonSummary]);
+
   const tooltipContentStyle = {
     background: chart.tooltipBg,
     border: `1px solid ${chart.tooltipBorder}`,
     borderRadius: 8,
-  };
-
-  const xAxisProps = {
-    dataKey: "evento",
-    tick: { fill: chart.axis, fontSize: 11 },
-    angle: -40,
-    textAnchor: "end" as const,
-    interval: 0,
-    height: 70,
-    tickFormatter: (v: string) => v.length > 16 ? v.slice(0, 15) + "…" : v,
   };
 
   const renderDelta = (val: number | null, suffix = "") => {
@@ -528,52 +540,100 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
 
             {/* Tabla registros */}
             <section className="bg-slate-800 border border-slate-700 rounded-xl p-5">
-              <h3 className="text-slate-200 font-semibold mb-4">Registros cargados</h3>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-slate-400 text-xs uppercase tracking-wider border-b border-slate-700">
-                      {["Fecha", "Evento", "Sucursal", "Cli. Online", "Cli. Total", "% Cli.", "Disp. Online", "Disp. Total", "% Disp.", "", ""].map((h, i) => (
-                        <th key={i} className="text-center py-2 px-3">{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredRows
-                      .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.evento.localeCompare(b.evento))
-                      .map((r) => (
-                        <tr key={r.id} className="border-b border-slate-800 hover:bg-slate-700/30 transition-colors">
-                          <td className="py-2 px-3 text-slate-400 whitespace-nowrap text-center">{new Date(r.fecha + "T00:00:00").toLocaleDateString("es-AR")}</td>
-                          <td className="py-2 px-3 text-slate-200 font-medium text-center">{r.evento}</td>
-                          <td className="py-2 px-3 text-slate-300 text-center">{r.sucursal}</td>
-                          <td className="py-2 px-3 text-slate-300 text-center">{r.clientes_online.toLocaleString("es-AR")}</td>
-                          <td className="py-2 px-3 text-slate-300 text-center">{r.clientes_total.toLocaleString("es-AR")}</td>
-                          <td className="py-2 px-3 text-center">
-                            <span className={`font-semibold ${(pct(r.clientes_online, r.clientes_total) ?? 0) >= 80 ? "text-emerald-400" : "text-amber-400"}`}>
-                              {pct(r.clientes_online, r.clientes_total) ?? "—"}%
-                            </span>
-                          </td>
-                          <td className="py-2 px-3 text-slate-300 text-center">{r.dispositivos_online.toLocaleString("es-AR")}</td>
-                          <td className="py-2 px-3 text-slate-300 text-center">{r.dispositivos_total.toLocaleString("es-AR")}</td>
-                          <td className="py-2 px-3 text-center">
-                            <span className={`font-semibold ${(pct(r.dispositivos_online, r.dispositivos_total) ?? 0) >= 80 ? "text-emerald-400" : "text-amber-400"}`}>
-                              {pct(r.dispositivos_online, r.dispositivos_total) ?? "—"}%
-                            </span>
-                          </td>
-                          <td className="py-2 px-3 text-center">
-                            <button onClick={() => setEditingRow({ ...r })} className="text-slate-600 hover:text-indigo-400 transition-colors">
-                              <Pencil size={14} />
-                            </button>
-                          </td>
-                          <td className="py-2 px-3 text-center">
-                            <button onClick={() => handleDelete(r.id)} className="text-slate-600 hover:text-red-400 transition-colors">
-                              <Trash2 size={14} />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-slate-200 font-semibold">Registros cargados</h3>
+                <div className="flex gap-3">
+                  <button onClick={() => setExpandedRegistros(new Set([...eventos].reverse()))} className="text-xs text-slate-400 hover:text-slate-200 transition-colors">
+                    Expandir todos
+                  </button>
+                  <button onClick={() => setExpandedRegistros(new Set())} className="text-xs text-slate-400 hover:text-slate-200 transition-colors">
+                    Colapsar todos
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                {[...eventos].reverse().map((ev) => {
+                  const evRows = filteredRows
+                    .filter((r) => r.evento === ev)
+                    .sort((a, b) => a.sucursal.localeCompare(b.sucursal));
+                  if (evRows.length === 0) return null;
+                  const isOpen = expandedRegistros.has(ev);
+                  const fecha = evRows[0]?.fecha;
+                  const totalCliOnline = evRows.reduce((s, r) => s + r.clientes_online, 0);
+                  const totalCliTotal = evRows.reduce((s, r) => s + r.clientes_total, 0);
+                  const avgPct = pct(totalCliOnline, totalCliTotal);
+                  return (
+                    <div key={ev} className="border border-slate-700 rounded-lg overflow-hidden">
+                      <button
+                        onClick={() => setExpandedRegistros((prev) => {
+                          const s = new Set(prev);
+                          s.has(ev) ? s.delete(ev) : s.add(ev);
+                          return s;
+                        })}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-700/40 transition-colors"
+                      >
+                        {isOpen
+                          ? <ChevronDown size={14} className="text-slate-500 shrink-0" />
+                          : <ChevronRight size={14} className="text-slate-500 shrink-0" />}
+                        <span className="text-slate-200 font-medium flex-1 truncate">{ev}</span>
+                        {fecha && <span className="text-xs text-slate-500 whitespace-nowrap">{new Date(fecha + "T00:00:00").toLocaleDateString("es-AR")}</span>}
+                        <span className="text-xs text-slate-500 whitespace-nowrap">{evRows.length} suc.</span>
+                        {avgPct !== null && (
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full whitespace-nowrap ${avgPct >= 80 ? "text-emerald-400 bg-emerald-900/30" : avgPct >= 65 ? "text-amber-400 bg-amber-900/30" : "text-red-400 bg-red-900/30"}`}>
+                            {avgPct}% cli
+                          </span>
+                        )}
+                        <span className="text-xs text-slate-500 whitespace-nowrap">{totalCliOnline.toLocaleString("es-AR")} online</span>
+                      </button>
+                      {isOpen && (
+                        <div className="border-t border-slate-700">
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                              <thead>
+                                <tr className="text-slate-500 text-xs uppercase tracking-wider bg-slate-900/40">
+                                  {["Sucursal", "Cli. Online", "Cli. Total", "% Cli.", "Disp. Online", "Disp. Total", "% Disp.", "", ""].map((h, i) => (
+                                    <th key={i} className={`py-2 px-3 ${i === 0 ? "text-left" : "text-center"}`}>{h}</th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {evRows.map((r) => (
+                                  <tr key={r.id} className="border-b border-slate-700/40 hover:bg-slate-700/20 transition-colors">
+                                    <td className="py-2 px-3 text-slate-300 font-medium">{r.sucursal}</td>
+                                    <td className="py-2 px-3 text-slate-300 text-center">{r.clientes_online.toLocaleString("es-AR")}</td>
+                                    <td className="py-2 px-3 text-slate-300 text-center">{r.clientes_total.toLocaleString("es-AR")}</td>
+                                    <td className="py-2 px-3 text-center">
+                                      <span className={`font-semibold ${(pct(r.clientes_online, r.clientes_total) ?? 0) >= 80 ? "text-emerald-400" : "text-amber-400"}`}>
+                                        {pct(r.clientes_online, r.clientes_total) ?? "—"}%
+                                      </span>
+                                    </td>
+                                    <td className="py-2 px-3 text-slate-300 text-center">{r.dispositivos_online.toLocaleString("es-AR")}</td>
+                                    <td className="py-2 px-3 text-slate-300 text-center">{r.dispositivos_total.toLocaleString("es-AR")}</td>
+                                    <td className="py-2 px-3 text-center">
+                                      <span className={`font-semibold ${(pct(r.dispositivos_online, r.dispositivos_total) ?? 0) >= 80 ? "text-emerald-400" : "text-amber-400"}`}>
+                                        {pct(r.dispositivos_online, r.dispositivos_total) ?? "—"}%
+                                      </span>
+                                    </td>
+                                    <td className="py-2 px-3 text-center">
+                                      <button onClick={() => setEditingRow({ ...r })} className="text-slate-600 hover:text-indigo-400 transition-colors">
+                                        <Pencil size={14} />
+                                      </button>
+                                    </td>
+                                    <td className="py-2 px-3 text-center">
+                                      <button onClick={() => handleDelete(r.id)} className="text-slate-600 hover:text-red-400 transition-colors">
+                                        <Trash2 size={14} />
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </section>
 
@@ -654,6 +714,23 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
                       </div>
                     )}
 
+                    {/* Puntos destacados */}
+                    {highlights.length > 0 && (
+                      <div className="bg-slate-900/50 rounded-lg p-4 border border-slate-700/50 space-y-2">
+                        <p className="text-xs text-slate-500 uppercase tracking-wider font-medium">Puntos destacados</p>
+                        {highlights.map((h, i) => (
+                          <div key={i} className="flex items-start gap-2.5 text-sm">
+                            <span className={`mt-0.5 text-xs ${h.type === "good" ? "text-emerald-400" : h.type === "bad" ? "text-red-400" : "text-slate-500"}`}>
+                              {h.type === "good" ? "▲" : h.type === "bad" ? "▼" : "●"}
+                            </span>
+                            <span className={h.type === "good" ? "text-emerald-300" : h.type === "bad" ? "text-red-300" : "text-slate-400"}>
+                              {h.text}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
                     {/* Tabla por sucursal */}
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
@@ -701,20 +778,50 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
             {eventos.length >= 2 && (
               <section className="bg-slate-800 border border-slate-700 rounded-xl p-5">
                 <h3 className="text-slate-200 font-semibold mb-1">Evolución histórica — % Clientes Online</h3>
-                <p className="text-xs text-slate-500 mb-4">Tendencia por sucursal a lo largo de todos los eventos registrados</p>
-                <ResponsiveContainer width="100%" height={320}>
-                  <LineChart data={historicData} margin={{ top: 16, right: 24, left: 8, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} vertical={false} />
-                    <XAxis {...xAxisProps} />
-                    <YAxis domain={[0, 105]} tickFormatter={(v) => `${v}%`} tick={{ fill: chart.axis, fontSize: 12 }} width={40} hide />
-                    <Tooltip contentStyle={tooltipContentStyle} labelStyle={{ color: chart.tooltipLabel }} itemStyle={{ color: chart.tooltipItem }} formatter={(v) => `${v}%`} />
-                    <Legend wrapperStyle={{ color: chart.legend, fontSize: 12 }} />
-                    <ReferenceLine y={80} stroke="#ef4444" strokeDasharray="4 4" label={{ value: "80%", fill: "#ef4444", fontSize: 11, position: "insideTopRight" }} />
-                    {visibleSucs.map((suc, i) => (
-                      <Line key={suc} type="monotone" dataKey={suc} stroke={getColor(suc, i)} strokeWidth={2} dot={{ r: 3 }} connectNulls activeDot={{ r: 5 }} />
-                    ))}
-                  </LineChart>
-                </ResponsiveContainer>
+                <p className="text-xs text-slate-500 mb-4">Cada celda muestra el % clientes online en ese evento · Verde ≥80% · Amarillo ≥65% · Rojo &lt;65%</p>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-xs border-separate border-spacing-1">
+                    <thead>
+                      <tr>
+                        <th className="text-left py-1.5 px-3 text-slate-500 font-medium whitespace-nowrap">Sucursal</th>
+                        {eventos.map((ev) => (
+                          <th key={ev} className="text-center py-1.5 px-1 text-slate-500 font-medium min-w-[72px]">
+                            <span title={ev} className="block truncate max-w-[90px]">{ev.length > 13 ? ev.slice(0, 12) + "…" : ev}</span>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visibleSucs.map((suc) => (
+                        <tr key={suc}>
+                          <td className="py-1.5 px-3 text-slate-300 font-medium whitespace-nowrap">{suc}</td>
+                          {eventos.map((ev) => {
+                            const r = rows.find((x) => x.evento === ev && x.sucursal === suc);
+                            const v = r ? pct(r.clientes_online, r.clientes_total) : null;
+                            const bg = v === null ? "bg-slate-700/20"
+                              : v >= 80 ? "bg-emerald-800/60"
+                              : v >= 65 ? "bg-amber-800/50"
+                              : "bg-red-800/50";
+                            const text = v === null ? "text-slate-600"
+                              : v >= 80 ? "text-emerald-200"
+                              : v >= 65 ? "text-amber-200"
+                              : "text-red-200";
+                            return (
+                              <td key={ev} className={`py-1.5 px-1 text-center rounded-md ${bg}`}>
+                                <span className={`font-semibold ${text}`}>{v !== null ? `${v}%` : "—"}</span>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex items-center gap-5 mt-3 text-xs text-slate-600">
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-emerald-800/60 inline-block" />≥ 80%</span>
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-amber-800/50 inline-block" />65–79%</span>
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-red-800/50 inline-block" />&lt; 65%</span>
+                </div>
               </section>
             )}
 

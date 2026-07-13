@@ -71,6 +71,7 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
   const [compareA, setCompareA] = useState("");
   const [compareB, setCompareB] = useState("");
   const [expandedRegistros, setExpandedRegistros] = useState<Set<string>>(new Set());
+  const [expandedDispRegistros, setExpandedDispRegistros] = useState<Set<string>>(new Set());
 
   // Multi-sucursal event form
   const [formBase, setFormBase] = useState(initFormBase());
@@ -282,6 +283,20 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
         return tb - ta;
       });
   }, [filteredDispRows, tiposDisp]);
+
+  const dispEvolucionData = useMemo(() => {
+    const sucs = [...new Set(filteredDispRows.map((r) => r.sucursal))].filter(Boolean).sort();
+    return sucs.map((suc) => {
+      const entry: Record<string, string | number> = { sucursal: suc };
+      for (const ev of eventosDisp) {
+        const total = filteredDispRows
+          .filter((r) => r.sucursal === suc && r.evento === ev)
+          .reduce((s, r) => s + r.cantidad, 0);
+        if (total > 0) entry[ev] = total;
+      }
+      return entry;
+    }).filter((e) => Object.keys(e).length > 1);
+  }, [filteredDispRows, eventosDisp]);
 
   const comparisonData = useMemo(() => {
     if (!compareA || !compareB || compareA === compareB) return [];
@@ -939,12 +954,12 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
           ) : (
             <>
               <section className="bg-slate-800 border border-slate-700 rounded-xl p-5 mb-4">
-                <h3 className="text-slate-200 font-semibold mb-1">Dispositivos por sucursal</h3>
+                <h3 className="text-slate-200 font-semibold mb-1">Evolución de dispositivos por sucursal</h3>
                 <p className="text-xs text-slate-500 mb-4">
-                  Ranking de uso por tipo de dispositivo{selectedSucs.length > 0 ? ` — ${selectedSucs.join(", ")}` : ""}
+                  Total de dispositivos por sucursal en cada evento — compará el crecimiento o caída entre eventos
                 </p>
                 <ResponsiveContainer width="100%" height={320}>
-                  <BarChart data={dispRanking} margin={{ top: 28, right: 24, left: 8, bottom: 8 }} barCategoryGap="28%" barGap={3}>
+                  <BarChart data={dispEvolucionData} margin={{ top: 28, right: 24, left: 8, bottom: 8 }} barCategoryGap="28%" barGap={3}>
                     <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} vertical={false} />
                     <XAxis dataKey="sucursal" tick={{ fill: chart.axis, fontSize: 12 }} axisLine={false} tickLine={false} />
                     <YAxis hide />
@@ -954,64 +969,154 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
                       itemStyle={{ color: chart.tooltipItem }}
                       formatter={(v: unknown, name) => [Number(v).toLocaleString("es-AR"), String(name ?? "")]}
                     />
-                    <Legend wrapperStyle={{ color: chart.legend, fontSize: 12 }} />
-                    {tiposDisp.map((tipo, i) => (
-                      <Bar key={tipo} dataKey={tipo} fill={DISP_COLORS[i % DISP_COLORS.length]} radius={[4, 4, 0, 0]} maxBarSize={56}>
-                        <LabelList
-                          dataKey={tipo}
-                          position="top"
-                          formatter={(v: unknown) => typeof v === "number" && v > 0 ? v.toLocaleString("es-AR") : ""}
-                          style={{ fill: chart.axis, fontSize: 11, fontWeight: 600 }}
-                        />
+                    {eventosDisp.length > 1 && <Legend wrapperStyle={{ color: chart.legend, fontSize: 12 }} />}
+                    {eventosDisp.map((ev, ei) => (
+                      <Bar key={ev} dataKey={ev} fill={DISP_COLORS[ei % DISP_COLORS.length]} radius={[4, 4, 0, 0]} maxBarSize={56}>
+                        {ei === eventosDisp.length - 1 && (
+                          <LabelList
+                            dataKey={ev}
+                            position="top"
+                            formatter={(v: unknown) => typeof v === "number" && v > 0 ? v.toLocaleString("es-AR") : ""}
+                            style={{ fill: chart.axis, fontSize: 11, fontWeight: 600 }}
+                          />
+                        )}
                       </Bar>
                     ))}
                   </BarChart>
                 </ResponsiveContainer>
+
+                {eventosDisp.length >= 2 && dispEvolucionData.length > 0 && (
+                  <div className="mt-4 overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-slate-600 uppercase tracking-wider border-b border-slate-700">
+                          <th className="text-left py-1.5 px-3">Sucursal</th>
+                          <th className="text-center py-1.5 px-3 text-slate-500">{eventosDisp[0].length > 14 ? eventosDisp[0].slice(0, 13) + "…" : eventosDisp[0]}</th>
+                          <th className="text-center py-1.5 px-3 text-slate-500">{eventosDisp[eventosDisp.length - 1].length > 14 ? eventosDisp[eventosDisp.length - 1].slice(0, 13) + "…" : eventosDisp[eventosDisp.length - 1]}</th>
+                          <th className="text-center py-1.5 px-3">Δ Total</th>
+                          <th className="text-center py-1.5 px-3">Δ %</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {dispEvolucionData.map((d) => {
+                          const first = (d[eventosDisp[0]] as number) ?? null;
+                          const last = (d[eventosDisp[eventosDisp.length - 1]] as number) ?? null;
+                          const delta = first !== null && last !== null ? last - first : null;
+                          const deltaPct = first !== null && last !== null && first > 0
+                            ? Math.round((delta! / first) * 1000) / 10 : null;
+                          return (
+                            <tr key={d.sucursal as string} className="border-b border-slate-700/30 hover:bg-slate-700/10">
+                              <td className="py-1.5 px-3 text-slate-300 font-medium">{d.sucursal}</td>
+                              <td className="py-1.5 px-3 text-center text-slate-400">{first !== null ? first.toLocaleString("es-AR") : "—"}</td>
+                              <td className="py-1.5 px-3 text-center text-slate-300">{last !== null ? last.toLocaleString("es-AR") : "—"}</td>
+                              <td className="py-1.5 px-3 text-center">
+                                {delta !== null
+                                  ? <span className={`font-semibold ${delta > 0 ? "text-emerald-400" : delta < 0 ? "text-red-400" : "text-slate-500"}`}>{delta > 0 ? "+" : ""}{delta.toLocaleString("es-AR")}</span>
+                                  : <span className="text-slate-600">—</span>}
+                              </td>
+                              <td className="py-1.5 px-3 text-center">
+                                {deltaPct !== null
+                                  ? <span className={`font-semibold ${deltaPct > 0 ? "text-emerald-400" : deltaPct < 0 ? "text-red-400" : "text-slate-500"}`}>{deltaPct > 0 ? "+" : ""}{deltaPct}%</span>
+                                  : <span className="text-slate-600">—</span>}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                    <p className="text-xs text-slate-700 mt-2">Comparativa primer evento vs. último evento registrado</p>
+                  </div>
+                )}
               </section>
 
               <section className="bg-slate-800 border border-slate-700 rounded-xl p-5">
-                <h3 className="text-slate-200 font-semibold mb-4">Registros de dispositivos</h3>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-slate-400 text-xs uppercase tracking-wider border-b border-slate-700">
-                        {["Fecha", "Evento", "Sucursal", "Tipo", "Cantidad", "", ""].map((h, i) => (
-                          <th key={i} className="text-left py-2 px-3">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredDispRows
-                        .sort((a, b) => a.fecha.localeCompare(b.fecha) || a.evento.localeCompare(b.evento) || (a.sucursal ?? "").localeCompare(b.sucursal ?? ""))
-                        .map((r) => (
-                          <tr key={r.id} className="border-b border-slate-800 hover:bg-slate-700/30 transition-colors">
-                            <td className="py-2 px-3 text-slate-400 whitespace-nowrap">
-                              {r.fecha.length > 10
-                                ? new Date(r.fecha).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })
-                                : new Date(r.fecha + "T00:00:00").toLocaleDateString("es-AR")}
-                            </td>
-                            <td className="py-2 px-3 text-slate-200 font-medium">{r.evento}</td>
-                            <td className="py-2 px-3 text-slate-300">{r.sucursal ?? "—"}</td>
-                            <td className="py-2 px-3">
-                              <span className="bg-sky-900/50 text-sky-300 border border-sky-700/50 text-xs font-medium px-2 py-0.5 rounded-full">
-                                {r.tipo}
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-slate-200 font-semibold">Registros de dispositivos</h3>
+                  <div className="flex gap-3">
+                    <button onClick={() => setExpandedDispRegistros(new Set([...eventosDisp].reverse()))} className="text-xs text-slate-400 hover:text-slate-200 transition-colors">
+                      Expandir todos
+                    </button>
+                    <button onClick={() => setExpandedDispRegistros(new Set())} className="text-xs text-slate-400 hover:text-slate-200 transition-colors">
+                      Colapsar todos
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-1.5">
+                  {[...eventosDisp].reverse().map((ev) => {
+                    const evRows = filteredDispRows
+                      .filter((r) => r.evento === ev)
+                      .sort((a, b) => (a.sucursal ?? "").localeCompare(b.sucursal ?? "") || a.tipo.localeCompare(b.tipo));
+                    if (evRows.length === 0) return null;
+                    const isOpen = expandedDispRegistros.has(ev);
+                    const fecha = evRows[0]?.fecha;
+                    const totalCantidad = evRows.reduce((s, r) => s + r.cantidad, 0);
+                    const tiposEv = [...new Set(evRows.map((r) => r.tipo))];
+                    return (
+                      <div key={ev} className="border border-slate-700 rounded-lg overflow-hidden">
+                        <button
+                          onClick={() => setExpandedDispRegistros((prev) => {
+                            const s = new Set(prev);
+                            s.has(ev) ? s.delete(ev) : s.add(ev);
+                            return s;
+                          })}
+                          className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-slate-700/40 transition-colors"
+                        >
+                          {isOpen
+                            ? <ChevronDown size={14} className="text-slate-500 shrink-0" />
+                            : <ChevronRight size={14} className="text-slate-500 shrink-0" />}
+                          <span className="text-slate-200 font-medium flex-1 truncate">{ev}</span>
+                          {fecha && <span className="text-xs text-slate-500 whitespace-nowrap">{fecha.length > 10 ? new Date(fecha).toLocaleDateString("es-AR") : new Date(fecha + "T00:00:00").toLocaleDateString("es-AR")}</span>}
+                          <span className="text-xs text-slate-500 whitespace-nowrap">{evRows.length} registros</span>
+                          <span className="text-xs font-semibold text-sky-400 whitespace-nowrap">{totalCantidad.toLocaleString("es-AR")} total</span>
+                          <div className="flex gap-1 shrink-0">
+                            {tiposEv.slice(0, 3).map((t) => (
+                              <span key={t} className="text-xs bg-sky-900/40 text-sky-400 border border-sky-800/40 px-1.5 py-0.5 rounded">
+                                {t.length > 10 ? t.slice(0, 9) + "…" : t}
                               </span>
-                            </td>
-                            <td className="py-2 px-3 text-slate-200 font-semibold">{r.cantidad.toLocaleString("es-AR")}</td>
-                            <td className="py-2 px-3">
-                              <button onClick={() => setEditingDispRow({ ...r })} className="text-slate-600 hover:text-sky-400 transition-colors">
-                                <Pencil size={14} />
-                              </button>
-                            </td>
-                            <td className="py-2 px-3">
-                              <button onClick={() => handleDeleteDisp(r.id)} className="text-slate-600 hover:text-red-400 transition-colors">
-                                <Trash2 size={14} />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
+                            ))}
+                          </div>
+                        </button>
+                        {isOpen && (
+                          <div className="border-t border-slate-700">
+                            <div className="overflow-x-auto">
+                              <table className="w-full text-sm">
+                                <thead>
+                                  <tr className="text-slate-500 text-xs uppercase tracking-wider bg-slate-900/40">
+                                    {["Sucursal", "Tipo", "Cantidad", "", ""].map((h, i) => (
+                                      <th key={i} className={`py-2 px-3 ${i <= 1 ? "text-left" : "text-center"}`}>{h}</th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {evRows.map((r) => (
+                                    <tr key={r.id} className="border-b border-slate-700/40 hover:bg-slate-700/20 transition-colors">
+                                      <td className="py-2 px-3 text-slate-300">{r.sucursal ?? "—"}</td>
+                                      <td className="py-2 px-3">
+                                        <span className="bg-sky-900/50 text-sky-300 border border-sky-700/50 text-xs font-medium px-2 py-0.5 rounded-full">
+                                          {r.tipo}
+                                        </span>
+                                      </td>
+                                      <td className="py-2 px-3 text-slate-200 font-semibold text-center">{r.cantidad.toLocaleString("es-AR")}</td>
+                                      <td className="py-2 px-3 text-center">
+                                        <button onClick={() => setEditingDispRow({ ...r })} className="text-slate-600 hover:text-sky-400 transition-colors">
+                                          <Pencil size={14} />
+                                        </button>
+                                      </td>
+                                      <td className="py-2 px-3 text-center">
+                                        <button onClick={() => handleDeleteDisp(r.id)} className="text-slate-600 hover:text-red-400 transition-colors">
+                                          <Trash2 size={14} />
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </section>
             </>

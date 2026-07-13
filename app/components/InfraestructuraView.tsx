@@ -778,7 +778,7 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
             {eventos.length >= 2 && (
               <section className="bg-slate-800 border border-slate-700 rounded-xl p-5">
                 <h3 className="text-slate-200 font-semibold mb-1">Evolución histórica — % Clientes Online</h3>
-                <p className="text-xs text-slate-500 mb-4">Cada celda muestra el % clientes online en ese evento · Verde ≥80% · Amarillo ≥65% · Rojo &lt;65%</p>
+                <p className="text-xs text-slate-500 mb-4">Cada celda muestra el % clientes online en ese evento · Verde &lt;65% (holgado) · Amarillo 65–79% · Rojo ≥80% (saturado)</p>
                 <div className="overflow-x-auto">
                   <table className="min-w-full text-xs border-separate border-spacing-1">
                     <thead>
@@ -799,13 +799,13 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
                             const r = rows.find((x) => x.evento === ev && x.sucursal === suc);
                             const v = r ? pct(r.clientes_online, r.clientes_total) : null;
                             const bg = v === null ? "bg-slate-700/20"
-                              : v >= 80 ? "bg-emerald-800/60"
+                              : v >= 80 ? "bg-red-800/50"
                               : v >= 65 ? "bg-amber-800/50"
-                              : "bg-red-800/50";
+                              : "bg-emerald-800/60";
                             const text = v === null ? "text-slate-600"
-                              : v >= 80 ? "text-emerald-200"
+                              : v >= 80 ? "text-red-200"
                               : v >= 65 ? "text-amber-200"
-                              : "text-red-200";
+                              : "text-emerald-200";
                             return (
                               <td key={ev} className={`py-1.5 px-1 text-center rounded-md ${bg}`}>
                                 <span className={`font-semibold ${text}`}>{v !== null ? `${v}%` : "—"}</span>
@@ -818,9 +818,9 @@ export default function InfraestructuraView({ onClose }: { onClose: () => void }
                   </table>
                 </div>
                 <div className="flex items-center gap-5 mt-3 text-xs text-slate-600">
-                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-emerald-800/60 inline-block" />≥ 80%</span>
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-emerald-800/60 inline-block" />&lt; 65% (holgado)</span>
                   <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-amber-800/50 inline-block" />65–79%</span>
-                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-red-800/50 inline-block" />&lt; 65%</span>
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-red-800/50 inline-block" />≥ 80% (saturado)</span>
                 </div>
               </section>
             )}

@@ -6,7 +6,7 @@ import {
   XAxis, YAxis, CartesianGrid, Tooltip,
   Legend, ResponsiveContainer,
 } from "recharts";
-import { X, Plus, Trash2, Pencil, Radio } from "lucide-react";
+import { X, Plus, Trash2, Pencil, Radio, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { useTheme } from "../lib/useTheme";
 
 interface Senal {
@@ -21,6 +21,12 @@ interface Entrada {
   senal_nombre: string;
   fecha: string;
   cantidad: number;
+}
+
+interface Periodo {
+  id: string;
+  desde: string;
+  hasta: string;
 }
 
 const COLORS = ["#6366f1", "#0ea5e9", "#10b981", "#f59e0b", "#ec4899", "#8b5cf6", "#14b8a6", "#f97316"];
@@ -46,6 +52,35 @@ export default function AnalisisSenalesView({ onClose }: { onClose: () => void }
 
   // Filter
   const [filterSenal, setFilterSenal] = useState<string>("all");
+
+  // Comparativa de períodos
+  const [periodos, setPeriodos] = useState<Periodo[]>([]);
+
+  const addPeriodo = () => {
+    const today = new Date().toISOString().split("T")[0];
+    const firstOfMonth = today.slice(0, 8) + "01";
+    setPeriodos((prev) => [...prev, { id: Date.now().toString(), desde: firstOfMonth, hasta: today }]);
+  };
+
+  const removePeriodo = (id: string) => setPeriodos((prev) => prev.filter((p) => p.id !== id));
+
+  const updatePeriodo = (id: string, field: "desde" | "hasta", value: string) =>
+    setPeriodos((prev) => prev.map((p) => (p.id === id ? { ...p, [field]: value } : p)));
+
+  const periodoData = useMemo(() => {
+    return periodos.map((p) => {
+      const totals: Record<string, number> = {};
+      for (const s of senales) {
+        totals[s.id] = entradas
+          .filter((e) => {
+            const f = e.fecha.split("T")[0];
+            return e.senal_id === s.id && f >= p.desde && f <= p.hasta;
+          })
+          .reduce((sum, e) => sum + e.cantidad, 0);
+      }
+      return { ...p, totals };
+    });
+  }, [periodos, entradas, senales]);
 
   const tooltipContentStyle = {
     background: chart.tooltipBg,
@@ -187,6 +222,18 @@ export default function AnalisisSenalesView({ onClose }: { onClose: () => void }
     [senales, filterSenal]
   );
 
+  const topDias = useMemo(
+    () =>
+      senales.map((s) => ({
+        senal: s,
+        dias: entradas
+          .filter((e) => e.senal_id === s.id)
+          .sort((a, b) => b.cantidad - a.cantidad)
+          .slice(0, 3),
+      })),
+    [senales, entradas]
+  );
+
   const inputCls =
     "w-full bg-slate-700 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-purple-500 placeholder-slate-500";
 
@@ -254,6 +301,52 @@ export default function AnalisisSenalesView({ onClose }: { onClose: () => void }
           )}
         </div>
 
+        {/* Top 3 días por señal */}
+        {topDias.some((t) => t.dias.length > 0) && (
+          <div className="bg-slate-800/60 rounded-xl p-5 border border-slate-700/40 space-y-4">
+            <h2 className="text-base font-semibold text-slate-200">Top 3 días con más visualizaciones</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              {topDias.map(({ senal, dias }, si) =>
+                dias.length === 0 ? null : (
+                  <div key={senal.id} className="space-y-2">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{ background: COLORS[si % COLORS.length] }}
+                      />
+                      <span className="text-sm font-semibold text-slate-200">{senal.nombre}</span>
+                    </div>
+                    {dias.map((d, rank) => (
+                      <div
+                        key={d.id}
+                        className="flex items-center gap-3 bg-slate-700/40 rounded-lg px-3 py-2.5"
+                      >
+                        <span
+                          className={`text-xs font-bold w-5 text-center shrink-0 ${
+                            rank === 0
+                              ? "text-amber-400"
+                              : rank === 1
+                              ? "text-slate-300"
+                              : "text-orange-700"
+                          }`}
+                        >
+                          #{rank + 1}
+                        </span>
+                        <span className="text-sm text-slate-300 flex-1 tabular-nums">
+                          {d.fecha.split("T")[0]}
+                        </span>
+                        <span className="text-sm font-bold text-white tabular-nums">
+                          {d.cantidad.toLocaleString("es-AR")}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Chart */}
         {chartData.length > 0 && (
           <div className="bg-slate-800/60 rounded-xl p-5 border border-slate-700/40 space-y-4">
@@ -309,6 +402,181 @@ export default function AnalisisSenalesView({ onClose }: { onClose: () => void }
                 ))}
               </BarChart>
             </ResponsiveContainer>
+          </div>
+        )}
+
+        {/* Comparativa de períodos */}
+        {entradas.length > 0 && senales.length > 0 && (
+          <div className="bg-slate-800/60 rounded-xl p-5 border border-slate-700/40 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-semibold text-slate-200">Comparativa de períodos</h2>
+              <button
+                onClick={addPeriodo}
+                className="flex items-center gap-1.5 text-xs bg-sky-600 hover:bg-sky-500 text-white px-3 py-1.5 rounded-lg transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" /> Agregar período
+              </button>
+            </div>
+
+            {periodos.length === 0 ? (
+              <p className="text-slate-500 text-sm">
+                Agregá períodos para comparar visualizaciones entre rangos de fechas.
+              </p>
+            ) : (
+              <>
+                {/* Period date pickers */}
+                <div className="flex flex-wrap gap-3">
+                  {periodos.map((p, idx) => (
+                    <div
+                      key={p.id}
+                      className="flex items-center gap-2 bg-slate-700/50 border border-slate-600/40 rounded-lg px-3 py-2"
+                    >
+                      <span className="text-xs font-semibold text-slate-400 w-16 shrink-0">
+                        Período {idx + 1}
+                      </span>
+                      <input
+                        type="date"
+                        value={p.desde}
+                        onChange={(e) => updatePeriodo(p.id, "desde", e.target.value)}
+                        className="bg-slate-600 border border-slate-500 rounded px-2 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-sky-500"
+                      />
+                      <span className="text-slate-500 text-xs">→</span>
+                      <input
+                        type="date"
+                        value={p.hasta}
+                        onChange={(e) => updatePeriodo(p.id, "hasta", e.target.value)}
+                        className="bg-slate-600 border border-slate-500 rounded px-2 py-1 text-xs text-white focus:outline-none focus:ring-1 focus:ring-sky-500"
+                      />
+                      <button
+                        onClick={() => removePeriodo(p.id)}
+                        className="text-slate-500 hover:text-red-400 transition-colors ml-1"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Comparison table */}
+                {periodoData.length > 0 && (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-slate-400 text-xs uppercase tracking-wider border-b border-slate-700">
+                          <th className="text-left pb-2.5 pr-6 font-medium">Señal</th>
+                          {periodoData.map((p, idx) => (
+                            <>
+                              <th key={`h-${p.id}`} className="text-right pb-2.5 pr-3 font-medium">
+                                P{idx + 1}
+                              </th>
+                              {idx < periodoData.length - 1 && (
+                                <th key={`d-${p.id}`} className="text-right pb-2.5 pr-6 font-medium text-slate-500">
+                                  Δ%
+                                </th>
+                              )}
+                            </>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800">
+                        {senales.map((s, si) => (
+                          <tr key={s.id} className="hover:bg-slate-700/30 transition-colors">
+                            <td className="py-2.5 pr-6">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className="w-2 h-2 rounded-full shrink-0"
+                                  style={{ background: COLORS[si % COLORS.length] }}
+                                />
+                                <span className="text-slate-200 font-medium">{s.nombre}</span>
+                              </div>
+                            </td>
+                            {periodoData.map((p, idx) => {
+                              const curr = p.totals[s.id] ?? 0;
+                              const prev = idx > 0 ? (periodoData[idx - 1].totals[s.id] ?? 0) : null;
+                              const delta =
+                                prev !== null && prev > 0
+                                  ? Math.round(((curr - prev) / prev) * 1000) / 10
+                                  : null;
+                              return (
+                                <>
+                                  <td key={`v-${p.id}`} className="py-2.5 pr-3 text-right text-white font-semibold tabular-nums">
+                                    {curr.toLocaleString("es-AR")}
+                                  </td>
+                                  {idx < periodoData.length - 1 && (
+                                    <td key={`d-${p.id}`} className="py-2.5 pr-6 text-right tabular-nums">
+                                      {delta === null ? (
+                                        <span className="text-slate-600">—</span>
+                                      ) : delta > 0 ? (
+                                        <span className="flex items-center justify-end gap-1 text-emerald-400 font-semibold">
+                                          <TrendingUp className="w-3.5 h-3.5" />
+                                          +{delta}%
+                                        </span>
+                                      ) : delta < 0 ? (
+                                        <span className="flex items-center justify-end gap-1 text-red-400 font-semibold">
+                                          <TrendingDown className="w-3.5 h-3.5" />
+                                          {delta}%
+                                        </span>
+                                      ) : (
+                                        <span className="flex items-center justify-end gap-1 text-slate-500">
+                                          <Minus className="w-3.5 h-3.5" />
+                                          0%
+                                        </span>
+                                      )}
+                                    </td>
+                                  )}
+                                </>
+                              );
+                            })}
+                          </tr>
+                        ))}
+                        {/* Total row */}
+                        <tr className="border-t border-slate-600 font-semibold">
+                          <td className="py-2.5 pr-6 text-slate-300">Total</td>
+                          {periodoData.map((p, idx) => {
+                            const curr = senales.reduce((sum, s) => sum + (p.totals[s.id] ?? 0), 0);
+                            const prevP = idx > 0 ? periodoData[idx - 1] : null;
+                            const prev = prevP ? senales.reduce((sum, s) => sum + (prevP.totals[s.id] ?? 0), 0) : null;
+                            const delta =
+                              prev !== null && prev > 0
+                                ? Math.round(((curr - prev) / prev) * 1000) / 10
+                                : null;
+                            return (
+                              <>
+                                <td key={`tv-${p.id}`} className="py-2.5 pr-3 text-right text-white tabular-nums">
+                                  {curr.toLocaleString("es-AR")}
+                                </td>
+                                {idx < periodoData.length - 1 && (
+                                  <td key={`td-${p.id}`} className="py-2.5 pr-6 text-right tabular-nums">
+                                    {delta === null ? (
+                                      <span className="text-slate-600">—</span>
+                                    ) : delta > 0 ? (
+                                      <span className="flex items-center justify-end gap-1 text-emerald-400">
+                                        <TrendingUp className="w-3.5 h-3.5" />
+                                        +{delta}%
+                                      </span>
+                                    ) : delta < 0 ? (
+                                      <span className="flex items-center justify-end gap-1 text-red-400">
+                                        <TrendingDown className="w-3.5 h-3.5" />
+                                        {delta}%
+                                      </span>
+                                    ) : (
+                                      <span className="flex items-center justify-end gap-1 text-slate-500">
+                                        <Minus className="w-3.5 h-3.5" />
+                                        0%
+                                      </span>
+                                    )}
+                                  </td>
+                                )}
+                              </>
+                            );
+                          })}
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
+            )}
           </div>
         )}
 

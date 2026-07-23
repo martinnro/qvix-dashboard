@@ -211,15 +211,102 @@ export default function AnalisisSenalesView({ onClose }: { onClose: () => void }
     });
   }, [selectedDow, entradas, senales]);
 
+  // Auto insights from all data
+  const insights = useMemo(() => {
+    if (entradas.length === 0 || senales.length === 0) return [];
+    type Item = { text: string; type: "good" | "bad" | "neutral" };
+    const items: Item[] = [];
+
+    // Total per date (all signals combined)
+    const dateMap: Record<string, number> = {};
+    for (const e of entradas) {
+      const d = e.fecha.split("T")[0];
+      dateMap[d] = (dateMap[d] ?? 0) + e.cantidad;
+    }
+    const sortedDates = Object.keys(dateMap).sort();
+
+    // Best/worst day of week by average daily total
+    const dowBuckets: Record<number, number[]> = {};
+    for (let i = 0; i < 7; i++) dowBuckets[i] = [];
+    for (const [d, total] of Object.entries(dateMap)) dowBuckets[getDow(d)].push(total);
+    const dowAvg = Object.entries(dowBuckets)
+      .filter(([, vals]) => vals.length > 0)
+      .map(([dow, vals]) => ({ dow: parseInt(dow), avg: vals.reduce((a, b) => a + b, 0) / vals.length }));
+    if (dowAvg.length > 1) {
+      const best = dowAvg.reduce((a, b) => b.avg > a.avg ? b : a);
+      const worst = dowAvg.reduce((a, b) => b.avg < a.avg ? b : a);
+      const dayLabel = (n: number) => DAY_NAMES_ES[n] + "s";
+      items.push({ text: `Los ${dayLabel(best.dow)} son el día con más visualizaciones (promedio ${Math.round(best.avg).toLocaleString("es-AR")} por día)`, type: "good" });
+      items.push({ text: `Los ${dayLabel(worst.dow)} son el día con menos visualizaciones (promedio ${Math.round(worst.avg).toLocaleString("es-AR")} por día)`, type: "bad" });
+    }
+
+    // Biggest single-day gain/loss vs previous day
+    let maxGain = { date: "", delta: 0, pct: 0 };
+    let maxLoss = { date: "", delta: 0, pct: 0 };
+    for (let i = 1; i < sortedDates.length; i++) {
+      const prev = dateMap[sortedDates[i - 1]];
+      const curr = dateMap[sortedDates[i]];
+      const delta = curr - prev;
+      const pct = Math.round((delta / prev) * 100);
+      if (delta > maxGain.delta) maxGain = { date: sortedDates[i], delta, pct };
+      if (delta < maxLoss.delta) maxLoss = { date: sortedDates[i], delta, pct };
+    }
+    if (maxGain.date) items.push({ text: `Mayor subida: ${formatTopDate(maxGain.date)} (+${maxGain.delta.toLocaleString("es-AR")} visualizaciones, +${maxGain.pct}% respecto al día anterior)`, type: "good" });
+    if (maxLoss.date) items.push({ text: `Mayor caída: ${formatTopDate(maxLoss.date)} (${maxLoss.delta.toLocaleString("es-AR")} visualizaciones, ${maxLoss.pct}% respecto al día anterior)`, type: "bad" });
+
+    // Overall trend: compare first third vs last third
+    if (sortedDates.length >= 6) {
+      const third = Math.floor(sortedDates.length / 3);
+      const firstAvg = sortedDates.slice(0, third).reduce((s, d) => s + dateMap[d], 0) / third;
+      const lastAvg = sortedDates.slice(-third).reduce((s, d) => s + dateMap[d], 0) / third;
+      const trendPct = Math.round(((lastAvg - firstAvg) / firstAvg) * 100);
+      if (trendPct > 5) items.push({ text: `Tendencia general: al alza — los últimos días tienen ${trendPct}% más visualizaciones que al inicio`, type: "good" });
+      else if (trendPct < -5) items.push({ text: `Tendencia general: a la baja — los últimos días tienen ${Math.abs(trendPct)}% menos visualizaciones que al inicio`, type: "bad" });
+      else items.push({ text: `Tendencia general: estable (${trendPct > 0 ? "+" : ""}${trendPct}% entre inicio y fin del período)`, type: "neutral" });
+    }
+
+    // Weekday vs weekend
+    const weekdayDates = sortedDates.filter(d => { const dow = getDow(d); return dow >= 1 && dow <= 5; });
+    const weekendDates = sortedDates.filter(d => { const dow = getDow(d); return dow === 0 || dow === 6; });
+    if (weekdayDates.length > 0 && weekendDates.length > 0) {
+      const wdAvg = weekdayDates.reduce((s, d) => s + dateMap[d], 0) / weekdayDates.length;
+      const weAvg = weekendDates.reduce((s, d) => s + dateMap[d], 0) / weekendDates.length;
+      if (weAvg > wdAvg) {
+        items.push({ text: `El fin de semana supera a los días de semana en ${Math.round(((weAvg - wdAvg) / wdAvg) * 100)}% de visualizaciones promedio`, type: "neutral" });
+      } else {
+        items.push({ text: `Los días de semana superan al fin de semana en ${Math.round(((wdAvg - weAvg) / weAvg) * 100)}% de visualizaciones promedio`, type: "neutral" });
+      }
+    }
+
+    // Signal comparison
+    if (senales.length > 1) {
+      const totals = senales.map(s => ({ s, total: entradas.filter(e => e.senal_id === s.id).reduce((sum, e) => sum + e.cantidad, 0) }));
+      const leader = totals.reduce((a, b) => b.total > a.total ? b : a);
+      const others = totals.filter(x => x.s.id !== leader.s.id);
+      const ratio = Math.round((leader.total / Math.max(...others.map(o => o.total))) * 10) / 10;
+      items.push({ text: `${leader.s.nombre} acumula ${leader.total.toLocaleString("es-AR")} visualizaciones totales (${ratio}x más que las otras señales)`, type: "neutral" });
+    }
+
+    // Average daily total
+    const avgDaily = Math.round(Object.values(dateMap).reduce((a, b) => a + b, 0) / sortedDates.length);
+    items.push({ text: `Promedio diario total: ${avgDaily.toLocaleString("es-AR")} visualizaciones entre todas las señales`, type: "neutral" });
+
+    return items;
+  }, [entradas, senales]);
+
   // Reusable comparison table (used for both periodoData and dowData)
   function ComparisonTable({
     cols,
     getLabel,
     getKey,
+    getSubLabel,
+    getDays,
   }: {
     cols: { totals: Record<string, number> }[];
     getLabel: (idx: number) => string;
     getKey: (idx: number) => string;
+    getSubLabel?: (idx: number) => string;
+    getDays?: (idx: number) => number;
   }) {
     return (
       <div className="overflow-x-auto">
@@ -228,7 +315,12 @@ export default function AnalisisSenalesView({ onClose }: { onClose: () => void }
             <tr className="text-slate-400 text-xs uppercase tracking-wider border-b border-slate-700">
               <th className="text-left pb-2.5 pr-6 font-medium">Señal</th>
               {cols.flatMap((_, idx) => {
-                const cells = [<th key={`h-${getKey(idx)}`} className="text-right pb-2.5 pr-3 font-medium whitespace-nowrap">{getLabel(idx)}</th>];
+                const cells = [
+                  <th key={`h-${getKey(idx)}`} className="text-right pb-2.5 pr-3 font-medium whitespace-nowrap">
+                    <div>{getLabel(idx)}</div>
+                    {getSubLabel && <div className="text-slate-500 font-normal normal-case tracking-normal text-xs">{getSubLabel(idx)}</div>}
+                  </th>
+                ];
                 if (idx < cols.length - 1) cells.push(<th key={`d-${getKey(idx)}`} className="text-right pb-2.5 pr-6 font-medium text-slate-500">Δ%</th>);
                 return cells;
               })}
@@ -262,6 +354,18 @@ export default function AnalisisSenalesView({ onClose }: { onClose: () => void }
                 return cells;
               })}
             </tr>
+            {getDays && (
+              <tr className="border-t border-slate-800">
+                <td className="py-1.5 pr-6 text-xs text-slate-500">Promedio / día</td>
+                {cols.flatMap((col, idx) => {
+                  const total = senales.reduce((sum, s) => sum + (col.totals[s.id] ?? 0), 0);
+                  const avg = Math.round(total / Math.max(1, getDays(idx)));
+                  const cells = [<td key={`avg-${getKey(idx)}`} className="py-1.5 pr-3 text-right text-slate-400 text-xs tabular-nums">{avg.toLocaleString("es-AR")}</td>];
+                  if (idx < cols.length - 1) cells.push(<td key={`avgd-${getKey(idx)}`} className="pr-6" />);
+                  return cells;
+                })}
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -415,7 +519,13 @@ export default function AnalisisSenalesView({ onClose }: { onClose: () => void }
                     <ComparisonTable
                       cols={periodoData}
                       getLabel={idx => `P${idx + 1}`}
+                      getSubLabel={idx => `${periodoData[idx].desde.slice(5).replace("-","/")} → ${periodoData[idx].hasta.slice(5).replace("-","/")}`}
                       getKey={idx => periodoData[idx].id}
+                      getDays={idx => {
+                        const [y1, m1, d1] = periodoData[idx].desde.split("-").map(Number);
+                        const [y2, m2, d2] = periodoData[idx].hasta.split("-").map(Number);
+                        return Math.max(1, Math.round((new Date(y2, m2 - 1, d2).getTime() - new Date(y1, m1 - 1, d1).getTime()) / 86400000) + 1);
+                      }}
                     />
                   </>
                 )}
@@ -451,6 +561,7 @@ export default function AnalisisSenalesView({ onClose }: { onClose: () => void }
                       cols={dowData}
                       getLabel={idx => fmtDate(dowData[idx].fecha)}
                       getKey={idx => dowData[idx].fecha}
+                      getDays={_ => 1}
                     />
                   </>
                 )}
@@ -460,6 +571,29 @@ export default function AnalisisSenalesView({ onClose }: { onClose: () => void }
                 )}
               </>
             )}
+          </div>
+        )}
+
+        {/* Puntos destacados */}
+        {insights.length > 0 && (
+          <div className="bg-slate-800/60 rounded-xl p-5 border border-slate-700/40 space-y-3">
+            <h2 className="text-base font-semibold text-slate-200">Puntos destacados</h2>
+            <div className="space-y-2">
+              {insights.map((item, i) => (
+                <div key={i} className={`flex items-start gap-3 rounded-lg px-4 py-3 text-sm ${
+                  item.type === "good" ? "bg-emerald-900/30 border border-emerald-700/30" :
+                  item.type === "bad"  ? "bg-red-900/30 border border-red-700/30" :
+                                        "bg-slate-700/40 border border-slate-600/30"
+                }`}>
+                  <span className={`mt-0.5 shrink-0 ${item.type === "good" ? "text-emerald-400" : item.type === "bad" ? "text-red-400" : "text-slate-400"}`}>
+                    {item.type === "good" ? <TrendingUp className="w-4 h-4" /> : item.type === "bad" ? <TrendingDown className="w-4 h-4" /> : <Minus className="w-4 h-4" />}
+                  </span>
+                  <span className={item.type === "good" ? "text-emerald-200" : item.type === "bad" ? "text-red-200" : "text-slate-300"}>
+                    {item.text}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

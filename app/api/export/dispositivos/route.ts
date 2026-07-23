@@ -53,7 +53,12 @@ export async function GET(req: NextRequest) {
         s.fecha_carga,
         tms.DESCRIPCION AS estado_stock,
         ult.id_conexion  AS ultima_conexion,
-        ts.descripcion   AS ultimo_estado_servicio
+        ts.descripcion   AS ultimo_estado_servicio,
+        rm.id_recibo_cm,
+        rm.id_order_servicio,
+        rm.fecha_carga  AS fecha_carga_recibo,
+        rm.tipo_retiro,
+        u.nom_usr
       FROM stock s
       JOIN DISPOSITIVOS d ON d.id_dispositivo = s.id_dispositivo
       LEFT JOIN tipo_movimiento_stock tms ON tms.tipo_movimiento_stock = s.tipo_movimiento_stock
@@ -65,6 +70,8 @@ export async function GET(req: NextRequest) {
         ORDER BY cd.fecha_carga DESC
       ) ult
       LEFT JOIN tipo_estado_servicio ts ON ts.id_estado_servicio = ult.Estado_Servicio
+      LEFT JOIN recibos_modem rm ON rm.id_conexion = ult.id_conexion AND rm.mac = s.mac
+      LEFT JOIN usuarios u ON u.id_usuario = rm.id_usuario
       WHERE s.mac IS NOT NULL
         AND d.tipo_dispositivo IN ('T', 'M', 'B')
         ${tipoClause}
@@ -89,6 +96,11 @@ export async function GET(req: NextRequest) {
       Estado_Stock:           r.estado_stock ?? "",
       Ultima_Conexion:        r.ultima_conexion ?? "",
       Ultimo_Estado_Servicio: r.ultimo_estado_servicio ?? "",
+      ID_Recibo_CM:           r.id_recibo_cm ?? "",
+      ID_Order_Servicio:      r.id_order_servicio ?? "",
+      Fecha_Carga_Recibo:     r.fecha_carga_recibo ? new Date(String(r.fecha_carga_recibo)).toLocaleDateString("es-AR") : "",
+      Tipo_Retiro:            r.tipo_retiro ?? "",
+      Usuario_Recibo:         r.nom_usr ?? "",
     }));
 
     const wb = XLSX.utils.book_new();

@@ -13,7 +13,7 @@ interface Senal { id: string; nombre: string; descripcion: string | null; }
 interface Entrada { id: string; senal_id: string; senal_nombre: string; fecha: string; cantidad: number; }
 interface Periodo { id: string; desde: string; hasta: string; }
 
-const COLORS = ["#6366f1", "#0ea5e9", "#10b981", "#f59e0b", "#ec4899", "#8b5cf6", "#14b8a6", "#f97316"];
+const COLORS = ["#f97316", "#10b981", "#6366f1", "#0ea5e9", "#f59e0b", "#ec4899", "#8b5cf6", "#14b8a6"];
 
 const DAYS = [
   { label: "Lunes", dow: 1 },
@@ -28,6 +28,15 @@ const DAYS = [
 function getDow(fechaStr: string) {
   const [y, m, d] = fechaStr.split("T")[0].split("-").map(Number);
   return new Date(y, m - 1, d).getDay();
+}
+
+const MONTH_NAMES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+const DAY_NAMES_ES = ["Domingo","Lunes","Martes","Miércoles","Jueves","Viernes","Sábado"];
+
+function formatTopDate(fechaStr: string) {
+  const [y, m, d] = fechaStr.split("T")[0].split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  return `${DAY_NAMES_ES[date.getDay()]} ${String(d).padStart(2, "0")} - ${MONTH_NAMES[m - 1]}`;
 }
 
 function fmtDate(str: string) {
@@ -317,7 +326,7 @@ export default function AnalisisSenalesView({ onClose }: { onClose: () => void }
                     {dias.map((d, rank) => (
                       <div key={d.id} className="flex items-center gap-3 bg-slate-700/40 rounded-lg px-3 py-2.5">
                         <span className={`text-xs font-bold w-5 text-center shrink-0 ${rank === 0 ? "text-amber-400" : rank === 1 ? "text-slate-300" : "text-orange-700"}`}>#{rank + 1}</span>
-                        <span className="text-sm text-slate-300 flex-1 tabular-nums">{d.fecha.split("T")[0]}</span>
+                        <span className="text-sm text-slate-300 flex-1">{formatTopDate(d.fecha)}</span>
                         <span className="text-sm font-bold text-white tabular-nums">{d.cantidad.toLocaleString("es-AR")}</span>
                       </div>
                     ))}

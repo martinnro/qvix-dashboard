@@ -142,24 +142,24 @@ function TablaActivos({ rows, sucursalSel, colTitulo, colSubtitulo, excelHref }:
             </div>
           </div>
         </div>
-        <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5">
+        <div className="bg-slate-800 border border-slate-700 rounded-2xl p-3 sm:p-5">
           <ResponsiveContainer width="100%" height={chartH}>
             <BarChart
               layout="vertical"
               data={chartData}
-              margin={{ top: 0, right: 55, left: 0, bottom: 0 }}
+              margin={{ top: 0, right: 40, left: 0, bottom: 0 }}
               barSize={20}
             >
               <XAxis type="number" hide />
               <YAxis
                 type="category"
                 dataKey="modelo"
-                width={230}
+                width={160}
                 tickLine={false}
                 axisLine={false}
                 tick={(props: { x: string | number; y: string | number; payload: { value: string } }) => {
                   const { x, y, payload } = props;
-                  const text = payload.value.length > 34 ? payload.value.slice(0, 32) + "…" : payload.value;
+                  const text = payload.value.length > 22 ? payload.value.slice(0, 20) + "…" : payload.value;
                   return (
                     <text x={x} y={y} dy={5} textAnchor="end" fill="#94a3b8" fontSize={11}>
                       {text}
@@ -280,24 +280,24 @@ function TablaStock({ rows, sucursalSel, colTitulo, colSubtitulo, excelHref }: {
             </div>
           </div>
         </div>
-        <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5">
+        <div className="bg-slate-800 border border-slate-700 rounded-2xl p-3 sm:p-5">
           <ResponsiveContainer width="100%" height={chartH}>
             <BarChart
               layout="vertical"
               data={chartData}
-              margin={{ top: 0, right: 55, left: 0, bottom: 0 }}
+              margin={{ top: 0, right: 40, left: 0, bottom: 0 }}
               barSize={20}
             >
               <XAxis type="number" hide />
               <YAxis
                 type="category"
                 dataKey="modelo"
-                width={230}
+                width={160}
                 tickLine={false}
                 axisLine={false}
                 tick={(props: { x: string | number; y: string | number; payload: { value: string } }) => {
                   const { x, y, payload } = props;
-                  const text = payload.value.length > 34 ? payload.value.slice(0, 32) + "…" : payload.value;
+                  const text = payload.value.length > 22 ? payload.value.slice(0, 20) + "…" : payload.value;
                   return (
                     <text x={x} y={y} dy={5} textAnchor="end" fill="#94a3b8" fontSize={11}>
                       {text}
@@ -579,7 +579,7 @@ export default function DispositivosView({
 
           {/* Tarjeta ONTs */}
           {showOnts && (
-            <div className="bg-slate-800/40 border border-slate-700 rounded-2xl p-5">
+            <div className="bg-slate-800/40 border border-slate-700 rounded-2xl p-3 sm:p-5">
               <div className="flex items-center gap-2 pb-4 mb-5 border-b border-slate-700/60">
                 <Wifi size={13} className="text-cyan-400" />
                 <span className="text-sm font-semibold text-cyan-400">ONTs</span>
@@ -599,7 +599,7 @@ export default function DispositivosView({
 
           {/* Tarjeta Decos / STB */}
           {showDecos && (
-            <div className="bg-slate-800/40 border border-slate-700 rounded-2xl p-5">
+            <div className="bg-slate-800/40 border border-slate-700 rounded-2xl p-3 sm:p-5">
               <div className="flex items-center gap-2 pb-4 mb-5 border-b border-slate-700/60">
                 <Monitor size={13} className="text-violet-400" />
                 <span className="text-sm font-semibold text-violet-400">Decos / STB</span>

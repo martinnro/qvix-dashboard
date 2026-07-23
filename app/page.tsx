@@ -22,6 +22,7 @@ import ClientesTVDashboard from "./components/ClientesTVDashboard";
 import MapaView from "./components/MapaView";
 import ReclamosView from "./components/ReclamosView";
 import InfraestructuraView from "./components/InfraestructuraView";
+import AnalisisSenalesView from "./components/AnalisisSenalesView";
 import FuentesStockView from "./components/FuentesStockView";
 import DispositivosView from "./components/DispositivosView";
 import MacScannerView from "./components/MacScannerView";
@@ -53,6 +54,7 @@ function Home() {
   const [showFuentesStock, setShowFuentesStock] = useState(false);
   const [showDispositivos, setShowDispositivos] = useState(false);
   const [showMacScanner, setShowMacScanner] = useState(false);
+  const [showAnalisisSenales, setShowAnalisisSenales] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [sessionUser, setSessionUser] = useState<{
     user: string;
@@ -119,7 +121,7 @@ function Home() {
   const selectedOrgIndex = singleOrg ? orgStats.findIndex((o) => o.organizacion === singleOrg) : -1;
 
   // ── Vista activa (mutuamente exclusivas) ───────────────────────────────────
-  const goHome = () => { setShowServiceView(false); setShowLicencias(false); setShowSucursales(false); setShowMapa(false); setShowReclamos(false); setShowInfraestructura(false); setShowFuentesStock(false); setShowDispositivos(false); setShowMacScanner(false); };
+  const goHome = () => { setShowServiceView(false); setShowLicencias(false); setShowSucursales(false); setShowMapa(false); setShowReclamos(false); setShowInfraestructura(false); setShowFuentesStock(false); setShowDispositivos(false); setShowMacScanner(false); setShowAnalisisSenales(false); };
   const goTo = (view: "licencias" | "sucursales") => {
     setShowLicencias(view === "licencias");
     setShowSucursales(view === "sucursales");
@@ -232,6 +234,9 @@ function Home() {
                   </button>
                   <button onClick={() => { setShowInfraestructura(true); setShowTVMenu(false); }} className={menuItem}>
                     <span className="w-2 h-2 rounded-full flex-shrink-0 bg-emerald-400" /> Infraestructura
+                  </button>
+                  <button onClick={() => { goHome(); setShowAnalisisSenales(true); setShowTVMenu(false); }} className={menuItem}>
+                    <span className="w-2 h-2 rounded-full flex-shrink-0 bg-purple-400" /> Análisis de señales
                   </button>
 
                   <div className="border-t border-slate-800 my-1" />
@@ -388,8 +393,9 @@ function Home() {
       {showFuentesStock && <FuentesStockView onClose={goHome} />}
       {showDispositivos && <DispositivosView onClose={goHome} sucursalesPermitidas={sessionUser?.sucursales ?? null} />}
       {showMacScanner && <MacScannerView onClose={goHome} />}
+      {showAnalisisSenales && <AnalisisSenalesView onClose={goHome} />}
 
-      <main className={`max-w-screen-xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8 ${showLicencias || showSucursales || showMapa || showReclamos || showInfraestructura || showFuentesStock || showDispositivos || showMacScanner ? "hidden" : ""}`}>
+      <main className={`max-w-screen-xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8 ${showLicencias || showSucursales || showMapa || showReclamos || showInfraestructura || showFuentesStock || showDispositivos || showMacScanner || showAnalisisSenales ? "hidden" : ""}`}>
 
         {/* ── Dashboard principal — solo en home ── */}
         {!showServiceView && sessionUser !== null && puedeVer("tv") && (

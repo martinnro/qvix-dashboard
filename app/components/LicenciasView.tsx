@@ -1,23 +1,24 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
-import { X, Monitor, Smartphone, Key, AlertTriangle, TrendingUp, Clock } from "lucide-react";
+import { X, Monitor, Smartphone, Key, AlertTriangle, TrendingUp } from "lucide-react";
+import type { DataRow } from "../lib/types";
 
 interface Props {
   gotvStb: number;
   gotvMovil: number;
   viewtvStb: number;
   viewtvMovil: number;
+  rows: DataRow[];
   onClose: () => void;
 }
 
 interface Snapshot {
-  fecha: string; // YYYY-MM-DD
+  fecha: string; // YYYY-MM-01
   stb: number;
   movil: number;
 }
 
 const STORAGE_KEY = "qvix_total_licencias";
-const HISTORY_KEY = "qvix_licencias_historial";
 const DEFAULT_LICENCIAS = 25000;
 
 const MONTH_NAMES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
@@ -26,22 +27,22 @@ function fmtProjectionDate(date: Date) {
   return `${MONTH_NAMES[date.getMonth()]} ${date.getFullYear()}`;
 }
 
+function fmtMonth(fechaStr: string) {
+  const [, m] = fechaStr.split("-");
+  return `${MONTH_NAMES[parseInt(m) - 1]}`;
+}
+
 function getUsageColor(pct: number) {
   if (pct < 60) return {
-    text: "text-emerald-400",
-    bar: "bg-emerald-500",
-    badge: "bg-emerald-900/40 border border-emerald-700 text-emerald-400",
-    label: "Margen seguro",
+    text: "text-emerald-400", bar: "bg-emerald-500",
+    badge: "bg-emerald-900/40 border border-emerald-700 text-emerald-400", label: "Margen seguro",
   };
   if (pct < 85) return {
-    text: "text-amber-400",
-    bar: "bg-amber-400",
-    badge: "bg-amber-900/40 border border-amber-700 text-amber-400",
-    label: "Atención",
+    text: "text-amber-400", bar: "bg-amber-400",
+    badge: "bg-amber-900/40 border border-amber-700 text-amber-400", label: "Atención",
   };
   return {
-    text: "text-red-400",
-    bar: "bg-red-500",
+    text: "text-red-400", bar: "bg-red-500",
     badge: "bg-red-900/40 border border-red-700 text-red-400",
     label: pct >= 100 ? "Límite superado" : "Crítico",
   };
@@ -52,10 +53,7 @@ function ProgressBar({ value, max }: { value: number; max: number }) {
   const colors = getUsageColor(max > 0 ? (value / max) * 100 : 0);
   return (
     <div className="w-full bg-slate-700 rounded-full h-3 overflow-hidden">
-      <div
-        className={`h-3 rounded-full transition-all duration-500 ${colors.bar}`}
-        style={{ width: `${pct}%` }}
-      />
+      <div className={`h-3 rounded-full transition-all duration-500 ${colors.bar}`} style={{ width: `${pct}%` }} />
     </div>
   );
 }
@@ -79,16 +77,14 @@ function calcProjection(snapshots: Snapshot[], field: "stb" | "movil", limit: nu
   return { growthPerMonth, daysToLimit, limitDate };
 }
 
-export default function LicenciasView({ gotvStb, gotvMovil, viewtvStb, viewtvMovil, onClose }: Props) {
+export default function LicenciasView({ gotvStb, gotvMovil, viewtvStb, viewtvMovil, rows, onClose }: Props) {
   const [totalLicencias, setTotalLicencias] = useState(DEFAULT_LICENCIAS);
   const [inputValue, setInputValue] = useState(String(DEFAULT_LICENCIAS));
   const [editing, setEditing] = useState(false);
-  const [history, setHistory] = useState<Snapshot[]>([]);
 
   const totalStb = gotvStb + viewtvStb;
   const totalMovil = gotvMovil + viewtvMovil;
 
-  // Load stored license count
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
@@ -97,33 +93,26 @@ export default function LicenciasView({ gotvStb, gotvMovil, viewtvStb, viewtvMov
     }
   }, []);
 
-  // Save one snapshot per month to history
-  useEffect(() => {
-    if (totalStb === 0 && totalMovil === 0) return;
-    const today = new Date().toISOString().split("T")[0];
-    const thisMonth = today.slice(0, 7); // YYYY-MM
-    let stored: Snapshot[] = [];
-    try {
-      const raw = localStorage.getItem(HISTORY_KEY);
-      if (raw) stored = JSON.parse(raw);
-    } catch { /* ignore */ }
-    const withoutThisMonth = stored.filter(h => h.fecha.slice(0, 7) !== thisMonth);
-    withoutThisMonth.push({ fecha: today, stb: totalStb, movil: totalMovil });
-    const trimmed = withoutThisMonth.sort((a, b) => a.fecha.localeCompare(b.fecha)).slice(-24);
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(trimmed));
-    setHistory(trimmed);
-  }, [totalStb, totalMovil]);
-
   const applyLicencias = () => {
     const n = parseInt(inputValue.replace(/\D/g, ""), 10);
-    if (!isNaN(n) && n > 0) {
-      setTotalLicencias(n);
-      localStorage.setItem(STORAGE_KEY, String(n));
-    } else {
-      setInputValue(String(totalLicencias));
-    }
+    if (!isNaN(n) && n > 0) { setTotalLicencias(n); localStorage.setItem(STORAGE_KEY, String(n)); }
+    else setInputValue(String(totalLicencias));
     setEditing(false);
   };
+
+  // Agrupar rows por mes (YYYY-MM), sumando GOTV + ViewTV + todas las orgs
+  const monthlyHistory = useMemo<Snapshot[]>(() => {
+    const byMonth: Record<string, { stb: number; movil: number }> = {};
+    for (const r of rows) {
+      const month = r.fecha.slice(0, 7); // YYYY-MM
+      if (!byMonth[month]) byMonth[month] = { stb: 0, movil: 0 };
+      byMonth[month].stb += r.stb;
+      byMonth[month].movil += r.movil;
+    }
+    return Object.entries(byMonth)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, totals]) => ({ fecha: `${month}-01`, ...totals }));
+  }, [rows]);
 
   const stbPct = totalLicencias > 0 ? (totalStb / totalLicencias) * 100 : 0;
   const movilPct = totalLicencias > 0 ? (totalMovil / totalLicencias) * 100 : 0;
@@ -132,33 +121,23 @@ export default function LicenciasView({ gotvStb, gotvMovil, viewtvStb, viewtvMov
   const stbColors = getUsageColor(stbPct);
   const movilColors = getUsageColor(movilPct);
 
-  const stbProjection = useMemo(() => calcProjection(history, "stb", totalLicencias), [history, totalLicencias]);
-  const movilProjection = useMemo(() => calcProjection(history, "movil", totalLicencias), [history, totalLicencias]);
+  const stbProjection = useMemo(() => calcProjection(monthlyHistory, "stb", totalLicencias), [monthlyHistory, totalLicencias]);
+  const movilProjection = useMemo(() => calcProjection(monthlyHistory, "movil", totalLicencias), [monthlyHistory, totalLicencias]);
 
   function ProjectionCard({ label, icon, color, proj, pct, current }: {
-    label: string;
-    icon: React.ReactNode;
-    color: string;
-    proj: ReturnType<typeof calcProjection>;
-    pct: number;
-    current: number;
+    label: string; icon: React.ReactNode; color: string;
+    proj: ReturnType<typeof calcProjection>; pct: number; current: number;
   }) {
     const colors = getUsageColor(pct);
     return (
       <div className="bg-slate-900/60 border border-slate-700 rounded-xl p-5 space-y-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {icon}
-            <span className="font-semibold text-slate-200">{label}</span>
-          </div>
+          <div className="flex items-center gap-2">{icon}<span className="font-semibold text-slate-200">{label}</span></div>
           <span className={`text-xs px-2.5 py-0.5 rounded-full ${colors.badge}`}>{colors.label}</span>
         </div>
 
         {proj === null ? (
-          <div className="flex items-center gap-2 text-slate-500 text-sm py-2">
-            <Clock size={15} />
-            Volvé mañana — se necesitan al menos 2 días para calcular la tendencia.
-          </div>
+          <p className="text-slate-500 text-sm py-2">Cargá al menos 2 meses de datos en TV - Servicio para ver la proyección.</p>
         ) : (
           <>
             <div className="flex items-baseline gap-2">
@@ -168,9 +147,9 @@ export default function LicenciasView({ gotvStb, gotvMovil, viewtvStb, viewtvMov
               <span className="text-slate-400 text-sm">dispositivos por mes en promedio</span>
             </div>
 
-            <div className="text-sm space-y-1">
+            <div className="text-sm">
               {proj.growthPerMonth <= 0 ? (
-                <p className="text-emerald-400">Sin crecimiento detectado en el período — el límite no está en riesgo.</p>
+                <p className="text-emerald-400">Sin crecimiento en el período — el límite no está en riesgo.</p>
               ) : proj.daysToLimit !== null && proj.limitDate !== null ? (
                 proj.daysToLimit <= 30 ? (
                   <p className="text-red-400 font-semibold">Llegaría al límite en menos de un mes — atención inmediata.</p>
@@ -188,7 +167,7 @@ export default function LicenciasView({ gotvStb, gotvMovil, viewtvStb, viewtvMov
 
             <div className="border-t border-slate-700/60 pt-3 flex items-center justify-between text-xs text-slate-500">
               <span>Actualmente: <span className={`font-semibold ${color}`}>{current.toLocaleString()}</span> / {totalLicencias.toLocaleString()} ({pct.toFixed(1)}%)</span>
-              <span>{history.length} {history.length === 1 ? "medición" : "mediciones"}</span>
+              <span>{monthlyHistory.length} {monthlyHistory.length === 1 ? "mes cargado" : "meses cargados"}</span>
             </div>
           </>
         )}
@@ -207,14 +186,9 @@ export default function LicenciasView({ gotvStb, gotvMovil, viewtvStb, viewtvMov
               <Key size={20} className="text-indigo-400" />
               Control de Licencias
             </h2>
-            <p className="text-sm text-slate-400 mt-0.5">
-              Uso de licencias de plataforma — GOTV + ViewTV combinados
-            </p>
+            <p className="text-sm text-slate-400 mt-0.5">Uso de licencias de plataforma — GOTV + ViewTV combinados</p>
           </div>
-          <button
-            onClick={onClose}
-            className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 border border-slate-700 hover:border-slate-500 px-3 py-1.5 rounded-lg text-sm transition-colors"
-          >
+          <button onClick={onClose} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 border border-slate-700 hover:border-slate-500 px-3 py-1.5 rounded-lg text-sm transition-colors">
             <X size={15} /> Volver al dashboard
           </button>
         </div>
@@ -225,14 +199,9 @@ export default function LicenciasView({ gotvStb, gotvMovil, viewtvStb, viewtvMov
           <span className="text-slate-300 text-sm font-medium">Total de licencias disponibles:</span>
           {editing ? (
             <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") applyLicencias(); if (e.key === "Escape") { setEditing(false); setInputValue(String(totalLicencias)); } }}
-                autoFocus
-                className="bg-slate-900 border border-indigo-500 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none w-32 font-mono text-center"
-              />
+              <input type="text" value={inputValue} onChange={e => setInputValue(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") applyLicencias(); if (e.key === "Escape") { setEditing(false); setInputValue(String(totalLicencias)); } }}
+                autoFocus className="bg-slate-900 border border-indigo-500 rounded-lg px-3 py-1.5 text-sm text-slate-200 focus:outline-none w-32 font-mono text-center" />
               <button onClick={applyLicencias} className="bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-3 py-1.5 rounded-lg transition-colors">Guardar</button>
               <button onClick={() => { setEditing(false); setInputValue(String(totalLicencias)); }} className="text-slate-500 hover:text-slate-300 text-sm px-2 py-1.5 transition-colors">Cancelar</button>
             </div>
@@ -242,28 +211,20 @@ export default function LicenciasView({ gotvStb, gotvMovil, viewtvStb, viewtvMov
               <button onClick={() => setEditing(true)} className="text-xs text-slate-500 hover:text-indigo-400 border border-slate-600 hover:border-indigo-500 px-2 py-0.5 rounded transition-colors">Editar</button>
             </div>
           )}
-          <p className="text-xs text-slate-500 ml-auto">
-            STB y Móvil tienen cupos independientes — el tope se alcanza cuando cualquiera llega al límite
-          </p>
+          <p className="text-xs text-slate-500 ml-auto">STB y Móvil tienen cupos independientes</p>
         </div>
 
-        {/* Alerta si supera el tope */}
         {maxPct >= 100 && (
           <div className="flex items-center gap-2 text-red-400 bg-red-950/30 border border-red-800 rounded-lg px-4 py-3 text-sm">
-            <AlertTriangle size={16} />
-            Se superó el límite de licencias — revisá el plan de expansión.
+            <AlertTriangle size={16} /> Se superó el límite de licencias — revisá el plan de expansión.
           </div>
         )}
 
         {/* Cards STB y Móvil */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* STB Card */}
           <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Monitor size={18} className="text-indigo-400" />
-                <h3 className="text-slate-200 font-semibold">STB (Decos)</h3>
-              </div>
+              <div className="flex items-center gap-2"><Monitor size={18} className="text-indigo-400" /><h3 className="text-slate-200 font-semibold">STB (Decos)</h3></div>
               <span className={`text-xs px-2.5 py-0.5 rounded-full ${stbColors.badge}`}>{stbColors.label}</span>
             </div>
             <div>
@@ -291,13 +252,9 @@ export default function LicenciasView({ gotvStb, gotvMovil, viewtvStb, viewtvMov
             </div>
           </div>
 
-          {/* Móvil Card */}
           <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Smartphone size={18} className="text-emerald-400" />
-                <h3 className="text-slate-200 font-semibold">Móvil (App)</h3>
-              </div>
+              <div className="flex items-center gap-2"><Smartphone size={18} className="text-emerald-400" /><h3 className="text-slate-200 font-semibold">Móvil (App)</h3></div>
               <span className={`text-xs px-2.5 py-0.5 rounded-full ${movilColors.badge}`}>{movilColors.label}</span>
             </div>
             <div>
@@ -331,44 +288,26 @@ export default function LicenciasView({ gotvStb, gotvMovil, viewtvStb, viewtvMov
           <div className="flex items-center gap-2">
             <TrendingUp size={18} className="text-indigo-400" />
             <h3 className="text-slate-300 font-semibold text-sm uppercase tracking-wider">Tendencia y proyección</h3>
-            {history.length >= 2 && (
+            {monthlyHistory.length >= 2 && (
               <span className="ml-auto text-xs text-slate-500">
-                Desde {history[0].fecha} · {history.length} {history.length === 1 ? "mes" : "meses"}
+                {fmtMonth(monthlyHistory[0].fecha)} → {fmtMonth(monthlyHistory[monthlyHistory.length - 1].fecha)} · {monthlyHistory.length} meses
               </span>
             )}
           </div>
 
-          {history.length < 2 ? (
-            <div className="flex flex-col items-center justify-center py-8 gap-3 text-slate-500">
-              <Clock size={28} className="opacity-40" />
-              <p className="text-sm text-center">
-                Se necesitan al menos 2 meses de datos para calcular la tendencia y la proyección.<br />
-                <span className="text-slate-600">El valor de este mes ya quedó guardado — volvé el mes que viene.</span>
-              </p>
+          {monthlyHistory.length < 2 ? (
+            <div className="py-6 text-center text-slate-500 text-sm">
+              Cargá al menos 2 meses de datos en <span className="text-slate-300">TV - Servicio</span> para ver la tendencia y la proyección.
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <ProjectionCard
-                label="STB (Decos)"
-                icon={<Monitor size={16} className="text-indigo-400" />}
-                color="text-indigo-400"
-                proj={stbProjection}
-                pct={stbPct}
-                current={totalStb}
-              />
-              <ProjectionCard
-                label="Móvil (App)"
-                icon={<Smartphone size={16} className="text-emerald-400" />}
-                color="text-emerald-400"
-                proj={movilProjection}
-                pct={movilPct}
-                current={totalMovil}
-              />
+              <ProjectionCard label="STB (Decos)" icon={<Monitor size={16} className="text-indigo-400" />} color="text-indigo-400" proj={stbProjection} pct={stbPct} current={totalStb} />
+              <ProjectionCard label="Móvil (App)" icon={<Smartphone size={16} className="text-emerald-400" />} color="text-emerald-400" proj={movilProjection} pct={movilPct} current={totalMovil} />
             </div>
           )}
 
           <p className="text-xs text-slate-600">
-            La proyección se calcula con el crecimiento promedio entre meses. Guarda un valor por mes — con más meses acumulados la estimación es más precisa.
+            Basado en los datos de TV - Servicio (GOTV + ViewTV, todas las organizaciones). Con más meses cargados la proyección es más precisa.
           </p>
         </div>
 

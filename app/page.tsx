@@ -377,6 +377,7 @@ function Home() {
           gotvMovil={gotvLast.movil}
           viewtvStb={viewtvLast.stb}
           viewtvMovil={viewtvLast.movil}
+          rows={rows}
           onClose={goHome}
         />
       )}

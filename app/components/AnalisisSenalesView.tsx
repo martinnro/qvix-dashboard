@@ -214,13 +214,21 @@ export default function AnalisisSenalesView({ onClose }: { onClose: () => void }
   // Resumen estadístico por señal (para tarjetas de resumen)
   const resumen = useMemo(() =>
     senales.flatMap((s, si) => {
-      const vals = entradas.filter(e => e.senal_id === s.id);
+      const vals = entradas.filter(e => e.senal_id === s.id).sort((a, b) => a.fecha.localeCompare(b.fecha));
       if (vals.length === 0) return [];
-      const total = vals.reduce((a, e) => a + e.cantidad, 0);
-      const mean = Math.round(total / vals.length);
+      const mean = Math.round(vals.reduce((a, e) => a + e.cantidad, 0) / vals.length);
       const best = vals.reduce((a, b) => b.cantidad > a.cantidad ? b : a);
       const worst = vals.reduce((a, b) => b.cantidad < a.cantidad ? b : a);
-      return [{ s, si, total, mean, best, worst, count: vals.length }];
+      const recent7 = vals.slice(-7);
+      const prev7 = vals.slice(-14, -7);
+      let tendencia: { pct: number; dir: "up" | "down" | "stable" } | null = null;
+      if (recent7.length >= 5 && prev7.length >= 5) {
+        const recentTotal = recent7.reduce((a, e) => a + e.cantidad, 0);
+        const prevTotal = prev7.reduce((a, e) => a + e.cantidad, 0);
+        const pct = Math.round(((recentTotal - prevTotal) / prevTotal) * 100);
+        tendencia = { pct, dir: pct > 5 ? "up" : pct < -5 ? "down" : "stable" };
+      }
+      return [{ s, si, mean, best, worst, tendencia }];
     }),
     [senales, entradas]
   );
@@ -460,8 +468,19 @@ export default function AnalisisSenalesView({ onClose }: { onClose: () => void }
                 </div>
                 <div className="grid grid-cols-3 gap-3 text-center">
                   <div>
-                    <p className="text-xl font-bold text-white tabular-nums">{total.toLocaleString("es-AR")}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">Total acumulado</p>
+                    {tendencia ? (
+                      <>
+                        <p className={`text-xl font-bold tabular-nums ${tendencia.dir === "up" ? "text-emerald-400" : tendencia.dir === "down" ? "text-red-400" : "text-slate-300"}`}>
+                          {tendencia.dir === "up" ? "↑" : tendencia.dir === "down" ? "↓" : "→"} {tendencia.pct >= 0 ? "+" : ""}{tendencia.pct}%
+                        </p>
+                        <p className="text-xs text-slate-400 mt-0.5">vs semana anterior</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-xl font-bold text-slate-500">—</p>
+                        <p className="text-xs text-slate-400 mt-0.5">vs semana anterior</p>
+                      </>
+                    )}
                   </div>
                   <div>
                     <p className="text-xl font-bold text-white tabular-nums">{mean.toLocaleString("es-AR")}</p>

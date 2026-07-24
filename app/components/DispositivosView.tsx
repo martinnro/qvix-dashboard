@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from "react";
 import { RefreshCw, Monitor, Wifi, Download, PackageOpen, ChevronDown } from "lucide-react";
 import { getColorById } from "./MapaUtils";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList } from "recharts";
+import { useTheme } from "../lib/useTheme";
 
 const SUCURSALES: Record<number, string> = {
   0: "Central",
@@ -87,6 +88,7 @@ function TablaActivos({ rows, sucursalSel, colTitulo, colSubtitulo, excelHref }:
   const onts  = filtrados.filter((r) =>  esOnt(r.tipo_dispositivo));
 
   const Seccion = ({ titulo, data, color }: { titulo: string; data: DispositivoRow[]; color: string }) => {
+    const { chart } = useTheme();
     if (data.length === 0) return null;
     const total = data.reduce((s, r) => s + r.cantidad, 0);
     const { chartData, allStates, states } = buildChartData(data);
@@ -101,20 +103,20 @@ function TablaActivos({ rows, sucursalSel, colTitulo, colSubtitulo, excelHref }:
         .sort((a, b) => b.value - a.value);
       const tot = entries.reduce((s, e) => s + e.value, 0);
       return (
-        <div style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 10, padding: "10px 14px", minWidth: 200 }}>
-          <div style={{ color: "#e2e8f0", fontWeight: 600, fontSize: 12, marginBottom: 8 }}>{label}</div>
+        <div style={{ background: chart.tooltipBg, border: `1px solid ${chart.tooltipBorder}`, borderRadius: 10, padding: "10px 14px", minWidth: 200 }}>
+          <div style={{ color: chart.tooltipLabel, fontWeight: 600, fontSize: 12, marginBottom: 8 }}>{label}</div>
           {entries.map((e) => (
             <div key={e.nombre} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 4, fontSize: 12 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: e.fill, flexShrink: 0 }} />
-                <span style={{ color: "#cbd5e1" }}>{e.nombre}</span>
+                <span style={{ color: chart.tooltipItem }}>{e.nombre}</span>
               </div>
-              <span style={{ color: "#f1f5f9", fontWeight: 500 }}>{fmt(e.value)}</span>
+              <span style={{ color: chart.tooltipLabel, fontWeight: 500 }}>{fmt(e.value)}</span>
             </div>
           ))}
-          <div style={{ borderTop: "1px solid #334155", marginTop: 8, paddingTop: 8, display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-            <span style={{ color: "#64748b" }}>Total</span>
-            <span style={{ color: "#fff", fontWeight: 700 }}>{fmt(tot)}</span>
+          <div style={{ borderTop: `1px solid ${chart.tooltipBorder}`, marginTop: 8, paddingTop: 8, display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+            <span style={{ color: chart.axis }}>Total</span>
+            <span style={{ color: chart.tooltipLabel, fontWeight: 700 }}>{fmt(tot)}</span>
           </div>
         </div>
       );
@@ -225,6 +227,7 @@ function TablaStock({ rows, sucursalSel, colTitulo, colSubtitulo, excelHref }: {
   };
 
   const Seccion = ({ titulo, data, color }: { titulo: string; data: DispositivoRow[]; color: string }) => {
+    const { chart } = useTheme();
     if (data.length === 0) return null;
     const total = data.reduce((s, r) => s + r.cantidad, 0);
     const { chartData, sucursales } = buildStockChart(data);
@@ -239,20 +242,20 @@ function TablaStock({ rows, sucursalSel, colTitulo, colSubtitulo, excelHref }: {
         .sort((a, b) => b.value - a.value);
       const tot = entries.reduce((s, e) => s + e.value, 0);
       return (
-        <div style={{ background: "#0f172a", border: "1px solid #334155", borderRadius: 10, padding: "10px 14px", minWidth: 200 }}>
-          <div style={{ color: "#e2e8f0", fontWeight: 600, fontSize: 12, marginBottom: 8 }}>{label}</div>
+        <div style={{ background: chart.tooltipBg, border: `1px solid ${chart.tooltipBorder}`, borderRadius: 10, padding: "10px 14px", minWidth: 200 }}>
+          <div style={{ color: chart.tooltipLabel, fontWeight: 600, fontSize: 12, marginBottom: 8 }}>{label}</div>
           {entries.map((e) => (
             <div key={e.nombre} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 4, fontSize: 12 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: e.fill, flexShrink: 0 }} />
-                <span style={{ color: "#cbd5e1" }}>{e.nombre}</span>
+                <span style={{ color: chart.tooltipItem }}>{e.nombre}</span>
               </div>
-              <span style={{ color: "#f1f5f9", fontWeight: 500 }}>{fmt(e.value)}</span>
+              <span style={{ color: chart.tooltipLabel, fontWeight: 500 }}>{fmt(e.value)}</span>
             </div>
           ))}
-          <div style={{ borderTop: "1px solid #334155", marginTop: 8, paddingTop: 8, display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-            <span style={{ color: "#64748b" }}>Total</span>
-            <span style={{ color: "#fff", fontWeight: 700 }}>{fmt(tot)}</span>
+          <div style={{ borderTop: `1px solid ${chart.tooltipBorder}`, marginTop: 8, paddingTop: 8, display: "flex", justifyContent: "space-between", fontSize: 12 }}>
+            <span style={{ color: chart.axis }}>Total</span>
+            <span style={{ color: chart.tooltipLabel, fontWeight: 700 }}>{fmt(tot)}</span>
           </div>
         </div>
       );

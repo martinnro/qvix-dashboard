@@ -5,6 +5,7 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 import TiposServicioDonut from "./TiposServicioDonut";
 import DecosChart from "./DecosChart";
 import { getColorById } from "./MapaUtils";
+import { useTheme } from "../lib/useTheme";
 
 interface Sucursal {
   cod_sucursal: number;
@@ -66,6 +67,7 @@ export default function ClientesTVDashboard({ sucursalesPermitidas = null }: { s
     ? Object.entries(SUCURSALES).filter(([cod]) => sucursalesPermitidas.includes(Number(cod)))
     : Object.entries(SUCURSALES);
 
+  const { chart } = useTheme();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -322,7 +324,7 @@ export default function ClientesTVDashboard({ sucursalesPermitidas = null }: { s
                           ))}
                         </Pie>
                         <Tooltip
-                          contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #334155", borderRadius: 8, fontSize: 12 }}
+                          contentStyle={{ backgroundColor: chart.tooltipBg, border: `1px solid ${chart.tooltipBorder}`, borderRadius: 8, fontSize: 12 }}
                           formatter={(value: unknown) => [`${fmt(Number(value))} (${total > 0 ? ((Number(value) / total) * 100).toFixed(1) : 0}%)`, "Conexiones"]}
                         />
                       </PieChart>

@@ -460,7 +460,7 @@ export default function AnalisisSenalesView({ onClose }: { onClose: () => void }
         {/* Resumen por señal */}
         {resumen.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {resumen.map(({ s, si, total, mean, best, worst }) => (
+            {resumen.map(({ s, si, mean, best, worst, tendencia }) => (
               <div key={s.id} className="bg-slate-800/60 rounded-xl p-5 border border-slate-700/40 space-y-3" style={{ borderLeftColor: COLORS[si % COLORS.length], borderLeftWidth: 3 }}>
                 <div className="flex items-center gap-2">
                   <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: COLORS[si % COLORS.length] }} />

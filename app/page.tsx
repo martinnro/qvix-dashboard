@@ -123,6 +123,7 @@ function Home() {
   // ── Vista activa (mutuamente exclusivas) ───────────────────────────────────
   const goHome = () => { setShowServiceView(false); setShowLicencias(false); setShowSucursales(false); setShowMapa(false); setShowReclamos(false); setShowInfraestructura(false); setShowFuentesStock(false); setShowDispositivos(false); setShowMacScanner(false); setShowAnalisisSenales(false); };
   const goTo = (view: "licencias" | "sucursales") => {
+    goHome();
     setShowLicencias(view === "licencias");
     setShowSucursales(view === "sucursales");
     setShowTVMenu(false);
@@ -215,7 +216,7 @@ function Home() {
                 <div className="absolute left-0 top-full mt-2 w-56 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 p-1.5">
                   <p className="px-3 py-1.5 text-xs text-slate-500 uppercase tracking-wider">Servicio</p>
                   {(["GOTV", "ViewTV"] as Servicio[]).map(s => (
-                    <button key={s} onClick={() => { handleServicioChange(s); setShowLicencias(false); setShowSucursales(false); setShowServiceView(true); setShowTVMenu(false); }}
+                    <button key={s} onClick={() => { goHome(); handleServicioChange(s); setShowServiceView(true); setShowTVMenu(false); }}
                       className={`${menuItem} ${servicio === s ? (s === "GOTV" ? "text-purple-400 bg-purple-900/20" : "text-cyan-400 bg-cyan-900/20") : ""}`}
                     >
                       <span className={`w-2 h-2 rounded-full flex-shrink-0 ${s === "GOTV" ? "bg-purple-500" : "bg-cyan-400"}`} />
@@ -232,7 +233,7 @@ function Home() {
                   <button onClick={() => goTo("sucursales")} className={menuItem}>
                     <span className="w-2 h-2 rounded-full flex-shrink-0 bg-sky-400" /> Monitoreo
                   </button>
-                  <button onClick={() => { setShowInfraestructura(true); setShowTVMenu(false); }} className={menuItem}>
+                  <button onClick={() => { goHome(); setShowInfraestructura(true); setShowTVMenu(false); }} className={menuItem}>
                     <span className="w-2 h-2 rounded-full flex-shrink-0 bg-emerald-400" /> Infraestructura
                   </button>
                   <button onClick={() => { goHome(); setShowAnalisisSenales(true); setShowTVMenu(false); }} className={menuItem}>

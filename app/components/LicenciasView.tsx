@@ -97,18 +97,19 @@ export default function LicenciasView({ gotvStb, gotvMovil, viewtvStb, viewtvMov
     }
   }, []);
 
-  // Save daily snapshot to history
+  // Save one snapshot per month to history
   useEffect(() => {
     if (totalStb === 0 && totalMovil === 0) return;
     const today = new Date().toISOString().split("T")[0];
+    const thisMonth = today.slice(0, 7); // YYYY-MM
     let stored: Snapshot[] = [];
     try {
       const raw = localStorage.getItem(HISTORY_KEY);
       if (raw) stored = JSON.parse(raw);
     } catch { /* ignore */ }
-    const withoutToday = stored.filter(h => h.fecha !== today);
-    withoutToday.push({ fecha: today, stb: totalStb, movil: totalMovil });
-    const trimmed = withoutToday.sort((a, b) => a.fecha.localeCompare(b.fecha)).slice(-90);
+    const withoutThisMonth = stored.filter(h => h.fecha.slice(0, 7) !== thisMonth);
+    withoutThisMonth.push({ fecha: today, stb: totalStb, movil: totalMovil });
+    const trimmed = withoutThisMonth.sort((a, b) => a.fecha.localeCompare(b.fecha)).slice(-24);
     localStorage.setItem(HISTORY_KEY, JSON.stringify(trimmed));
     setHistory(trimmed);
   }, [totalStb, totalMovil]);
@@ -332,7 +333,7 @@ export default function LicenciasView({ gotvStb, gotvMovil, viewtvStb, viewtvMov
             <h3 className="text-slate-300 font-semibold text-sm uppercase tracking-wider">Tendencia y proyección</h3>
             {history.length >= 2 && (
               <span className="ml-auto text-xs text-slate-500">
-                Desde {history[0].fecha} · {history.length} mediciones
+                Desde {history[0].fecha} · {history.length} {history.length === 1 ? "mes" : "meses"}
               </span>
             )}
           </div>
@@ -341,8 +342,8 @@ export default function LicenciasView({ gotvStb, gotvMovil, viewtvStb, viewtvMov
             <div className="flex flex-col items-center justify-center py-8 gap-3 text-slate-500">
               <Clock size={28} className="opacity-40" />
               <p className="text-sm text-center">
-                Se necesitan al menos 2 días de datos para calcular la tendencia y la proyección.<br />
-                <span className="text-slate-600">Volvé mañana — el valor de hoy ya quedó guardado.</span>
+                Se necesitan al menos 2 meses de datos para calcular la tendencia y la proyección.<br />
+                <span className="text-slate-600">El valor de este mes ya quedó guardado — volvé el mes que viene.</span>
               </p>
             </div>
           ) : (
@@ -367,7 +368,7 @@ export default function LicenciasView({ gotvStb, gotvMovil, viewtvStb, viewtvMov
           )}
 
           <p className="text-xs text-slate-600">
-            La proyección se calcula con el crecimiento promedio desde la primera medición. Con más días acumulados la estimación es más precisa.
+            La proyección se calcula con el crecimiento promedio entre meses. Guarda un valor por mes — con más meses acumulados la estimación es más precisa.
           </p>
         </div>
 

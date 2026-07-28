@@ -64,7 +64,7 @@ html.light .text-slate-200 { color: #334155 !important; }
 html.light .text-slate-300 { color: #475569 !important; }
 html.light .text-slate-400 { color: #64748b !important; }
 html.light .text-slate-500 { color: #94a3b8 !important; }
-html.light .text-slate-600 { color: #b0bec5 !important; }
+html.light .text-slate-600 { color: #64748b !important; }
 
 /* Inputs & selects */
 html.light input,
@@ -86,3 +86,68 @@ html.light ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; 
 html:not(.light) .dark-diff-pos     { background-color: rgba(6,78,59,0.4) !important; color: #34d399 !important; border-color: #065f46 !important; }
 html:not(.light) .dark-diff-neg     { background-color: rgba(127,29,29,0.4) !important; color: #f87171 !important; border-color: #7f1d1d !important; }
 html:not(.light) .dark-diff-neutral { background-color: #334155 !important; color: #94a3b8 !important; border-color: #475569 !important; }
+
+/* ══════════════════════════════════════════
+   LIGHT MODE — opacity-variants & accent colors
+   ══════════════════════════════════════════ */
+
+/* Opacity-variant backgrounds */
+html.light .bg-slate-800\/60 { background-color: #f8fafc !important; }
+html.light .bg-slate-800\/50 { background-color: #f8fafc !important; }
+html.light .bg-slate-800\/40 { background-color: #f1f5f9 !important; }
+html.light .bg-slate-800\/30 { background-color: rgba(241,245,249,0.7) !important; }
+html.light .bg-slate-900\/80 { background-color: rgba(248,250,252,0.95) !important; }
+html.light .bg-slate-900\/70 { background-color: rgba(248,250,252,0.92) !important; }
+html.light .bg-slate-900\/50 { background-color: #f1f5f9 !important; }
+html.light .bg-slate-900\/40 { background-color: rgba(241,245,249,0.85) !important; }
+
+/* Active-state button background */
+html.light .bg-slate-600 { background-color: #64748b !important; }
+
+/* Status & badge backgrounds */
+html.light .bg-emerald-900\/30 { background-color: #dcfce7 !important; }
+html.light .bg-amber-900\/30   { background-color: #fef9c3 !important; }
+html.light .bg-amber-900\/60   { background-color: #fef3c7 !important; }
+html.light .bg-amber-700\/40   { background-color: #fde68a !important; }
+html.light .bg-red-900\/30     { background-color: #fee2e2 !important; }
+html.light .bg-rose-500\/20    { background-color: #ffe4e6 !important; }
+html.light .bg-indigo-900\/60  { background-color: #e0e7ff !important; }
+html.light .bg-orange-900\/20  { background-color: rgba(255,237,213,0.5) !important; }
+html.light .bg-orange-900\/30  { background-color: #ffedd5 !important; }
+html.light .bg-orange-900\/40  { background-color: #fed7aa !important; }
+html.light .bg-sky-950\/20     { background-color: #f0f9ff !important; }
+html.light .bg-sky-950\/30     { background-color: #e0f2fe !important; }
+
+/* Hover backgrounds */
+html.light .hover\:bg-slate-700:hover     { background-color: #e2e8f0 !important; }
+html.light .hover\:bg-slate-600:hover     { background-color: #cbd5e1 !important; }
+html.light .hover\:bg-slate-800\/40:hover { background-color: rgba(241,245,249,0.8) !important; }
+html.light .hover\:bg-slate-800\/30:hover { background-color: rgba(241,245,249,0.6) !important; }
+
+/* Extra borders */
+html.light .border-slate-500    { border-color: #94a3b8 !important; }
+html.light .border-amber-700    { border-color: #b45309 !important; }
+html.light .border-indigo-500   { border-color: #6366f1 !important; }
+html.light .border-amber-500    { border-color: #d97706 !important; }
+html.light .border-sky-800\/50  { border-color: rgba(7,89,133,0.3) !important; }
+
+/* Accent text — darken for readability on white */
+html.light .text-violet-400  { color: #7c3aed !important; }
+html.light .text-cyan-400    { color: #0891b2 !important; }
+html.light .text-indigo-400  { color: #4f46e5 !important; }
+html.light .text-indigo-300  { color: #4338ca !important; }
+html.light .text-teal-400    { color: #0f766e !important; }
+html.light .text-amber-400   { color: #b45309 !important; }
+html.light .text-amber-300   { color: #92400e !important; }
+html.light .text-amber-200   { color: #78350f !important; }
+html.light .text-orange-400  { color: #c2410c !important; }
+html.light .text-orange-300  { color: #9a3412 !important; }
+html.light .text-orange-200  { color: #7c2d12 !important; }
+html.light .text-rose-400    { color: #be123c !important; }
+html.light .text-purple-400  { color: #7e22ce !important; }
+html.light .text-yellow-400  { color: #a16207 !important; }
+
+/* Hover text */
+html.light .hover\:text-indigo-300:hover { color: #4338ca !important; }
+html.light .hover\:text-indigo-400:hover { color: #4f46e5 !important; }
+html.light .hover\:text-slate-200:hover  { color: #334155 !important; }

@@ -211,13 +211,34 @@ export default function AnalisisSenalesView({ onClose }: { onClose: () => void }
     });
   }, [selectedDow, entradas, senales]);
 
-  // Auto insights from all data
+  // Resumen estadístico por señal (para tarjetas de resumen)
+  const resumen = useMemo(() =>
+    senales.flatMap((s, si) => {
+      const vals = entradas.filter(e => e.senal_id === s.id).sort((a, b) => a.fecha.localeCompare(b.fecha));
+      if (vals.length === 0) return [];
+      const mean = Math.round(vals.reduce((a, e) => a + e.cantidad, 0) / vals.length);
+      const best = vals.reduce((a, b) => b.cantidad > a.cantidad ? b : a);
+      const worst = vals.reduce((a, b) => b.cantidad < a.cantidad ? b : a);
+      const recent7 = vals.slice(-7);
+      const prev7 = vals.slice(-14, -7);
+      let tendencia: { pct: number; dir: "up" | "down" | "stable" } | null = null;
+      if (recent7.length >= 5 && prev7.length >= 5) {
+        const recentTotal = recent7.reduce((a, e) => a + e.cantidad, 0);
+        const prevTotal = prev7.reduce((a, e) => a + e.cantidad, 0);
+        const pct = Math.round(((recentTotal - prevTotal) / prevTotal) * 100);
+        tendencia = { pct, dir: pct > 5 ? "up" : pct < -5 ? "down" : "stable" };
+      }
+      return [{ s, si, mean, best, worst, tendencia }];
+    }),
+    [senales, entradas]
+  );
+
+  // Puntos destacados — análisis concreto en lenguaje simple
   const insights = useMemo(() => {
     if (entradas.length === 0 || senales.length === 0) return [];
     type Item = { text: string; type: "good" | "bad" | "neutral" };
     const items: Item[] = [];
 
-    // Total per date (all signals combined)
     const dateMap: Record<string, number> = {};
     for (const e of entradas) {
       const d = e.fecha.split("T")[0];
@@ -225,71 +246,92 @@ export default function AnalisisSenalesView({ onClose }: { onClose: () => void }
     }
     const sortedDates = Object.keys(dateMap).sort();
 
-    // Best/worst day of week by average daily total
+    // 1. Tendencia por señal — regresión lineal (vistas ganadas/perdidas por semana)
+    for (const s of senales) {
+      const vals = entradas
+        .filter(e => e.senal_id === s.id)
+        .sort((a, b) => a.fecha.localeCompare(b.fecha))
+        .map(e => e.cantidad);
+      if (vals.length < 7) continue;
+      const n = vals.length;
+      const meanX = (n - 1) / 2;
+      const meanY = vals.reduce((a, b) => a + b, 0) / n;
+      const num = vals.reduce((acc, y, i) => acc + (i - meanX) * (y - meanY), 0);
+      const den = vals.reduce((acc, _, i) => acc + Math.pow(i - meanX, 2), 0);
+      const slope = num / den;
+      const slopePerWeek = Math.round(Math.abs(slope) * 7 * 10) / 10;
+      if (slopePerWeek >= 2) {
+        if (slope > 0) items.push({ text: `${s.nombre} está en alza: sumó unas ${slopePerWeek} vistas más por semana a lo largo del período`, type: "good" });
+        else items.push({ text: `${s.nombre} está a la baja: perdió unas ${slopePerWeek} vistas por semana a lo largo del período`, type: "bad" });
+      } else {
+        items.push({ text: `${s.nombre} se mantuvo estable durante el período — sin cambios importantes de semana en semana`, type: "neutral" });
+      }
+    }
+
+    // 2. Semana reciente vs la anterior
+    if (sortedDates.length >= 10) {
+      const recent = sortedDates.slice(-7);
+      const prev = sortedDates.slice(-14, -7);
+      if (prev.length >= 5) {
+        const recentTotal = recent.reduce((s, d) => s + dateMap[d], 0);
+        const prevTotal = prev.reduce((s, d) => s + dateMap[d], 0);
+        const pct = Math.round(((recentTotal - prevTotal) / prevTotal) * 100);
+        if (pct > 5) items.push({ text: `Buena semana reciente: ${recentTotal.toLocaleString("es-AR")} vistas en los últimos 7 días, un ${pct}% más que los 7 anteriores (${prevTotal.toLocaleString("es-AR")})`, type: "good" });
+        else if (pct < -5) items.push({ text: `Semana reciente floja: ${recentTotal.toLocaleString("es-AR")} vistas en los últimos 7 días, un ${Math.abs(pct)}% menos que los 7 anteriores (${prevTotal.toLocaleString("es-AR")})`, type: "bad" });
+        else items.push({ text: `La semana reciente es similar a la anterior: ${recentTotal.toLocaleString("es-AR")} vs ${prevTotal.toLocaleString("es-AR")} vistas (${pct >= 0 ? "+" : ""}${pct}%)`, type: "neutral" });
+      }
+    }
+
+    // 3. Mejor día de semana (con al menos 2 muestras por día para que sea real)
     const dowBuckets: Record<number, number[]> = {};
     for (let i = 0; i < 7; i++) dowBuckets[i] = [];
     for (const [d, total] of Object.entries(dateMap)) dowBuckets[getDow(d)].push(total);
     const dowAvg = Object.entries(dowBuckets)
-      .filter(([, vals]) => vals.length > 0)
+      .filter(([, vals]) => vals.length >= 2)
       .map(([dow, vals]) => ({ dow: parseInt(dow), avg: vals.reduce((a, b) => a + b, 0) / vals.length }));
     if (dowAvg.length > 1) {
       const best = dowAvg.reduce((a, b) => b.avg > a.avg ? b : a);
       const worst = dowAvg.reduce((a, b) => b.avg < a.avg ? b : a);
-      const dayLabel = (n: number) => DAY_NAMES_ES[n] + "s";
-      items.push({ text: `Los ${dayLabel(best.dow)} son el día con más visualizaciones (promedio ${Math.round(best.avg).toLocaleString("es-AR")} por día)`, type: "good" });
-      items.push({ text: `Los ${dayLabel(worst.dow)} son el día con menos visualizaciones (promedio ${Math.round(worst.avg).toLocaleString("es-AR")} por día)`, type: "bad" });
+      const diffPct = Math.round(((best.avg - worst.avg) / worst.avg) * 100);
+      items.push({ text: `Los ${DAY_NAMES_ES[best.dow]}s son el mejor día de la semana: promedian ${Math.round(best.avg).toLocaleString("es-AR")} vistas — ${diffPct}% más que los ${DAY_NAMES_ES[worst.dow]}s (${Math.round(worst.avg).toLocaleString("es-AR")})`, type: "good" });
     }
 
-    // Biggest single-day gain/loss vs previous day
-    let maxGain = { date: "", delta: 0, pct: 0 };
-    let maxLoss = { date: "", delta: 0, pct: 0 };
-    for (let i = 1; i < sortedDates.length; i++) {
-      const prev = dateMap[sortedDates[i - 1]];
-      const curr = dateMap[sortedDates[i]];
-      const delta = curr - prev;
-      const pct = Math.round((delta / prev) * 100);
-      if (delta > maxGain.delta) maxGain = { date: sortedDates[i], delta, pct };
-      if (delta < maxLoss.delta) maxLoss = { date: sortedDates[i], delta, pct };
-    }
-    if (maxGain.date) items.push({ text: `Mayor subida: ${formatTopDate(maxGain.date)} (+${maxGain.delta.toLocaleString("es-AR")} visualizaciones, +${maxGain.pct}% respecto al día anterior)`, type: "good" });
-    if (maxLoss.date) items.push({ text: `Mayor caída: ${formatTopDate(maxLoss.date)} (${maxLoss.delta.toLocaleString("es-AR")} visualizaciones, ${maxLoss.pct}% respecto al día anterior)`, type: "bad" });
-
-    // Overall trend: compare first third vs last third
-    if (sortedDates.length >= 6) {
-      const third = Math.floor(sortedDates.length / 3);
-      const firstAvg = sortedDates.slice(0, third).reduce((s, d) => s + dateMap[d], 0) / third;
-      const lastAvg = sortedDates.slice(-third).reduce((s, d) => s + dateMap[d], 0) / third;
-      const trendPct = Math.round(((lastAvg - firstAvg) / firstAvg) * 100);
-      if (trendPct > 5) items.push({ text: `Tendencia general: al alza — los últimos días tienen ${trendPct}% más visualizaciones que al inicio`, type: "good" });
-      else if (trendPct < -5) items.push({ text: `Tendencia general: a la baja — los últimos días tienen ${Math.abs(trendPct)}% menos visualizaciones que al inicio`, type: "bad" });
-      else items.push({ text: `Tendencia general: estable (${trendPct > 0 ? "+" : ""}${trendPct}% entre inicio y fin del período)`, type: "neutral" });
-    }
-
-    // Weekday vs weekend
+    // 4. Fin de semana vs días de semana
     const weekdayDates = sortedDates.filter(d => { const dow = getDow(d); return dow >= 1 && dow <= 5; });
     const weekendDates = sortedDates.filter(d => { const dow = getDow(d); return dow === 0 || dow === 6; });
     if (weekdayDates.length > 0 && weekendDates.length > 0) {
       const wdAvg = weekdayDates.reduce((s, d) => s + dateMap[d], 0) / weekdayDates.length;
       const weAvg = weekendDates.reduce((s, d) => s + dateMap[d], 0) / weekendDates.length;
-      if (weAvg > wdAvg) {
-        items.push({ text: `El fin de semana supera a los días de semana en ${Math.round(((weAvg - wdAvg) / wdAvg) * 100)}% de visualizaciones promedio`, type: "neutral" });
-      } else {
-        items.push({ text: `Los días de semana superan al fin de semana en ${Math.round(((wdAvg - weAvg) / weAvg) * 100)}% de visualizaciones promedio`, type: "neutral" });
+      const diffPct = Math.round((Math.abs(weAvg - wdAvg) / Math.min(wdAvg, weAvg)) * 100);
+      if (weAvg > wdAvg) items.push({ text: `El fin de semana tiene más audiencia que los días de semana: ${Math.round(weAvg).toLocaleString("es-AR")} vs ${Math.round(wdAvg).toLocaleString("es-AR")} vistas promedio (+${diffPct}%)`, type: "neutral" });
+      else items.push({ text: `Los días de semana tienen más audiencia que el fin de semana: ${Math.round(wdAvg).toLocaleString("es-AR")} vs ${Math.round(weAvg).toLocaleString("es-AR")} vistas promedio (+${diffPct}%)`, type: "neutral" });
+    }
+
+    // 5. Días inusuales por señal — picos que se salen de lo normal
+    for (const s of senales) {
+      const vals = entradas.filter(e => e.senal_id === s.id);
+      if (vals.length < 5) continue;
+      const quantities = vals.map(e => e.cantidad);
+      const mean = quantities.reduce((a, b) => a + b, 0) / quantities.length;
+      const stddev = Math.sqrt(quantities.reduce((acc, v) => acc + Math.pow(v - mean, 2), 0) / quantities.length);
+      if (stddev < 10) continue;
+      const maxEntry = vals.reduce((a, b) => b.cantidad > a.cantidad ? b : a);
+      const zMax = (maxEntry.cantidad - mean) / stddev;
+      if (zMax > 1.8) {
+        const ratio = Math.round((maxEntry.cantidad / mean) * 10) / 10;
+        items.push({ text: `Pico inusual de ${s.nombre}: el ${formatTopDate(maxEntry.fecha)} tuvo ${maxEntry.cantidad.toLocaleString("es-AR")} vistas — ${ratio}x su promedio habitual (${Math.round(mean).toLocaleString("es-AR")}/día)`, type: "good" });
       }
     }
 
-    // Signal comparison
+    // 6. Distribución del total entre señales
     if (senales.length > 1) {
-      const totals = senales.map(s => ({ s, total: entradas.filter(e => e.senal_id === s.id).reduce((sum, e) => sum + e.cantidad, 0) }));
-      const leader = totals.reduce((a, b) => b.total > a.total ? b : a);
-      const others = totals.filter(x => x.s.id !== leader.s.id);
-      const ratio = Math.round((leader.total / Math.max(...others.map(o => o.total))) * 10) / 10;
-      items.push({ text: `${leader.s.nombre} acumula ${leader.total.toLocaleString("es-AR")} visualizaciones totales (${ratio}x más que las otras señales)`, type: "neutral" });
+      const totalAll = entradas.reduce((sum, e) => sum + e.cantidad, 0);
+      const parts = senales.map(s => {
+        const t = entradas.filter(e => e.senal_id === s.id).reduce((sum, e) => sum + e.cantidad, 0);
+        return `${s.nombre} ${Math.round((t / totalAll) * 100)}% (${t.toLocaleString("es-AR")})`;
+      }).join(" · ");
+      items.push({ text: `Distribución del período: ${parts}`, type: "neutral" });
     }
-
-    // Average daily total
-    const avgDaily = Math.round(Object.values(dateMap).reduce((a, b) => a + b, 0) / sortedDates.length);
-    items.push({ text: `Promedio diario total: ${avgDaily.toLocaleString("es-AR")} visualizaciones entre todas las señales`, type: "neutral" });
 
     return items;
   }, [entradas, senales]);
@@ -414,6 +456,55 @@ export default function AnalisisSenalesView({ onClose }: { onClose: () => void }
             </div>
           )}
         </div>
+
+        {/* Resumen por señal */}
+        {resumen.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {resumen.map(({ s, si, mean, best, worst, tendencia }) => (
+              <div key={s.id} className="bg-slate-800/60 rounded-xl p-5 border border-slate-700/40 space-y-3" style={{ borderLeftColor: COLORS[si % COLORS.length], borderLeftWidth: 3 }}>
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: COLORS[si % COLORS.length] }} />
+                  <span className="text-sm font-bold text-white">{s.nombre}</span>
+                </div>
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div>
+                    {tendencia ? (
+                      <>
+                        <p className={`text-xl font-bold tabular-nums ${tendencia.dir === "up" ? "text-emerald-400" : tendencia.dir === "down" ? "text-red-400" : "text-slate-300"}`}>
+                          {tendencia.dir === "up" ? "↑" : tendencia.dir === "down" ? "↓" : "→"} {tendencia.pct >= 0 ? "+" : ""}{tendencia.pct}%
+                        </p>
+                        <p className="text-xs text-slate-400 mt-0.5">vs semana anterior</p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-xl font-bold text-slate-500">—</p>
+                        <p className="text-xs text-slate-400 mt-0.5">vs semana anterior</p>
+                      </>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xl font-bold text-white tabular-nums">{mean.toLocaleString("es-AR")}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Promedio / día</p>
+                  </div>
+                  <div>
+                    <p className="text-xl font-bold text-white tabular-nums">{best.cantidad.toLocaleString("es-AR")}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">Mejor día</p>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-1 text-xs border-t border-slate-700/60 pt-2">
+                  <div className="flex items-center gap-1.5 text-emerald-400">
+                    <TrendingUp className="w-3.5 h-3.5 shrink-0" />
+                    <span>Mejor: {formatTopDate(best.fecha)} — {best.cantidad.toLocaleString("es-AR")} vistas</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-red-400">
+                    <TrendingDown className="w-3.5 h-3.5 shrink-0" />
+                    <span>Peor: {formatTopDate(worst.fecha)} — {worst.cantidad.toLocaleString("es-AR")} vistas</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Top 3 días */}
         {topDias.some(t => t.dias.length > 0) && (

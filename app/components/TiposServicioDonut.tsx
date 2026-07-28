@@ -1,5 +1,6 @@
 "use client";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
+import { useTheme } from "../lib/useTheme";
 
 interface Props {
   tipos: {
@@ -26,6 +27,7 @@ function fmt(n: number) {
 }
 
 export default function TiposServicioDonut({ tipos }: Props) {
+  const { chart } = useTheme();
   const data = ITEMS.map((item) => ({
     ...item,
     value: tipos[item.key],
@@ -61,12 +63,12 @@ export default function TiposServicioDonut({ tipos }: Props) {
               </Pie>
               <Tooltip
                 contentStyle={{
-                  backgroundColor: "#1e293b",
-                  border: "1px solid #334155",
+                  backgroundColor: chart.tooltipBg,
+                  border: `1px solid ${chart.tooltipBorder}`,
                   borderRadius: 8,
                   fontSize: 12,
                 }}
-                labelStyle={{ color: "#94a3b8" }}
+                labelStyle={{ color: chart.axis }}
                 formatter={(value: any, name: any) => [
                   `${fmt(Number(value))} (${total > 0 ? ((Number(value) / total) * 100).toFixed(1) : 0}%)`,
                   name,

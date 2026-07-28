@@ -20,7 +20,8 @@ import SucursalesView from "./components/SucursalesView";
 import Image from "next/image";
 import ClientesTVDashboard from "./components/ClientesTVDashboard";
 import MapaView from "./components/MapaView";
-import ReclamosView from "./components/ReclamosView";
+import ReclamosIncidenciasRed from "./components/ReclamosIncidenciasRed";
+import ReclamosCambioDrop from "./components/ReclamosCambioDrop";
 import InfraestructuraView from "./components/InfraestructuraView";
 import AnalisisSenalesView from "./components/AnalisisSenalesView";
 import FuentesStockView from "./components/FuentesStockView";
@@ -50,6 +51,7 @@ function Home() {
   const [showReclamosSubmenu, setShowReclamosSubmenu] = useState(false);
   const [showMapa, setShowMapa] = useState(false);
   const [showReclamos, setShowReclamos] = useState(false);
+  const [showCambioDrop, setShowCambioDrop] = useState(false);
   const [showInfraestructura, setShowInfraestructura] = useState(false);
   const [showFuentesStock, setShowFuentesStock] = useState(false);
   const [showDispositivos, setShowDispositivos] = useState(false);
@@ -121,7 +123,7 @@ function Home() {
   const selectedOrgIndex = singleOrg ? orgStats.findIndex((o) => o.organizacion === singleOrg) : -1;
 
   // ── Vista activa (mutuamente exclusivas) ───────────────────────────────────
-  const goHome = () => { setShowServiceView(false); setShowLicencias(false); setShowSucursales(false); setShowMapa(false); setShowReclamos(false); setShowInfraestructura(false); setShowFuentesStock(false); setShowDispositivos(false); setShowMacScanner(false); setShowAnalisisSenales(false); };
+  const goHome = () => { setShowServiceView(false); setShowLicencias(false); setShowSucursales(false); setShowMapa(false); setShowReclamos(false); setShowCambioDrop(false); setShowInfraestructura(false); setShowFuentesStock(false); setShowDispositivos(false); setShowMacScanner(false); setShowAnalisisSenales(false); };
   const goTo = (view: "licencias" | "sucursales") => {
     goHome();
     setShowLicencias(view === "licencias");
@@ -271,20 +273,26 @@ function Home() {
               {showReportesMenu && (
                 <div className="absolute left-0 top-full mt-2 w-52 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 p-1.5">
                   {puedeVer("mapa") && <>
-                    {/* Reclamos — submenú */}
-                    <button
-                      onClick={() => setShowReclamosSubmenu((v) => !v)}
-                      className={`${menuItem} justify-between`}
-                    >
-                      <span className="flex items-center gap-2.5">
-                        <span className="w-2 h-2 rounded-full flex-shrink-0 bg-rose-500" />
-                        Reclamos
-                      </span>
-                      <ChevronDown size={13} className={`transition-transform ${showReclamosSubmenu ? "rotate-180" : ""}`} />
-                    </button>
-                    {showReclamosSubmenu && (
+                    {/* Reclamos — va directo al dashboard; chevron expande sub-ítem */}
+                    <div className="flex items-center rounded-lg overflow-hidden">
                       <button
                         onClick={() => { goHome(); setShowReclamos(true); setShowReportesMenu(false); setShowReclamosSubmenu(false); }}
+                        className="flex items-center gap-2.5 flex-1 px-4 py-2 text-sm text-slate-300 hover:bg-slate-700/60 hover:text-white transition-colors"
+                      >
+                        <span className="w-2 h-2 rounded-full flex-shrink-0 bg-rose-500" />
+                        Reclamos
+                      </button>
+                      <button
+                        onClick={() => setShowReclamosSubmenu((v) => !v)}
+                        className="px-2.5 py-2 text-slate-500 hover:text-slate-300 hover:bg-slate-700/60 transition-colors"
+                        title="Sub-ítems"
+                      >
+                        <ChevronDown size={13} className={`transition-transform ${showReclamosSubmenu ? "rotate-180" : ""}`} />
+                      </button>
+                    </div>
+                    {showReclamosSubmenu && (
+                      <button
+                        onClick={() => { goHome(); setShowCambioDrop(true); setShowReportesMenu(false); setShowReclamosSubmenu(false); }}
                         className={`${menuItem} pl-9 text-xs`}
                       >
                         <span className="w-1.5 h-1.5 rounded-full flex-shrink-0 bg-rose-400" />
@@ -390,14 +398,15 @@ function Home() {
       )}
 
       {showMapa && <MapaView onClose={goHome} sucursalesPermitidas={sessionUser?.sucursales ?? null} />}
-      {showReclamos && <ReclamosView onClose={goHome} />}
+      {showReclamos && <ReclamosIncidenciasRed onBack={goHome} onClose={goHome} />}
+      {showCambioDrop && <ReclamosCambioDrop onBack={() => { setShowCambioDrop(false); setShowReclamos(true); }} onClose={goHome} />}
       {showInfraestructura && <InfraestructuraView onClose={goHome} />}
       {showFuentesStock && <FuentesStockView onClose={goHome} />}
       {showDispositivos && <DispositivosView onClose={goHome} sucursalesPermitidas={sessionUser?.sucursales ?? null} />}
       {showMacScanner && <MacScannerView onClose={goHome} />}
       {showAnalisisSenales && <AnalisisSenalesView onClose={goHome} />}
 
-      <main className={`max-w-screen-xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8 ${showLicencias || showSucursales || showMapa || showReclamos || showInfraestructura || showFuentesStock || showDispositivos || showMacScanner || showAnalisisSenales ? "hidden" : ""}`}>
+      <main className={`max-w-screen-xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8 ${showLicencias || showSucursales || showMapa || showReclamos || showCambioDrop || showInfraestructura || showFuentesStock || showDispositivos || showMacScanner || showAnalisisSenales ? "hidden" : ""}`}>
 
         {/* ── Dashboard principal — solo en home ── */}
         {!showServiceView && sessionUser !== null && puedeVer("tv") && (

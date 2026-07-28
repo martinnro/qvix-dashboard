@@ -68,10 +68,11 @@ export async function GET(req: NextRequest) {
           d.nombre_dispositivo AS modelo,
           s.mac,
           s.mta_mac,
-          s.fecha_carga,
+          rem_ent.fecha_carga,
           tms.DESCRIPCION AS estado_stock,
           ult.id_conexion  AS ultima_conexion,
           ts2.descripcion  AS ultimo_estado_servicio,
+          teg.descripcion  AS estado_dispositivo,
           rm.id_recibo_cm,
           rm.id_order_servicio,
           rm.fecha_carga  AS fecha_carga_recibo,
@@ -81,12 +82,21 @@ export async function GET(req: NextRequest) {
         JOIN DISPOSITIVOS d ON d.id_dispositivo = s.id_dispositivo
         LEFT JOIN tipo_movimiento_stock tms ON tms.tipo_movimiento_stock = s.tipo_movimiento_stock
         OUTER APPLY (
-          SELECT TOP 1 cd.id_conexion, vcd.Estado_Servicio
+          SELECT TOP 1 cd.id_conexion, vcd.Estado_Servicio, cd.estado AS estado_dispositivo
           FROM conexion_dispostivos cd
           JOIN v_con_dom vcd ON vcd.id_conexion = cd.id_conexion
           WHERE cd.mac = s.mac
           ORDER BY cd.fecha_carga DESC
         ) ult
+        LEFT JOIN tipo_estado_general teg ON teg.tipo_estado = ult.estado_dispositivo
+        OUTER APPLY (
+          SELECT TOP 1 rd.fecha_carga
+          FROM remitos_detalle rd
+          WHERE rd.mac = s.mac
+            AND rd.cod_sucursal = s.cod_sucursal
+            AND rd.tipo_remito LIKE 'ENT%'
+          ORDER BY rd.fecha_carga DESC
+        ) rem_ent
         LEFT JOIN tipo_estado_servicio ts2 ON ts2.id_estado_servicio = ult.Estado_Servicio
         LEFT JOIN recibos_modem rm ON rm.id_conexion = ult.id_conexion AND rm.mac = s.mac
         LEFT JOIN usuarios u ON u.id_usuario = rm.id_usuario
@@ -128,6 +138,7 @@ export async function GET(req: NextRequest) {
       Estado_Stock:           r.estado_stock ?? "",
       Ultima_Conexion:        r.ultima_conexion ?? "",
       Ultimo_Estado_Servicio: r.ultimo_estado_servicio ?? "",
+      Estado_Dispositivo:     r.estado_dispositivo ?? "",
       ID_Recibo_CM:           r.id_recibo_cm ?? "",
       ID_Order_Servicio:      r.id_order_servicio ?? "",
       Fecha_Carga_Recibo:     r.fecha_carga_recibo ? new Date(String(r.fecha_carga_recibo)).toLocaleDateString("es-AR") : "",

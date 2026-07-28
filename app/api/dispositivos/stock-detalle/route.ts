@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPool } from "@/app/lib/db";
 import { getSession } from "@/app/lib/session";
-import * as XLSX from "xlsx";
 
 const SUCURSALES: Record<number, string> = {
   0: "Central",
@@ -31,10 +30,8 @@ export async function GET(req: NextRequest) {
     ? `= ${sucursalN}`
     : `IN (${sucursalesBase.join(",")})`;
 
-  const tipoParam    = req.nextUrl.searchParams.get("tipo");
-  const modelosParam = req.nextUrl.searchParams.get("modelos");
-  const modelosFiltro = modelosParam ? new Set(modelosParam.split(",")) : null;
-  const tipoClause   = tipoParam === "ont" ? "AND d.tipo_dispositivo = 'B'"
+  const tipoParam = req.nextUrl.searchParams.get("tipo");
+  const tipoClause = tipoParam === "ont"  ? "AND d.tipo_dispositivo = 'B'"
     : tipoParam === "deco" ? "AND d.tipo_dispositivo IN ('T', 'M')"
     : "";
 
@@ -43,11 +40,8 @@ export async function GET(req: NextRequest) {
     const result = await pool.request().query(`
       SELECT
         s.cod_sucursal,
+        CASE d.tipo_dispositivo WHEN 'B' THEN 'ONT' ELSE 'Deco/STB' END AS tipo,
         d.nombre_dispositivo AS modelo,
-        CASE d.tipo_dispositivo
-          WHEN 'B' THEN 'ONT'
-          ELSE 'Deco/STB'
-        END AS tipo,
         s.mac,
         s.mta_mac,
         rem_ent.fecha_carga,
@@ -93,41 +87,27 @@ export async function GET(req: NextRequest) {
       ORDER BY s.cod_sucursal, d.nombre_dispositivo, s.fecha_carga DESC
     `);
 
-    const registros = (result.recordset as Record<string, unknown>[])
-      .filter((r) => modelosFiltro === null || modelosFiltro.has(String(r.modelo)));
-
-    const rows = registros.map((r) => ({
-      Sucursal:               SUCURSALES[Number(r.cod_sucursal)] ?? r.cod_sucursal,
-      Tipo:                   r.tipo,
-      Modelo:                 r.modelo,
-      MAC:                    r.mac,
-      MTA_MAC:                r.mta_mac ?? "",
-      Fecha_Carga:            r.fecha_carga ? new Date(String(r.fecha_carga)).toLocaleDateString("es-AR") : "",
-      Estado_Stock:           r.estado_stock ?? "",
-      Ultima_Conexion:        r.ultima_conexion ?? "",
-      Ultimo_Estado_Servicio: r.ultimo_estado_servicio ?? "",
-      Estado_Dispositivo:     r.estado_dispositivo ?? "",
-      ID_Recibo_CM:           r.id_recibo_cm ?? "",
-      ID_Order_Servicio:      r.id_order_servicio ?? "",
-      Fecha_Carga_Recibo:     r.fecha_carga_recibo ? new Date(String(r.fecha_carga_recibo)).toLocaleDateString("es-AR") : "",
-      Tipo_Retiro:            r.tipo_retiro ?? "",
-      Usuario_Recibo:         r.nom_usr ?? "",
+    const rows = (result.recordset as Record<string, unknown>[]).map((r) => ({
+      sucursal:               SUCURSALES[Number(r.cod_sucursal)] ?? String(r.cod_sucursal),
+      tipo:                   r.tipo,
+      modelo:                 r.modelo,
+      mac:                    r.mac ?? "",
+      mta_mac:                r.mta_mac ?? "",
+      fecha_carga:            r.fecha_carga ? new Date(String(r.fecha_carga)).toLocaleDateString("es-AR") : "",
+      estado_stock:           r.estado_stock ?? "",
+      ultima_conexion:        r.ultima_conexion ?? "",
+      ultimo_estado_servicio: r.ultimo_estado_servicio ?? "",
+      estado_dispositivo:     r.estado_dispositivo ?? "",
+      id_recibo_cm:           r.id_recibo_cm ?? "",
+      id_order_servicio:      r.id_order_servicio ?? "",
+      fecha_carga_recibo:     r.fecha_carga_recibo ? new Date(String(r.fecha_carga_recibo)).toLocaleDateString("es-AR") : "",
+      tipo_retiro:            r.tipo_retiro ?? "",
+      nom_usr:                r.nom_usr ?? "",
     }));
 
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), "Stock Dispositivos");
-
-    const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
-    const nombreSucursal = sucursalN !== null ? (SUCURSALES[sucursalN] ?? sucursalN) : "todas";
-
-    return new NextResponse(buf, {
-      headers: {
-        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "Content-Disposition": `attachment; filename="stock-dispositivos-${nombreSucursal}.xlsx"`,
-      },
-    });
+    return NextResponse.json(rows);
   } catch (err: unknown) {
-    console.error("[export/dispositivos]", err);
+    console.error("[dispositivos/stock-detalle]", err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : String(err) },
       { status: 500 }

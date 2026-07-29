@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useState, useCallback } from "react";
-import { RefreshCw, Monitor, Wifi, Download, PackageOpen, ChevronDown } from "lucide-react";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { RefreshCw, Monitor, Wifi, Download, PackageOpen, ChevronDown, ChevronUp, ArrowLeft } from "lucide-react";
 import { getColorById } from "./MapaUtils";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList } from "recharts";
 import { useTheme } from "../lib/useTheme";
@@ -39,6 +39,246 @@ interface DispositivoRow {
 interface Data {
   activos: DispositivoRow[];
   stock: DispositivoRow[];
+}
+
+interface StockDetalleRow {
+  sucursal: string;
+  tipo: string;
+  modelo: string;
+  mac: string;
+  mta_mac: string;
+  fecha_carga: string;
+  estado_stock: string;
+  ultima_conexion: string | number;
+  ultimo_estado_servicio: string;
+  estado_dispositivo: string;
+  id_recibo_cm: string;
+  id_order_servicio: string;
+  fecha_carga_recibo: string;
+  tipo_retiro: string;
+  nom_usr: string;
+}
+
+type EstadoColor = { background: string; color: string; boxShadow: string };
+
+const ESTADO_COLOR_MAP: Record<string, EstadoColor> = {
+  "DISPONIBLE": { background: "rgba(5,150,105,0.2)",  color: "#34d399", boxShadow: "0 0 0 1px rgba(52,211,153,0.5)"  },
+  "ASIGNADO":   { background: "rgba(37,99,235,0.2)",  color: "#60a5fa", boxShadow: "0 0 0 1px rgba(96,165,250,0.5)"  },
+  "CONECTADO":  { background: "rgba(6,182,212,0.2)",  color: "#22d3ee", boxShadow: "0 0 0 1px rgba(34,211,238,0.5)"  },
+  "EN ESPERA":  { background: "rgba(217,119,6,0.2)",  color: "#fbbf24", boxShadow: "0 0 0 1px rgba(251,191,36,0.5)"  },
+  "DAÑADO":     { background: "rgba(225,29,72,0.2)",  color: "#fb7185", boxShadow: "0 0 0 1px rgba(251,113,133,0.5)" },
+  "TRANSFER":   { background: "rgba(124,58,237,0.2)", color: "#a78bfa", boxShadow: "0 0 0 1px rgba(167,139,250,0.5)" },
+  "PERDIDO":    { background: "rgba(234,88,12,0.2)",  color: "#fb923c", boxShadow: "0 0 0 1px rgba(251,146,60,0.5)"  },
+  "DE BAJA":    { background: "rgba(71,85,105,0.3)",  color: "#94a3b8", boxShadow: "0 0 0 1px rgba(148,163,184,0.4)" },
+  "VENDIDO":    { background: "rgba(219,39,119,0.2)", color: "#f472b6", boxShadow: "0 0 0 1px rgba(244,114,182,0.5)" },
+};
+const ESTADO_COLOR_FALLBACK: EstadoColor = { background: "rgba(51,65,85,0.4)", color: "#94a3b8", boxShadow: "0 0 0 1px rgba(100,116,139,0.3)" };
+
+function getEstadoColor(estado: string): EstadoColor {
+  return ESTADO_COLOR_MAP[estado.trim()] ?? ESTADO_COLOR_FALLBACK;
+}
+
+
+function parseFechaAR(s: string): number {
+  if (!s) return 0;
+  const [d, m, y] = s.split("/");
+  return new Date(Number(y), Number(m) - 1, Number(d)).getTime();
+}
+
+function StockDetalleModal({ onClose, sucursal, tipo }: {
+  onClose: () => void;
+  sucursal: number | null;
+  tipo: "ont" | "deco" | null;
+}) {
+  const [allRows, setAllRows]         = useState<StockDetalleRow[]>([]);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState<string | null>(null);
+  const [search, setSearch]           = useState("");
+  const [modeloFiltro, setModeloFiltro]         = useState<string | null>(null);
+  const [estadoFiltro, setEstadoFiltro]         = useState<string | null>(null);
+  const [tipoRetiroFiltro, setTipoRetiroFiltro] = useState<string | null>(null);
+  const [tipoFiltro, setTipoFiltro]   = useState<"all" | "ont" | "deco">("all");
+  const [sortDir, setSortDir]         = useState<"asc" | "desc">("desc");
+
+  useEffect(() => {
+    // Sin filtro de tipo para construir el mapa de colores desde todos los estados posibles
+    const params = new URLSearchParams();
+    if (sucursal !== null) params.set("sucursal", String(sucursal));
+    fetch(`/api/dispositivos/stock-detalle?${params}`)
+      .then((r) => r.json())
+      .then((data) => { if (data.error) throw new Error(data.error); setAllRows(data); })
+      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+      .finally(() => setLoading(false));
+  }, [sucursal]);
+
+  // Rows filtradas por tipo (filtro interno del modal)
+  const rowsTipo = useMemo(() =>
+    tipoFiltro === "ont"  ? allRows.filter((r) => r.tipo === "ONT")
+    : tipoFiltro === "deco" ? allRows.filter((r) => r.tipo !== "ONT")
+    : allRows
+  , [allRows, tipoFiltro]);
+
+  const modelos     = useMemo(() => Array.from(new Set(rowsTipo.map((r) => r.modelo))).sort(), [rowsTipo]);
+  const tiposRetiro = useMemo(() => Array.from(new Set(rowsTipo.map((r) => r.tipo_retiro).filter(Boolean))).sort(), [rowsTipo]);
+
+  const filtradas = useMemo(() => {
+    const result = rowsTipo.filter((r) => {
+      const q = search.toLowerCase();
+      if (q && !r.mac.toLowerCase().includes(q) && !r.modelo.toLowerCase().includes(q) && !r.nom_usr.toLowerCase().includes(q)) return false;
+      if (modeloFiltro     && r.modelo       !== modeloFiltro)     return false;
+      if (estadoFiltro     && r.estado_stock !== estadoFiltro)     return false;
+      if (tipoRetiroFiltro && r.tipo_retiro  !== tipoRetiroFiltro) return false;
+      return true;
+    });
+    result.sort((a, b) => {
+      const diff = parseFechaAR(a.fecha_carga) - parseFechaAR(b.fecha_carga);
+      return sortDir === "asc" ? diff : -diff;
+    });
+    return result;
+  }, [rowsTipo, search, modeloFiltro, estadoFiltro, tipoRetiroFiltro, sortDir]);
+
+  const hayFiltros = !!(search || modeloFiltro || estadoFiltro || tipoRetiroFiltro || tipoFiltro !== "all");
+  const tipoLabel  = tipoFiltro === "ont" ? "ONTs" : tipoFiltro === "deco" ? "Decos / STB" : "Todos";
+  const exportUrl  = (() => {
+    const p = new URLSearchParams();
+    if (sucursal !== null) p.set("sucursal", String(sucursal));
+    if (tipo !== null)     p.set("tipo", tipo);
+    return `/api/export/dispositivos?${p}`;
+  })();
+
+  const SortIcon = sortDir === "asc" ? ChevronUp : ChevronDown;
+
+  const staticCols = ["Sucursal", "Tipo", "Modelo", "MAC", "MTA MAC"];
+  const afterDateCols = ["Estado Stock", "Estado Dispositivo", "Última Conexión", "Último Estado", "Recibo CM", "Order Servicio", "Fecha Recibo", "Tipo Retiro", "Usuario"];
+
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-slate-700 flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <button onClick={onClose} className="p-1 text-slate-400 hover:text-white transition-colors">
+            <ArrowLeft size={18} />
+          </button>
+          <div>
+            <h3 className="text-sm font-bold text-white">Stock disponible · {tipoLabel}</h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {loading ? "Cargando…" : `${filtradas.length}${hayFiltros ? ` de ${rowsTipo.length}` : ""} dispositivos`}
+            </p>
+          </div>
+        </div>
+        <a href={exportUrl} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-slate-300 hover:text-white text-xs transition-colors">
+          <Download size={12} /> Exportar Excel
+        </a>
+      </div>
+
+      {/* Filtros */}
+      <div className="px-4 sm:px-6 py-3 border-b border-slate-700 flex flex-wrap gap-2 flex-shrink-0">
+        <div className="flex gap-1 bg-slate-800 border border-slate-700 rounded-lg p-1">
+          {([["all", "Todos"], ["ont", "ONTs"], ["deco", "Decos"]] as const).map(([val, label]) => (
+            <button key={val} onClick={() => { setTipoFiltro(val); setModeloFiltro(null); }}
+              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${tipoFiltro === val ? "bg-slate-600 text-white" : "text-slate-400 hover:text-slate-200"}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar MAC, modelo, usuario…"
+          className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 w-56"
+        />
+        <select value={modeloFiltro ?? ""} onChange={(e) => setModeloFiltro(e.target.value || null)}
+          className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500">
+          <option value="">Todos los modelos</option>
+          {modelos.map((m) => <option key={m} value={m}>{m}</option>)}
+        </select>
+        {(() => {
+          const estadosTipo = Array.from(new Set(rowsTipo.map((r) => r.estado_stock).filter(Boolean))).sort();
+          return estadosTipo.length > 0 ? (
+            <select value={estadoFiltro ?? ""} onChange={(e) => setEstadoFiltro(e.target.value || null)}
+              className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500">
+              <option value="">Todos los estados</option>
+              {estadosTipo.map((e) => <option key={e} value={e}>{e}</option>)}
+            </select>
+          ) : null;
+        })()}
+        {tiposRetiro.length > 0 && (
+          <select value={tipoRetiroFiltro ?? ""} onChange={(e) => setTipoRetiroFiltro(e.target.value || null)}
+            className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500">
+            <option value="">Todos los retiros</option>
+            {tiposRetiro.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+        )}
+        {hayFiltros && (
+          <button onClick={() => { setSearch(""); setTipoFiltro("all"); setModeloFiltro(null); setEstadoFiltro(null); setTipoRetiroFiltro(null); }}
+            className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white transition-colors border border-slate-700">
+            Limpiar
+          </button>
+        )}
+      </div>
+
+      {/* Contenido */}
+      <div className="flex-1 overflow-auto">
+        {loading && <div className="flex items-center justify-center h-32 text-slate-400 text-sm">Cargando…</div>}
+        {error   && <div className="m-6 bg-red-900/30 border border-red-700/50 rounded-xl px-4 py-3 text-red-400 text-sm">{error}</div>}
+        {!loading && !error && (
+          <table className="w-full text-xs text-slate-300 min-w-max">
+            <thead className="sticky top-0 bg-slate-900 border-b border-slate-700">
+              <tr>
+                {staticCols.map((h) => (
+                  <th key={h} className="text-left px-3 py-2.5 text-slate-400 font-medium whitespace-nowrap">{h}</th>
+                ))}
+                <th className="text-left px-3 py-2.5 font-medium whitespace-nowrap">
+                  <button
+                    onClick={() => setSortDir((d) => d === "asc" ? "desc" : "asc")}
+                    className="flex items-center gap-1 text-indigo-400 hover:text-indigo-300 transition-colors"
+                  >
+                    Fecha Carga Stock <SortIcon size={11} />
+                  </button>
+                </th>
+                {afterDateCols.map((h) => (
+                  <th key={h} className="text-left px-3 py-2.5 text-slate-400 font-medium whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/80">
+              {filtradas.length === 0 && (
+                <tr><td colSpan={staticCols.length + 1 + afterDateCols.length} className="px-3 py-8 text-center text-slate-500">Sin resultados</td></tr>
+              )}
+              {filtradas.map((r, i) => {
+                const estadoColor = r.estado_stock ? getEstadoColor(r.estado_stock) : null;
+                return (
+                  <tr key={i} className="hover:bg-slate-800/40 transition-colors">
+                    <td className="px-3 py-2 whitespace-nowrap">{r.sucursal}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">{r.tipo}</td>
+                    <td className="px-3 py-2 whitespace-nowrap max-w-[200px] truncate" title={r.modelo}>{r.modelo}</td>
+                    <td className="px-3 py-2 font-mono whitespace-nowrap">{r.mac}</td>
+                    <td className="px-3 py-2 font-mono whitespace-nowrap text-slate-500">{r.mta_mac || "—"}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">{r.fecha_carga || "—"}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">
+                      {r.estado_stock && estadoColor ? (
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium" style={estadoColor}>
+                          {r.estado_stock}
+                        </span>
+                      ) : "—"}
+                    </td>
+                    <td className="px-3 py-2 whitespace-nowrap">{r.estado_dispositivo || "—"}</td>
+                    <td className="px-3 py-2 whitespace-nowrap text-slate-500">{r.ultima_conexion || "—"}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">{r.ultimo_estado_servicio || "—"}</td>
+                    <td className="px-3 py-2 whitespace-nowrap text-slate-500">{r.id_recibo_cm || "—"}</td>
+                    <td className="px-3 py-2 whitespace-nowrap text-slate-500">{r.id_order_servicio || "—"}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">{r.fecha_carga_recibo || "—"}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">{r.tipo_retiro || "—"}</td>
+                    <td className="px-3 py-2 whitespace-nowrap">{r.nom_usr || "—"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function fmt(n: number) {
@@ -199,12 +439,13 @@ function TablaActivos({ rows, sucursalSel, colTitulo, colSubtitulo, excelHref }:
   );
 }
 
-function TablaStock({ rows, sucursalSel, colTitulo, colSubtitulo, excelHref }: {
+function TablaStock({ rows, sucursalSel, colTitulo, colSubtitulo, excelHref, onVerDetalle }: {
   rows: DispositivoRow[];
   sucursalSel: number | null;
   colTitulo?: string;
   colSubtitulo?: string;
   excelHref?: string;
+  onVerDetalle?: () => void;
 }) {
   const filtrados = sucursalSel !== null ? rows.filter((r) => r.cod_sucursal === sucursalSel) : rows;
   if (filtrados.length === 0) return <p className="text-slate-500 text-sm">Sin datos para mostrar.</p>;
@@ -263,12 +504,16 @@ function TablaStock({ rows, sucursalSel, colTitulo, colSubtitulo, excelHref }: {
 
     return (
       <div>
-        <div className="mb-4 flex items-stretch bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
+        <div
+          className={`mb-4 flex items-stretch bg-slate-800 border border-slate-700 rounded-xl overflow-hidden transition-colors ${onVerDetalle ? "cursor-pointer hover:border-slate-500 hover:bg-slate-700/60" : ""}`}
+          onClick={onVerDetalle}
+        >
           <div className="w-1 flex-shrink-0" style={{ backgroundColor: color }} />
           <div className="px-4 py-3 flex items-center justify-between flex-1 gap-3">
             <div>
               {colTitulo && <p className="text-xs font-semibold text-slate-200">{colTitulo}</p>}
               {colSubtitulo && <p className="text-xs text-slate-500 mt-0.5">{colSubtitulo}</p>}
+              {onVerDetalle && <p className="text-xs text-indigo-400 mt-1">Ver detalle →</p>}
             </div>
             <div className="flex items-center gap-3 flex-shrink-0">
               <div className="text-right">
@@ -276,7 +521,8 @@ function TablaStock({ rows, sucursalSel, colTitulo, colSubtitulo, excelHref }: {
                 <div className="text-xs text-slate-500">dispositivos</div>
               </div>
               {excelHref && (
-                <a href={excelHref} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-700 border border-slate-600 text-slate-300 hover:text-white text-xs transition-colors">
+                <a href={excelHref} onClick={(e) => e.stopPropagation()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-700 border border-slate-600 text-slate-300 hover:text-white text-xs transition-colors">
                   <Download size={12} /> Excel
                 </a>
               )}
@@ -359,6 +605,8 @@ export default function DispositivosView({
   const [data, setData]             = useState<Data | null>(null);
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState<string | null>(null);
+  const [detalleOpen, setDetalleOpen]   = useState(false);
+  const [detalleTipo, setDetalleTipo]   = useState<"ont" | "deco" | null>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -548,23 +796,55 @@ export default function DispositivosView({
         </div>
       </div>
 
-      {/* KPIs — 4 tarjetas */}
+      {/* KPIs */}
       {data && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {[
-            { label: "ONTs activas",  value: totalOntsActivas,  icon: <Wifi size={16} className="text-cyan-400" />,    bg: "bg-cyan-500/20",    text: "text-cyan-400",    border: "border-slate-700" },
-            { label: "Decos activos", value: totalDecosActivos, icon: <Monitor size={16} className="text-violet-400" />, bg: "bg-violet-500/20", text: "text-violet-400", border: "border-slate-700" },
-            { label: "Stock ONTs",    value: totalStockOnts,    icon: <PackageOpen size={16} className="text-emerald-400" />, bg: "bg-emerald-500/20", text: "text-emerald-400", border: "border-emerald-800/40" },
-            { label: "Stock Decos",   value: totalStockDecos,   icon: <PackageOpen size={16} className="text-emerald-400" />, bg: "bg-emerald-500/20", text: "text-emerald-400", border: "border-emerald-800/40" },
-          ].map(({ label, value, icon, bg, text, border }) => (
-            <div key={label} className={`bg-slate-800 border ${border} rounded-2xl p-5 flex items-center gap-3`}>
-              <div className={`w-9 h-9 rounded-xl ${bg} flex items-center justify-center flex-shrink-0`}>{icon}</div>
-              <div>
-                <div className="text-xs text-slate-400">{label}</div>
-                <div className={`text-xl font-bold ${text}`}>{fmt(value)}</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Activos en conexiones */}
+          <div className="bg-slate-800/50 border border-slate-700 rounded-2xl p-4 space-y-3">
+            <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Activos en conexiones</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-3">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Wifi size={12} className="text-cyan-400" />
+                  <span className="text-xs text-cyan-400 font-medium">ONTs</span>
+                </div>
+                <div className="text-2xl font-bold text-white">{fmt(totalOntsActivas)}</div>
+              </div>
+              <div className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-3">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Monitor size={12} className="text-violet-400" />
+                  <span className="text-xs text-violet-400 font-medium">Decos / STB</span>
+                </div>
+                <div className="text-2xl font-bold text-white">{fmt(totalDecosActivos)}</div>
               </div>
             </div>
-          ))}
+          </div>
+          {/* Stock disponible */}
+          <div
+            className="bg-slate-800/50 border border-slate-700 rounded-2xl p-4 space-y-3 cursor-pointer hover:border-slate-500 hover:bg-slate-800/70 transition-colors"
+            onClick={() => { setDetalleTipo(null); setDetalleOpen(true); }}
+          >
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Stock disponible</p>
+              <span className="text-xs text-indigo-400">Ver detalle →</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-3">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Wifi size={12} className="text-cyan-400" />
+                  <span className="text-xs text-cyan-400 font-medium">ONTs</span>
+                </div>
+                <div className="text-2xl font-bold text-white">{fmt(totalStockOnts)}</div>
+              </div>
+              <div className="bg-slate-800 border border-slate-700 rounded-xl px-4 py-3">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Monitor size={12} className="text-violet-400" />
+                  <span className="text-xs text-violet-400 font-medium">Decos / STB</span>
+                </div>
+                <div className="text-2xl font-bold text-white">{fmt(totalStockDecos)}</div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -621,6 +901,14 @@ export default function DispositivosView({
           )}
 
         </div>
+      )}
+
+      {detalleOpen && (
+        <StockDetalleModal
+          onClose={() => setDetalleOpen(false)}
+          sucursal={sucursal}
+          tipo={detalleTipo}
+        />
       )}
     </div>
   );

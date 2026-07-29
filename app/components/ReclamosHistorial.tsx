@@ -1,22 +1,19 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
-import { Loader2, AlertCircle, ChevronLeft, X, History, ChevronDown } from "lucide-react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { Loader2, AlertCircle, ChevronLeft, History, ChevronsUpDown, ChevronUp, ChevronDown } from "lucide-react";
+
+type SortCol = "conexion" | "dias" | "fecha_carga" | "estado_incidencia";
+type SortDir = "asc" | "desc";
 
 const SUCURSALES: Record<number, string> = {
-  0: "Central", 1: "Chumbicha", 4: "Valle Viejo",
+  1: "Chumbicha", 4: "Valle Viejo",
   5: "Tinogasta", 6: "Rodeo", 7: "La Puerta", 8: "Fiambalá",
 };
 
-const ESTADOS: { value: string; label: string }[] = [
-  { value: "", label: "Todos" },
-  { value: "1", label: "Pendiente" },
-  { value: "2", label: "Asignado" },
-  { value: "cerrado", label: "Cerrado / Finalizado" },
-];
-
-function estadoBadge(estado: number) {
+function estadoBadge(estado: number, fechaAnulacion: string | null = null) {
   if (estado === 1) return <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-xs">Pendiente</span>;
   if (estado === 2) return <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs">Asignado</span>;
+  if (fechaAnulacion) return <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 text-xs">Anulado</span>;
   return <span className="px-2 py-0.5 rounded-full bg-slate-700 text-slate-400 text-xs">Cerrado</span>;
 }
 
@@ -25,16 +22,28 @@ interface RowData {
   cod_sucursal: number;
   estado_incidencia: number;
   fecha_carga: string;
+  fecha_solucion: string | null;
+  fecha_anulacion: string | null;
   dias: number;
   mes_anio: string;
   problema: string | null;
   cuadrilla: string | null;
 }
 
+interface Filters {
+  sucursal: string;
+  anio: string;
+  mesAnio: string;
+  estado: string;
+  durMin: string;
+  durMax: string;
+}
+
 function buildUrl(filters: Filters, offset: number, all = false) {
   const p = new URLSearchParams();
   if (filters.sucursal) p.set("sucursal", filters.sucursal);
   if (filters.mesAnio) p.set("mes_anio", filters.mesAnio);
+  else if (filters.anio) p.set("anio", filters.anio);
   if (filters.estado) p.set("estado", filters.estado);
   if (filters.durMin) p.set("dur_min", filters.durMin);
   if (filters.durMax) p.set("dur_max", filters.durMax);
@@ -43,34 +52,51 @@ function buildUrl(filters: Filters, offset: number, all = false) {
   return `/api/incidencias-historial?${p.toString()}`;
 }
 
-interface Filters {
-  sucursal: string;
-  mesAnio: string;
-  estado: string;
-  durMin: string;
-  durMax: string;
-}
+const MESES = [
+  { value: "01", label: "Ene" }, { value: "02", label: "Feb" }, { value: "03", label: "Mar" },
+  { value: "04", label: "Abr" }, { value: "05", label: "May" }, { value: "06", label: "Jun" },
+  { value: "07", label: "Jul" }, { value: "08", label: "Ago" }, { value: "09", label: "Sep" },
+  { value: "10", label: "Oct" }, { value: "11", label: "Nov" }, { value: "12", label: "Dic" },
+];
 
-// Generate mes-año options from 2025-01 to current month
-function getMesAnioOptions() {
-  const opts: { value: string; label: string }[] = [{ value: "", label: "Todos" }];
+const YEARS = (() => {
+  const years: string[] = [];
+  for (let y = 2025; y <= new Date().getFullYear(); y++) years.push(String(y));
+  return years;
+})();
+
+function getMonthsForYear(year: string) {
   const now = new Date();
-  const cur = new Date(2025, 0, 1);
-  while (cur <= now) {
-    const y = cur.getFullYear();
-    const m = String(cur.getMonth() + 1).padStart(2, "0");
-    const label = cur.toLocaleString("es-AR", { month: "long", year: "numeric" });
-    opts.push({ value: `${y}-${m}`, label: label.charAt(0).toUpperCase() + label.slice(1) });
-    cur.setMonth(cur.getMonth() + 1);
-  }
-  return opts.reverse();
+  if (year !== String(now.getFullYear())) return MESES;
+  return MESES.filter((m) => parseInt(m.value, 10) <= now.getMonth() + 1);
 }
 
-const MES_ANIO_OPTIONS = getMesAnioOptions();
+const ESTADOS = [
+  { value: "", label: "Todos" },
+  { value: "1", label: "Pendiente" },
+  { value: "2", label: "Asignado" },
+  { value: "cerrado", label: "Cerrado" },
+  { value: "anulado", label: "Anulado" },
+];
+
+function PillButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors whitespace-nowrap ${
+        active
+          ? "bg-indigo-600 border-indigo-500 text-white"
+          : "border-slate-600 text-slate-400 hover:border-slate-400 hover:text-slate-200"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
 
 export default function ReclamosHistorial({
   onBack,
-  onClose,
+  onClose: _onClose,
 }: {
   onBack: () => void;
   onClose: () => void;
@@ -81,22 +107,17 @@ export default function ReclamosHistorial({
   const [loading, setLoading] = useState(false);
   const [loadingAll, setLoadingAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showFilters, setShowFilters] = useState(false);
 
-  const [filters, setFilters] = useState<Filters>({
-    sucursal: "",
-    mesAnio: "",
-    estado: "",
-    durMin: "",
-    durMax: "",
-  });
-  const [applied, setApplied] = useState<Filters>(filters);
+  const [filters, setFilters] = useState<Filters>({ sucursal: "", anio: "", mesAnio: "", estado: "", durMin: "", durMax: "" });
+  const [durInput, setDurInput] = useState({ min: "", max: "" });
+  const [sortCol, setSortCol] = useState<SortCol | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
 
-  const fetchPage = useCallback(async (appliedFilters: Filters, newOffset: number, replace: boolean) => {
+  const fetchPage = useCallback(async (f: Filters, newOffset: number, replace: boolean) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(buildUrl(appliedFilters, newOffset));
+      const res = await fetch(buildUrl(f, newOffset));
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       setRows((prev) => replace ? data.rows : [...prev, ...data.rows]);
@@ -109,30 +130,33 @@ export default function ReclamosHistorial({
     }
   }, []);
 
-  // Initial load
   useEffect(() => {
-    fetchPage(applied, 0, true);
-  }, [applied, fetchPage]);
+    fetchPage(filters, 0, true);
+  }, [filters, fetchPage]);
 
-  const applyFilters = () => {
-    setApplied({ ...filters });
+  const setFilter = (key: keyof Filters, value: string) => {
+    setFilters((prev) => ({ ...prev, [key]: value }));
     setOffset(0);
   };
 
-  const resetFilters = () => {
-    const empty: Filters = { sucursal: "", mesAnio: "", estado: "", durMin: "", durMax: "" };
-    setFilters(empty);
-    setApplied(empty);
+  const applyDuracion = () => {
+    setFilters((prev) => ({ ...prev, durMin: durInput.min, durMax: durInput.max }));
     setOffset(0);
   };
 
-  const loadMore = () => fetchPage(applied, offset, false);
+  const resetAll = () => {
+    setFilters({ sucursal: "", anio: "", mesAnio: "", estado: "", durMin: "", durMax: "" });
+    setDurInput({ min: "", max: "" });
+    setOffset(0);
+  };
+
+  const loadMore = () => fetchPage(filters, offset, false);
 
   const loadAll = async () => {
     setLoadingAll(true);
     setError(null);
     try {
-      const res = await fetch(buildUrl(applied, 0, true));
+      const res = await fetch(buildUrl(filters, 0, true));
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       setRows(data.rows);
@@ -146,103 +170,166 @@ export default function ReclamosHistorial({
   };
 
   const hayMas = rows.length < total;
-  const inputCls = "bg-slate-800 border border-slate-600 text-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-slate-400 w-full";
-  const selectCls = inputCls;
+  const hayFiltros = filters.sucursal || filters.anio || filters.mesAnio || filters.estado || filters.durMin || filters.durMax;
+
+  const sortedRows = useMemo(() => {
+    if (!sortCol) return rows;
+    // fecha_carga viene en formato DD-MM-YY; convertir a YYMMDD para orden correcto
+    const parseDate = (s: string | null) => {
+      if (!s) return "";
+      const [d, m, y] = s.split("-");
+      return `${y}${m}${d}`;
+    };
+    return [...rows].sort((a, b) => {
+      let cmp = 0;
+      if (sortCol === "dias" || sortCol === "estado_incidencia") {
+        cmp = (a[sortCol] as number) - (b[sortCol] as number);
+      } else if (sortCol === "fecha_carga") {
+        cmp = parseDate(a.fecha_carga).localeCompare(parseDate(b.fecha_carga));
+      } else {
+        cmp = (a[sortCol] ?? "").localeCompare(b[sortCol] ?? "");
+      }
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }, [rows, sortCol, sortDir]);
+
+  const toggleSort = (col: SortCol) => {
+    if (sortCol === col) setSortDir((d) => d === "asc" ? "desc" : "asc");
+    else { setSortCol(col); setSortDir("desc"); }
+  };
+
+  function SortIcon({ col }: { col: SortCol }) {
+    if (sortCol !== col) return <ChevronsUpDown size={12} className="text-slate-600" />;
+    return sortDir === "asc" ? <ChevronUp size={12} className="text-indigo-400" /> : <ChevronDown size={12} className="text-indigo-400" />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-900 text-white">
       <div className="max-w-screen-xl mx-auto px-6 py-8 space-y-6">
 
         {/* Header */}
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <button onClick={onBack} className="flex items-center gap-1 text-slate-400 hover:text-slate-200 text-xs mb-2 transition-colors">
-              <ChevronLeft size={14} /> Volver al resumen
-            </button>
-            <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-              <History size={20} className="text-indigo-400" /> Historial de Reclamos
-            </h2>
-            <p className="text-sm text-slate-400 mt-0.5">
-              Todos los reclamos desde 2025 — filtrable y paginado
-            </p>
-          </div>
+        <div>
           <button
-            onClick={onClose}
-            className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 border border-slate-700 hover:border-slate-500 px-3 py-1.5 rounded-lg text-sm transition-colors"
+            onClick={onBack}
+            className="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 hover:text-white border border-slate-600 hover:border-slate-500 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors mb-3"
           >
-            <X size={15} /> Cerrar
+            <ChevronLeft size={15} /> Volver al resumen
           </button>
+          <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+            <History size={20} className="text-indigo-400" /> Historial de Reclamos
+          </h2>
+          <p className="text-sm text-slate-400 mt-0.5">Todos los reclamos desde 2025 — duración desde asignación hasta cierre</p>
         </div>
 
         {/* Filtros */}
-        <div className="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden">
-          <button
-            onClick={() => setShowFilters((v) => !v)}
-            className="w-full flex items-center justify-between px-5 py-3 text-sm text-slate-300 hover:text-white transition-colors"
-          >
-            <span className="font-medium">Filtros</span>
-            <ChevronDown size={15} className={`transition-transform ${showFilters ? "rotate-180" : ""}`} />
-          </button>
+        <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5 space-y-4">
 
-          {showFilters && (
-            <div className="px-5 pb-5 border-t border-slate-700">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">Mes / Año</label>
-                  <select value={filters.mesAnio} onChange={(e) => setFilters((f) => ({ ...f, mesAnio: e.target.value }))} className={selectCls}>
-                    {MES_ANIO_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">Estado</label>
-                  <select value={filters.estado} onChange={(e) => setFilters((f) => ({ ...f, estado: e.target.value }))} className={selectCls}>
-                    {ESTADOS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">Sucursal</label>
-                  <select value={filters.sucursal} onChange={(e) => setFilters((f) => ({ ...f, sucursal: e.target.value }))} className={selectCls}>
-                    <option value="">Todas</option>
-                    {Object.entries(SUCURSALES).map(([cod, nombre]) => (
-                      <option key={cod} value={cod}>{nombre}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">Duración mínima (días)</label>
-                  <input type="number" min={0} value={filters.durMin}
-                    onChange={(e) => setFilters((f) => ({ ...f, durMin: e.target.value }))}
-                    placeholder="0" className={inputCls} />
-                </div>
-
-                <div>
-                  <label className="block text-xs text-slate-400 mb-1.5 uppercase tracking-wider">Duración máxima (días)</label>
-                  <input type="number" min={0} value={filters.durMax}
-                    onChange={(e) => setFilters((f) => ({ ...f, durMax: e.target.value }))}
-                    placeholder="Sin límite" className={inputCls} />
-                </div>
-
-              </div>
-
-              <div className="flex items-center gap-3 mt-4">
-                <button
-                  onClick={applyFilters}
-                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors"
-                >
-                  Aplicar filtros
-                </button>
-                <button
-                  onClick={resetFilters}
-                  className="px-4 py-2 text-slate-400 hover:text-slate-200 text-sm transition-colors"
-                >
-                  Limpiar
-                </button>
-              </div>
+          {/* Estado */}
+          <div>
+            <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Estado</p>
+            <div className="flex flex-wrap gap-2">
+              {ESTADOS.map((e) => (
+                <PillButton key={e.value} active={filters.estado === e.value} onClick={() => setFilter("estado", e.value)}>
+                  {e.label}
+                </PillButton>
+              ))}
             </div>
+          </div>
+
+          {/* Año / Mes */}
+          <div>
+            <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Año / Mes</p>
+            <div className="flex flex-wrap gap-2">
+              <PillButton
+                active={!filters.anio && !filters.mesAnio}
+                onClick={() => setFilters((p) => ({ ...p, anio: "", mesAnio: "" }))}
+              >
+                Todos
+              </PillButton>
+              {YEARS.map((y) => (
+                <PillButton
+                  key={y}
+                  active={filters.anio === y || filters.mesAnio.startsWith(y)}
+                  onClick={() => setFilters((p) => ({ ...p, anio: y, mesAnio: "" }))}
+                >
+                  {y}
+                </PillButton>
+              ))}
+            </div>
+            {(filters.anio || filters.mesAnio) && (() => {
+              const activeYear = filters.mesAnio ? filters.mesAnio.slice(0, 4) : filters.anio;
+              return (
+                <div className="flex flex-wrap gap-2 mt-2 pl-3 border-l-2 border-indigo-800">
+                  <PillButton
+                    active={!!filters.anio && !filters.mesAnio}
+                    onClick={() => setFilters((p) => ({ ...p, anio: activeYear, mesAnio: "" }))}
+                  >
+                    Todo {activeYear}
+                  </PillButton>
+                  {getMonthsForYear(activeYear).map((m) => (
+                    <PillButton
+                      key={m.value}
+                      active={filters.mesAnio === `${activeYear}-${m.value}`}
+                      onClick={() => setFilters((p) => ({ ...p, anio: "", mesAnio: `${activeYear}-${m.value}` }))}
+                    >
+                      {m.label}
+                    </PillButton>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Sucursal */}
+          <div>
+            <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Sucursal</p>
+            <div className="flex flex-wrap gap-2">
+              <PillButton active={filters.sucursal === ""} onClick={() => setFilter("sucursal", "")}>Todas</PillButton>
+              {Object.entries(SUCURSALES).map(([cod, nombre]) => (
+                <PillButton key={cod} active={filters.sucursal === cod} onClick={() => setFilter("sucursal", cod)}>
+                  {nombre}
+                </PillButton>
+              ))}
+            </div>
+          </div>
+
+          {/* Duración */}
+          <div>
+            <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Duración (días)</p>
+            <div className="flex items-center gap-2">
+              <input
+                type="number" min={0} placeholder="Mín"
+                value={durInput.min}
+                onChange={(e) => setDurInput((d) => ({ ...d, min: e.target.value }))}
+                className="w-20 bg-slate-700 border border-slate-600 text-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-slate-400"
+              />
+              <span className="text-slate-600 text-xs">—</span>
+              <input
+                type="number" min={0} placeholder="Máx"
+                value={durInput.max}
+                onChange={(e) => setDurInput((d) => ({ ...d, max: e.target.value }))}
+                className="w-20 bg-slate-700 border border-slate-600 text-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-slate-400"
+              />
+              <button
+                onClick={applyDuracion}
+                className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 text-slate-200 text-xs rounded-lg transition-colors"
+              >
+                Aplicar
+              </button>
+              {(filters.durMin || filters.durMax) && (
+                <button onClick={() => { setFilters((f) => ({ ...f, durMin: "", durMax: "" })); setDurInput({ min: "", max: "" }); }}
+                  className="text-xs text-slate-500 hover:text-slate-300 transition-colors">
+                  Quitar
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Limpiar todo */}
+          {hayFiltros && (
+            <button onClick={resetAll} className="text-xs text-slate-500 hover:text-slate-300 transition-colors">
+              Limpiar todos los filtros
+            </button>
           )}
         </div>
 
@@ -255,12 +342,10 @@ export default function ReclamosHistorial({
 
         {/* Contador */}
         {!loading && !error && (
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-slate-400">
-              Mostrando <span className="text-slate-200 font-medium">{rows.length}</span> de{" "}
-              <span className="text-slate-200 font-medium">{total.toLocaleString()}</span> reclamos
-            </p>
-          </div>
+          <p className="text-sm text-slate-400">
+            Mostrando <span className="text-slate-200 font-medium">{rows.length}</span> de{" "}
+            <span className="text-slate-200 font-medium">{total.toLocaleString()}</span> reclamos
+          </p>
         )}
 
         {/* Tabla */}
@@ -270,40 +355,67 @@ export default function ReclamosHistorial({
               <table className="w-full text-xs">
                 <thead>
                   <tr className="text-slate-400 uppercase tracking-wider border-b border-slate-700 bg-slate-900/40">
-                    <th className="text-left py-3 px-4">Conexión</th>
+                    <th className="text-left py-3 px-4">
+                      <button onClick={() => toggleSort("conexion")} className="flex items-center gap-1 hover:text-slate-200 transition-colors">
+                        Conexión <SortIcon col="conexion" />
+                      </button>
+                    </th>
                     <th className="text-left py-3 px-4">Sucursal</th>
                     <th className="text-left py-3 px-4">Problema</th>
                     <th className="text-left py-3 px-4">Cuadrilla</th>
-                    <th className="text-left py-3 px-4">Estado</th>
-                    <th className="text-left py-3 px-4">Fecha</th>
-                    <th className="text-right py-3 px-4">Días</th>
+                    <th className="text-left py-3 px-4">
+                      <button onClick={() => toggleSort("estado_incidencia")} className="flex items-center gap-1 hover:text-slate-200 transition-colors">
+                        Estado <SortIcon col="estado_incidencia" />
+                      </button>
+                    </th>
+                    <th className="text-left py-3 px-4">
+                      <button onClick={() => toggleSort("fecha_carga")} className="flex items-center gap-1 hover:text-slate-200 transition-colors">
+                        Asignado <SortIcon col="fecha_carga" />
+                      </button>
+                    </th>
+                    <th className="text-left py-3 px-4">Cerrado</th>
+                    <th className="text-right py-3 px-4">
+                      <button onClick={() => toggleSort("dias")} className="flex items-center gap-1 ml-auto hover:text-slate-200 transition-colors">
+                        Duración <SortIcon col="dias" />
+                      </button>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((r, i) => (
+                  {sortedRows.map((r, i) => {
+                    const esAnulado = !!r.fecha_anulacion && !r.fecha_solucion;
+                    const fechaCierre = r.fecha_solucion ?? r.fecha_anulacion;
+                    return (
                     <tr key={i} className="border-b border-slate-800 last:border-0 hover:bg-slate-700/30 transition-colors">
                       <td className="py-2.5 px-4 font-mono text-slate-200">{r.conexion}</td>
                       <td className="py-2.5 px-4 text-slate-300">{SUCURSALES[r.cod_sucursal] ?? `Suc. ${r.cod_sucursal}`}</td>
-                      <td className="py-2.5 px-4 text-slate-300 max-w-[200px] truncate">{r.problema ?? "—"}</td>
+                      <td className="py-2.5 px-4 text-slate-300 max-w-[180px] truncate">{r.problema ?? "—"}</td>
                       <td className="py-2.5 px-4 text-slate-400">{r.cuadrilla ?? "—"}</td>
-                      <td className="py-2.5 px-4">{estadoBadge(r.estado_incidencia)}</td>
-                      <td className="py-2.5 px-4 text-slate-400">{r.fecha_carga}</td>
+                      <td className="py-2.5 px-4">{estadoBadge(r.estado_incidencia, r.fecha_anulacion)}</td>
+                      <td className="py-2.5 px-4 text-slate-400">{r.fecha_carga ?? "—"}</td>
+                      <td className="py-2.5 px-4">
+                        {fechaCierre
+                          ? <span className={esAnulado ? "text-rose-400/70" : "text-slate-400"}>{fechaCierre}</span>
+                          : <span className="text-amber-400/70 italic">En curso</span>}
+                      </td>
                       <td className="py-2.5 px-4 text-right">
                         <span className={`px-2 py-0.5 rounded-full font-semibold ${
+                          esAnulado ? "bg-slate-700 text-slate-400" :
                           r.dias >= 7 ? "bg-red-500/20 text-red-400" :
                           r.dias >= 3 ? "bg-amber-500/20 text-amber-400" :
                           "bg-emerald-500/20 text-emerald-400"
                         }`}>{r.dias}d</span>
                       </td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           </div>
         )}
 
-        {/* Loading spinner */}
+        {/* Loading */}
         {loading && (
           <div className="flex items-center gap-2 text-slate-400 text-sm py-4">
             <Loader2 size={16} className="animate-spin" /> Cargando reclamos...
@@ -315,7 +427,7 @@ export default function ReclamosHistorial({
           <div className="flex items-center gap-3">
             <button
               onClick={loadMore}
-              className="flex items-center gap-2 px-4 py-2 border border-slate-700 hover:border-slate-500 text-slate-300 hover:text-white text-sm rounded-lg transition-colors"
+              className="px-4 py-2 border border-slate-700 hover:border-slate-500 text-slate-300 hover:text-white text-sm rounded-lg transition-colors"
             >
               Cargar 50 más
             </button>
@@ -324,7 +436,7 @@ export default function ReclamosHistorial({
               disabled={loadingAll}
               className="flex items-center gap-2 px-4 py-2 text-slate-500 hover:text-slate-300 text-sm transition-colors disabled:opacity-50"
             >
-              {loadingAll ? <Loader2 size={14} className="animate-spin" /> : null}
+              {loadingAll && <Loader2 size={14} className="animate-spin" />}
               Cargar todos ({(total - rows.length).toLocaleString()} restantes)
             </button>
           </div>

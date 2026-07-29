@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import {
   BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip,
-  Legend, ResponsiveContainer,
+  Legend, ResponsiveContainer, ReferenceLine,
 } from "recharts";
 import { X, Plus, Trash2, Pencil, Radio, TrendingUp, TrendingDown, Minus, ChevronDown, ChevronRight, Calendar } from "lucide-react";
 import { useTheme } from "../lib/useTheme";
@@ -44,7 +44,49 @@ function fmtDate(str: string) {
   return `${d}/${m}`;
 }
 
+function getWeekStart(date: string): string {
+  const [y, m, d] = date.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  const dow = dt.getDay();
+  dt.setDate(dt.getDate() - (dow === 0 ? 6 : dow - 1));
+  return dt.toISOString().split("T")[0];
+}
+
+function getWeekDays(weekStart: string): string[] {
+  const [y, m, d] = weekStart.split("-").map(Number);
+  return Array.from({ length: 7 }, (_, i) => {
+    const dt = new Date(y, m - 1, d + i);
+    return dt.toISOString().split("T")[0];
+  });
+}
+
+function shiftWeek(weekStart: string, weeks: number): string {
+  const [y, m, d] = weekStart.split("-").map(Number);
+  const dt = new Date(y, m - 1, d + weeks * 7);
+  return dt.toISOString().split("T")[0];
+}
+
+function getWeekPeriods(count: number, startOffset = 0): { id: string; desde: string; hasta: string; label: string }[] {
+  const now = new Date();
+  const dow = now.getDay();
+  const daysToMon = dow === 0 ? 6 : dow - 1;
+  const fmt = (d: Date) => d.toISOString().split("T")[0];
+  const result = [];
+  for (let i = count - 1; i >= 0; i--) {
+    const weeksAgo = i + startOffset;
+    const mon = new Date(now);
+    mon.setDate(now.getDate() - daysToMon - weeksAgo * 7);
+    const sun = new Date(mon);
+    sun.setDate(mon.getDate() + 6);
+    const hasta = weeksAgo === 0 ? new Date(now) : sun;
+    const label = weeksAgo === 0 ? "Esta semana" : weeksAgo === 1 ? "Sem. ant." : `Hace ${weeksAgo} sem.`;
+    result.push({ id: `w${weeksAgo}`, desde: fmt(mon), hasta: fmt(hasta), label });
+  }
+  return result;
+}
+
 function calcDelta(curr: number, prev: number | null) {
+  if (curr === 0) return null;
   return prev !== null && prev > 0 ? Math.round(((curr - prev) / prev) * 1000) / 10 : null;
 }
 
@@ -70,19 +112,23 @@ export default function AnalisisSenalesView({ onClose }: { onClose: () => void }
   const [fSenalId, setFSenalId] = useState("");
   const [fFecha, setFFecha] = useState(new Date().toISOString().split("T")[0]);
   const [fCantidad, setFCantidad] = useState("");
+  const [fWeekStart, setFWeekStart] = useState("");
+  const [fSemana, setFSemana] = useState<Record<string, Record<string, string>>>({});
 
   // Filters (independent)
   const [chartFilter, setChartFilter] = useState<string>("all");
   const [tableFilter, setTableFilter] = useState<string>("all");
 
   // Comparativa modes
-  const [comparativaMode, setComparativaMode] = useState<"rangos" | "dow">("rangos");
+  const [comparativaMode, setComparativaMode] = useState<"semanas" | "rangos" | "dow">("semanas");
+  const [semanasOffset, setSemanasOffset] = useState(0);
   const [periodos, setPeriodos] = useState<Periodo[]>([]);
   const [selectedDow, setSelectedDow] = useState<number | null>(null);
   const [showDowButtons, setShowDowButtons] = useState(false);
 
   // Collapsed dates in records table
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
+  const [showRegistros, setShowRegistros] = useState(false);
 
   const tooltipContentStyle = { background: chart.tooltipBg, border: `1px solid ${chart.tooltipBorder}`, borderRadius: 8, fontSize: 12 };
 
@@ -106,13 +152,56 @@ export default function AnalisisSenalesView({ onClose }: { onClose: () => void }
   };
 
   // Entry CRUD
-  const openNewEntry = () => { setEditingEntry(null); setFSenalId(senales[0]?.id ?? ""); setFFecha(new Date().toISOString().split("T")[0]); setFCantidad(""); setShowEntryForm(true); };
+  const prefillSemana = (ws: string) => {
+    const days = getWeekDays(ws);
+    const pre: Record<string, Record<string, string>> = {};
+    for (const day of days) {
+      pre[day] = {};
+      for (const e of entradas) {
+        if (e.fecha.split("T")[0] === day) pre[day][e.senal_id] = String(e.cantidad);
+      }
+    }
+    return pre;
+  };
+  const openNewEntry = () => {
+    setEditingEntry(null);
+    const ws = getWeekStart(new Date().toISOString().split("T")[0]);
+    setFWeekStart(ws);
+    setFSemana(prefillSemana(ws));
+    setShowEntryForm(true);
+  };
+  const changeWeek = (ws: string) => {
+    setFWeekStart(ws);
+    setFSemana(prefillSemana(ws));
+  };
   const openEditEntry = (e: Entrada) => { setEditingEntry(e); setFSenalId(e.senal_id); setFFecha(e.fecha.split("T")[0]); setFCantidad(String(e.cantidad)); setShowEntryForm(true); };
   const saveEntry = async () => {
     if (!fSenalId || !fFecha || !fCantidad) return;
     const body = { senal_id: fSenalId, fecha: fFecha, cantidad: parseInt(fCantidad, 10) };
     await fetch("/api/analisis-senales", { method: editingEntry ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(editingEntry ? { id: editingEntry.id, ...body } : body) });
     setShowEntryForm(false); loadEntradas();
+  };
+  const saveMultiEntry = async () => {
+    const ops: Promise<Response>[] = [];
+    for (const [day, senalMap] of Object.entries(fSemana)) {
+      for (const [senalId, val] of Object.entries(senalMap)) {
+        const trimmed = val.trim();
+        if (!trimmed) continue;
+        const cantidad = parseInt(trimmed, 10);
+        if (isNaN(cantidad) || cantidad < 0) continue;
+        const existing = entradas.find(e => e.senal_id === senalId && e.fecha.split("T")[0] === day);
+        const body = { senal_id: senalId, fecha: day, cantidad };
+        ops.push(fetch("/api/analisis-senales", {
+          method: existing ? "PUT" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(existing ? { id: existing.id, ...body } : body),
+        }));
+      }
+    }
+    if (ops.length === 0) return;
+    await Promise.all(ops);
+    setShowEntryForm(false);
+    loadEntradas();
   };
   const deleteEntry = async (id: string) => {
     if (!confirm("¿Eliminar este registro?")) return;
@@ -138,6 +227,11 @@ export default function AnalisisSenalesView({ onClose }: { onClose: () => void }
   const visibleSenales = useMemo(
     () => (chartFilter === "all" ? senales : senales.filter(s => s.id === chartFilter)),
     [senales, chartFilter]
+  );
+
+  const saturdayTicks = useMemo(
+    () => chartData.filter(row => getDow(String(row.fecha)) === 6).map(row => String(row.fecha)),
+    [chartData]
   );
 
   // Records table filter (independent)
@@ -193,6 +287,19 @@ export default function AnalisisSenalesView({ onClose }: { onClose: () => void }
     }),
     [periodos, entradas, senales]
   );
+
+  // Comparativa - semanas automáticas
+  const semanaPeriodsData = useMemo(() =>
+    getWeekPeriods(4, semanasOffset).map(w => {
+      const totals: Record<string, number> = {};
+      for (const s of senales) {
+        totals[s.id] = entradas
+          .filter(e => { const f = e.fecha.split("T")[0]; return e.senal_id === s.id && f >= w.desde && f <= w.hasta; })
+          .reduce((sum, e) => sum + e.cantidad, 0);
+      }
+      return { ...w, totals };
+    }),
+  [entradas, senales, semanasOffset]);
 
   // Comparativa - día de semana
   const dowData = useMemo(() => {
@@ -379,9 +486,11 @@ export default function AnalisisSenalesView({ onClose }: { onClose: () => void }
                 </td>
                 {cols.flatMap((col, idx) => {
                   const curr = col.totals[s.id] ?? 0;
-                  const prev = idx > 0 ? (cols[idx - 1].totals[s.id] ?? 0) : null;
                   const cells = [<td key={`v-${getKey(idx)}`} className="py-2.5 pr-3 text-right text-white font-semibold tabular-nums">{curr.toLocaleString("es-AR")}</td>];
-                  if (idx < cols.length - 1) cells.push(<td key={`d-${getKey(idx)}`} className="py-2.5 pr-6 text-right tabular-nums"><DeltaCell delta={calcDelta(curr, prev)} /></td>);
+                  if (idx < cols.length - 1) {
+                    const nextVal = cols[idx + 1].totals[s.id] ?? 0;
+                    cells.push(<td key={`d-${getKey(idx)}`} className="py-2.5 pr-6 text-right tabular-nums"><DeltaCell delta={calcDelta(nextVal, curr)} /></td>);
+                  }
                   return cells;
                 })}
               </tr>
@@ -390,9 +499,11 @@ export default function AnalisisSenalesView({ onClose }: { onClose: () => void }
               <td className="py-2.5 pr-6 text-slate-300">Total</td>
               {cols.flatMap((col, idx) => {
                 const curr = senales.reduce((sum, s) => sum + (col.totals[s.id] ?? 0), 0);
-                const prev = idx > 0 ? senales.reduce((sum, s) => sum + (cols[idx - 1].totals[s.id] ?? 0), 0) : null;
                 const cells = [<td key={`tv-${getKey(idx)}`} className="py-2.5 pr-3 text-right text-white tabular-nums">{curr.toLocaleString("es-AR")}</td>];
-                if (idx < cols.length - 1) cells.push(<td key={`td-${getKey(idx)}`} className="py-2.5 pr-6 text-right tabular-nums"><DeltaCell delta={calcDelta(curr, prev)} /></td>);
+                if (idx < cols.length - 1) {
+                  const nextTotal = senales.reduce((sum, s) => sum + (cols[idx + 1].totals[s.id] ?? 0), 0);
+                  cells.push(<td key={`td-${getKey(idx)}`} className="py-2.5 pr-6 text-right tabular-nums"><DeltaCell delta={calcDelta(nextTotal, curr)} /></td>);
+                }
                 return cells;
               })}
             </tr>
@@ -544,13 +655,20 @@ export default function AnalisisSenalesView({ onClose }: { onClose: () => void }
             </div>
             {chartData.length > 0 ? (
               <ResponsiveContainer width="100%" height={280}>
-                <BarChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                <BarChart data={chartData} margin={{ top: 24, right: 20, left: 0, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke={chart.grid} vertical={false} />
-                  <XAxis dataKey="fecha" tick={{ fill: chart.axis, fontSize: 11 }} axisLine={false} tickLine={false} />
+                  <XAxis dataKey="fecha" ticks={saturdayTicks} tick={{ fill: chart.axis, fontSize: 11 }} axisLine={false} tickLine={false} tickFormatter={d => fmtDate(String(d))} />
                   <YAxis tick={{ fill: chart.axis, fontSize: 11 }} width={45} />
                   <Tooltip contentStyle={tooltipContentStyle} labelStyle={{ color: chart.tooltipLabel }} itemStyle={{ color: chart.tooltipItem }} formatter={v => (typeof v === "number" ? v.toLocaleString("es-AR") : v)} />
                   {visibleSenales.length > 1 && <Legend wrapperStyle={{ color: chart.legend, fontSize: 12 }} />}
                   {visibleSenales.map(s => <Bar key={s.id} dataKey={s.nombre} fill={COLORS[senales.indexOf(s) % COLORS.length]} radius={[3, 3, 0, 0]} />)}
+                  <ReferenceLine
+                    x="2025-07-01"
+                    stroke="#c084fc"
+                    strokeDasharray="5 3"
+                    strokeWidth={2}
+                    label={{ value: "↑ Inicio programa", position: "insideTopLeft", fill: "#c084fc", fontSize: 10, fontWeight: 700 }}
+                  />
                 </BarChart>
               </ResponsiveContainer>
             ) : (
@@ -569,16 +687,22 @@ export default function AnalisisSenalesView({ onClose }: { onClose: () => void }
                 {/* Mode tabs */}
                 <div className="flex bg-slate-700/60 rounded-lg p-0.5">
                   <button
+                    onClick={() => setComparativaMode("semanas")}
+                    className={`text-xs px-3 py-1.5 rounded-md transition-colors ${comparativaMode === "semanas" ? "bg-slate-600 text-white" : "text-slate-400 hover:text-slate-200"}`}
+                  >
+                    Semanas
+                  </button>
+                  <button
                     onClick={() => setComparativaMode("rangos")}
                     className={`text-xs px-3 py-1.5 rounded-md transition-colors ${comparativaMode === "rangos" ? "bg-slate-600 text-white" : "text-slate-400 hover:text-slate-200"}`}
                   >
-                    Rangos de fecha
+                    Períodos
                   </button>
                   <button
                     onClick={() => { setComparativaMode("dow"); setShowDowButtons(true); }}
                     className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md transition-colors ${comparativaMode === "dow" ? "bg-slate-600 text-white" : "text-slate-400 hover:text-slate-200"}`}
                   >
-                    <Calendar className="w-3.5 h-3.5" /> Días de semana
+                    <Calendar className="w-3.5 h-3.5" /> Días
                   </button>
                 </div>
                 {comparativaMode === "rangos" && (
@@ -588,6 +712,49 @@ export default function AnalisisSenalesView({ onClose }: { onClose: () => void }
                 )}
               </div>
             </div>
+
+            {/* Mode: semanas automáticas */}
+            {comparativaMode === "semanas" && (
+              entradas.length > 0 ? (
+                <div className="space-y-3">
+                  {/* Navegación de período */}
+                  <div className="flex items-center justify-between">
+                    <button
+                      onClick={() => setSemanasOffset(o => o + 1)}
+                      className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-2 py-1 rounded-lg hover:bg-slate-700/50"
+                    >
+                      <ChevronDown className="w-3.5 h-3.5 rotate-90" /> Semana anterior
+                    </button>
+                    {semanasOffset > 0 && (
+                      <button
+                        onClick={() => setSemanasOffset(o => Math.max(0, o - 1))}
+                        className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors px-2 py-1 rounded-lg hover:bg-slate-700/50"
+                      >
+                        Semana siguiente <ChevronDown className="w-3.5 h-3.5 -rotate-90" />
+                      </button>
+                    )}
+                  </div>
+                  <ComparisonTable
+                    cols={semanaPeriodsData}
+                    getLabel={idx => semanaPeriodsData[idx].label}
+                    getSubLabel={idx => {
+                      const p = semanaPeriodsData[idx];
+                      const isCurrentWeek = semanasOffset === 0 && idx === semanaPeriodsData.length - 1;
+                      return `${fmtDate(p.desde)} → ${isCurrentWeek ? "hoy" : fmtDate(p.hasta)}`;
+                    }}
+                    getKey={idx => semanaPeriodsData[idx].id}
+                    getDays={idx => {
+                      const p = semanaPeriodsData[idx];
+                      const [y1, m1, d1] = p.desde.split("-").map(Number);
+                      const [y2, m2, d2] = p.hasta.split("-").map(Number);
+                      return Math.max(1, Math.round((new Date(y2, m2 - 1, d2).getTime() - new Date(y1, m1 - 1, d1).getTime()) / 86400000) + 1);
+                    }}
+                  />
+                </div>
+              ) : (
+                <p className="text-slate-500 text-sm">Sin registros para comparar.</p>
+              )
+            )}
 
             {/* Mode: rangos */}
             {comparativaMode === "rangos" && (
@@ -688,15 +855,19 @@ export default function AnalisisSenalesView({ onClose }: { onClose: () => void }
           </div>
         )}
 
-        {/* Registros diarios — agrupados por fecha, colapsables */}
-        <div className="bg-slate-800/60 rounded-xl p-5 border border-slate-700/40 space-y-4">
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <h2 className="text-base font-semibold text-slate-200">
-              Registros diarios
-              {filtered.length > 0 && <span className="ml-2 text-xs font-normal text-slate-500">{groupedByDate.length} fechas · {filtered.length} registros</span>}
-            </h2>
+        {/* Registros diarios — colapsables */}
+        <div className="bg-slate-800/60 rounded-xl border border-slate-700/40">
+          <div className="flex items-center justify-between flex-wrap gap-3 p-5">
+            <button
+              onClick={() => setShowRegistros(v => !v)}
+              className="flex items-center gap-2 text-left"
+            >
+              <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${showRegistros ? "rotate-90" : ""}`} />
+              <h2 className="text-base font-semibold text-slate-200">Registros diarios</h2>
+              {filtered.length > 0 && <span className="text-xs font-normal text-slate-500">{groupedByDate.length} fechas · {filtered.length} registros</span>}
+            </button>
             <div className="flex items-center gap-2 flex-wrap">
-              {senales.length > 0 && (
+              {showRegistros && senales.length > 0 && (
                 <div className="flex gap-1.5 flex-wrap">
                   <button onClick={() => setTableFilter("all")} className={filterBtnCls(tableFilter === "all")}>Todas</button>
                   {senales.map(s => <button key={s.id} onClick={() => setTableFilter(s.id)} className={filterBtnCls(tableFilter === s.id)}>{s.nombre}</button>)}
@@ -708,10 +879,10 @@ export default function AnalisisSenalesView({ onClose }: { onClose: () => void }
             </div>
           </div>
 
-          {groupedByDate.length === 0 ? (
-            <p className="text-slate-500 text-sm">{senales.length === 0 ? "Primero creá una señal." : "No hay registros para el filtro seleccionado."}</p>
+          {showRegistros && (groupedByDate.length === 0 ? (
+            <p className="text-slate-500 text-sm px-5 pb-5">{senales.length === 0 ? "Primero creá una señal." : "No hay registros para el filtro seleccionado."}</p>
           ) : (
-            <div className="divide-y divide-slate-800/60">
+            <div className="divide-y divide-slate-800/60 px-5 pb-5">
               {groupedByDate.map(([date, entries]) => {
                 const isExpanded = expandedDates.has(date);
                 const total = entries.reduce((sum, e) => sum + e.cantidad, 0);
@@ -756,7 +927,7 @@ export default function AnalisisSenalesView({ onClose }: { onClose: () => void }
                 );
               })}
             </div>
-          )}
+          ))}
         </div>
       </div>
 
@@ -786,27 +957,101 @@ export default function AnalisisSenalesView({ onClose }: { onClose: () => void }
       {/* Modal: registro */}
       {showEntryForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowEntryForm(false)}>
-          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 w-full max-w-md mx-4 space-y-4" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-semibold text-white">{editingEntry ? "Editar registro" : "Nuevo registro"}</h3>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Señal *</label>
-                <select value={fSenalId} onChange={e => setFSenalId(e.target.value)} className={inputCls}>
-                  {senales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
-                </select>
+          <div className={`bg-slate-800 border border-slate-700 rounded-xl p-6 w-full mx-4 space-y-4 ${editingEntry ? "max-w-md" : "max-w-lg"}`} onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-semibold text-white">{editingEntry ? "Editar registro" : "Cargar registros"}</h3>
+
+            {editingEntry ? (
+              /* Edición individual */
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Señal *</label>
+                  <select value={fSenalId} onChange={e => setFSenalId(e.target.value)} className={inputCls}>
+                    {senales.map(s => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Fecha *</label>
+                  <input type="date" value={fFecha} onChange={e => setFFecha(e.target.value)} className={inputCls} />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Visualizaciones *</label>
+                  <input type="number" min="0" value={fCantidad} onChange={e => setFCantidad(e.target.value)} onKeyDown={e => e.key === "Enter" && saveEntry()} className={inputCls} placeholder="0" autoFocus />
+                </div>
               </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Fecha *</label>
-                <input type="date" value={fFecha} onChange={e => setFFecha(e.target.value)} className={inputCls} />
-              </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">Cantidad de visualizaciones *</label>
-                <input type="number" min="0" value={fCantidad} onChange={e => setFCantidad(e.target.value)} onKeyDown={e => e.key === "Enter" && saveEntry()} className={inputCls} placeholder="0" autoFocus={!editingEntry} />
-              </div>
-            </div>
+            ) : (() => {
+              /* Carga semanal: navegación + grilla día × señal */
+              const weekDays = getWeekDays(fWeekStart);
+              const DAY_SHORT = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
+              return (
+                <div className="space-y-3">
+                  {/* Navegación de semana */}
+                  <div className="flex items-center justify-between bg-slate-700/50 rounded-lg px-3 py-2">
+                    <button onClick={() => changeWeek(shiftWeek(fWeekStart, -1))} className="text-slate-400 hover:text-white transition-colors p-1">
+                      <ChevronDown className="w-4 h-4 rotate-90" />
+                    </button>
+                    <span className="text-sm font-semibold text-slate-200">
+                      {fmtDate(weekDays[0])} — {fmtDate(weekDays[6])}
+                    </span>
+                    <button onClick={() => changeWeek(shiftWeek(fWeekStart, 1))} className="text-slate-400 hover:text-white transition-colors p-1">
+                      <ChevronDown className="w-4 h-4 -rotate-90" />
+                    </button>
+                  </div>
+
+                  {/* Grilla día × señal */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-xs text-slate-500 border-b border-slate-700">
+                          <th className="text-left pb-2 font-medium w-20">Día</th>
+                          {senales.map((s, si) => (
+                            <th key={s.id} className="text-right pb-2 pl-2 font-medium">
+                              <div className="flex items-center justify-end gap-1.5">
+                                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: COLORS[si % COLORS.length] }} />
+                                <span className="truncate max-w-[90px]">{s.nombre}</span>
+                              </div>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {weekDays.map(day => {
+                          const [dy, dm, dd] = day.split("-").map(Number);
+                          const dow = new Date(dy, dm - 1, dd).getDay();
+                          const isWeekend = dow === 0 || dow === 6;
+                          return (
+                            <tr key={day} className={`border-b border-slate-800/40 ${isWeekend ? "bg-slate-700/10" : ""}`}>
+                              <td className="py-1.5 pr-3">
+                                <span className={`font-semibold text-xs ${isWeekend ? "text-purple-400" : "text-slate-300"}`}>{DAY_SHORT[dow]}</span>
+                                <span className="text-slate-500 text-xs ml-1">{fmtDate(day)}</span>
+                              </td>
+                              {senales.map(s => (
+                                <td key={s.id} className="py-1 pl-2">
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    value={fSemana[day]?.[s.id] ?? ""}
+                                    onChange={e => setFSemana(prev => ({
+                                      ...prev,
+                                      [day]: { ...(prev[day] ?? {}), [s.id]: e.target.value },
+                                    }))}
+                                    className="w-full bg-slate-700 border border-slate-600/60 rounded px-2 py-1.5 text-sm text-white text-right focus:outline-none focus:ring-1 focus:ring-purple-500 placeholder-slate-600"
+                                    placeholder="—"
+                                  />
+                                </td>
+                              ))}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })()}
+
             <div className="flex justify-end gap-2 pt-2">
               <button onClick={() => setShowEntryForm(false)} className="px-4 py-2 text-sm text-slate-400 hover:text-white transition-colors">Cancelar</button>
-              <button onClick={saveEntry} className="px-4 py-2 text-sm bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors">Guardar</button>
+              <button onClick={editingEntry ? saveEntry : saveMultiEntry} className="px-4 py-2 text-sm bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg transition-colors">Guardar</button>
             </div>
           </div>
         </div>

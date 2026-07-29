@@ -49,6 +49,7 @@ function Home() {
   const [showTVMenu, setShowTVMenu] = useState(false);
   const [showReportesMenu, setShowReportesMenu] = useState(false);
   const [showReclamosSubmenu, setShowReclamosSubmenu] = useState(false);
+  const [showStockSubmenu, setShowStockSubmenu] = useState(false);
   const [showMapa, setShowMapa] = useState(false);
   const [showReclamos, setShowReclamos] = useState(false);
   const [showCambioDrop, setShowCambioDrop] = useState(false);
@@ -135,7 +136,7 @@ function Home() {
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (tvRef.current && !tvRef.current.contains(e.target as Node)) setShowTVMenu(false);
-      if (reportesRef.current && !reportesRef.current.contains(e.target as Node)) { setShowReportesMenu(false); setShowReclamosSubmenu(false); }
+      if (reportesRef.current && !reportesRef.current.contains(e.target as Node)) { setShowReportesMenu(false); setShowReclamosSubmenu(false); setShowStockSubmenu(false); }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -313,34 +314,50 @@ function Home() {
 
                   {(puedeVer("fuentes") || puedeVer("dispositivos")) && <>
                     <div className="border-t border-slate-800 my-1" />
-                    <p className="px-3 py-1.5 text-xs text-slate-500 uppercase tracking-wider">Stock</p>
-                    {puedeVer("fuentes") && (
+                    <div className="flex items-center rounded-lg overflow-hidden">
                       <button
-                        onClick={() => { goHome(); setShowFuentesStock(true); setShowReportesMenu(false); }}
-                        className={menuItem}
+                        onClick={() => setShowStockSubmenu(v => !v)}
+                        className="flex items-center gap-2.5 flex-1 px-4 py-2 text-sm text-slate-300 hover:bg-slate-700/60 hover:text-white transition-colors"
                       >
                         <span className="w-2 h-2 rounded-full flex-shrink-0 bg-sky-400" />
-                        Fuentes
+                        Stock
                       </button>
-                    )}
-                    {puedeVer("dispositivos") && (
                       <button
-                        onClick={() => { goHome(); setShowDispositivos(true); setShowReportesMenu(false); }}
-                        className={menuItem}
+                        onClick={() => setShowStockSubmenu(v => !v)}
+                        className="px-2 py-2 text-slate-500 hover:text-slate-300 hover:bg-slate-700/60 transition-colors"
                       >
-                        <span className="w-2 h-2 rounded-full flex-shrink-0 bg-violet-400" />
-                        Dispositivos
+                        <ChevronDown size={12} className={`transition-transform ${showStockSubmenu ? "rotate-180" : ""}`} />
                       </button>
-                    )}
-                    {puedeVer("dispositivos") && (
-                      <button
-                        onClick={() => { goHome(); setShowMacScanner(true); setShowReportesMenu(false); }}
-                        className={menuItem}
-                      >
-                        <span className="w-2 h-2 rounded-full flex-shrink-0 bg-cyan-400" />
-                        Rastreo de dispositivo
-                      </button>
-                    )}
+                    </div>
+                    {showStockSubmenu && <>
+                      {puedeVer("fuentes") && (
+                        <button
+                          onClick={() => { goHome(); setShowFuentesStock(true); setShowReportesMenu(false); }}
+                          className={`${menuItem} pl-9 text-xs`}
+                        >
+                          <span className="w-2 h-2 rounded-full flex-shrink-0 bg-sky-400" />
+                          Fuentes
+                        </button>
+                      )}
+                      {puedeVer("dispositivos") && (
+                        <button
+                          onClick={() => { goHome(); setShowDispositivos(true); setShowReportesMenu(false); }}
+                          className={`${menuItem} pl-9 text-xs`}
+                        >
+                          <span className="w-2 h-2 rounded-full flex-shrink-0 bg-violet-400" />
+                          Dispositivos
+                        </button>
+                      )}
+                      {puedeVer("dispositivos") && (
+                        <button
+                          onClick={() => { goHome(); setShowMacScanner(true); setShowReportesMenu(false); }}
+                          className={`${menuItem} pl-9 text-xs`}
+                        >
+                          <span className="w-2 h-2 rounded-full flex-shrink-0 bg-cyan-400" />
+                          Rastreo de dispositivo
+                        </button>
+                      )}
+                    </>}
                   </>}
                 </div>
               )}

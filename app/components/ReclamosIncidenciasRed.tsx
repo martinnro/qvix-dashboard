@@ -1,16 +1,15 @@
 "use client";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import {
   X, Loader2, ChevronLeft, Radio, AlertCircle,
   Clock, UserCheck, Layers, Network, Calendar, List, History,
 } from "lucide-react";
 import ReclamosHistorial from "./ReclamosHistorial";
+import ReclamosSucursalDashboard from "./ReclamosSucursalDashboard";
 import { getColor } from "../lib/dataUtils";
 
 const SUCURSALES: Record<number, string> = {
-  0: "Central",
   1: "Chumbicha",
-  3: "SonoVision",
   4: "Valle Viejo",
   5: "Tinogasta",
   6: "Rodeo",
@@ -101,22 +100,57 @@ export default function ReclamosIncidenciasRed({
   const [error, setError] = useState<string | null>(null);
   const [sucursalesSel, setSucursalesSel] = useState<number[]>([]);
   const [panel, setPanel] = useState<Panel | null>(null);
+  const [sucursalView, setSucursalView] = useState<number | null>(null);
+  const [sucursalesAccesibles, setSucursalesAccesibles] = useState<number[]>([]);
+  const restoredRef = useRef(false);
 
   useEffect(() => {
-    fetch("/api/incidencias-activas")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.error) throw new Error(data.error);
-        setRows(data);
-      })
-      .catch((e) => setError(e.message))
+    Promise.all([
+      fetch("/api/incidencias-activas").then((r) => r.json()),
+      fetch("/api/mis-sucursales").then((r) => r.json()),
+    ]).then(([activas, misSuc]) => {
+      if (activas.error) throw new Error(activas.error);
+      setRows(activas);
+      if (!misSuc.error) setSucursalesAccesibles(misSuc.sucursales ?? []);
+    }).catch((e) => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
 
   const sucursalesDisponibles = useMemo(
-    () => [...new Set(rows.map((r) => r.cod_sucursal))].sort((a, b) => a - b),
-    [rows]
+    () => sucursalesAccesibles.length > 0 ? sucursalesAccesibles : [...new Set(rows.map((r) => r.cod_sucursal))].sort((a, b) => a - b),
+    [rows, sucursalesAccesibles]
   );
+
+  // Restauración inicial: corre una sola vez cuando terminó de cargar.
+  // Usar ref para que NO vuelva a correr cuando el usuario hace "Volver al resumen" (sucursalView → null).
+  useEffect(() => {
+    if (loading || restoredRef.current) return;
+    restoredRef.current = true;
+
+    if (sucursalesDisponibles.length === 1) {
+      setSucursalView(sucursalesDisponibles[0]);
+      return;
+    }
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const fromUrl = params.get("sucursal");
+      if (!fromUrl) return;
+      const cod = parseInt(fromUrl, 10);
+      if (sucursalesDisponibles.includes(cod)) setSucursalView(cod);
+    } catch { /* SSR guard */ }
+  }, [loading, sucursalesDisponibles]);
+
+  // Sincronizar URL + localStorage cuando cambia la sucursal seleccionada
+  useEffect(() => {
+    try {
+      if (sucursalView !== null) {
+        history.replaceState(null, "", `?sucursal=${sucursalView}`);
+        localStorage.setItem("lastSucursal", String(sucursalView));
+      } else {
+        history.replaceState(null, "", window.location.pathname);
+      }
+    } catch { /* SSR guard */ }
+  }, [sucursalView]);
 
   const filtered = useMemo(
     () => sucursalesSel.length === 0 ? rows : rows.filter((r) => sucursalesSel.includes(r.cod_sucursal)),
@@ -169,13 +203,58 @@ export default function ReclamosIncidenciasRed({
   const toggleSucursal = (cod: number) =>
     setSucursalesSel((prev) => prev.includes(cod) ? prev.filter((s) => s !== cod) : [...prev, cod]);
 
+  /* ── Filtro de sucursal dentro de un sub-panel (no navega, filtra) ── */
+  const FiltroSucursalPanel = () => {
+    if (sucursalesDisponibles.length <= 1) return null;
+    const conReclamos = new Set(filtered.map((r) => r.cod_sucursal));
+    return (
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs text-slate-500 uppercase tracking-wider mr-1">Sucursal:</span>
+        <button
+          onClick={() => setSucursalesSel([])}
+          className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+            sucursalesSel.length === 0
+              ? "bg-indigo-600 border-indigo-500 text-white"
+              : "border-slate-600 text-slate-400 hover:border-slate-400 hover:text-slate-200"
+          }`}
+        >
+          Todas
+        </button>
+        {sucursalesDisponibles.map((cod) => {
+          const activo = sucursalesSel.includes(cod);
+          const cant = filtered.filter((r) => r.cod_sucursal === cod).length;
+          const tieneDatos = conReclamos.has(cod);
+          return (
+            <button
+              key={cod}
+              onClick={() => toggleSucursal(cod)}
+              className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                activo
+                  ? "bg-indigo-600 border-indigo-500 text-white"
+                  : tieneDatos
+                  ? "border-slate-600 text-slate-300 hover:border-indigo-500 hover:text-indigo-300"
+                  : "border-slate-700 text-slate-600"
+              }`}
+            >
+              {SUCURSALES[cod] ?? `Suc. ${cod}`}
+              {tieneDatos && <span className="ml-1 opacity-60">{cant}</span>}
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
+
   /* ── Header compartido ── */
   const Header = ({ titulo, subtitulo }: { titulo: string; subtitulo?: string }) => (
     <div className="flex items-center justify-between flex-wrap gap-3">
       <div>
         {panel && (
-          <button onClick={() => setPanel(null)} className="flex items-center gap-1 text-slate-400 hover:text-slate-200 text-xs mb-2 transition-colors">
-            <ChevronLeft size={14} /> Volver al resumen
+          <button
+            onClick={() => setPanel(null)}
+            className="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 hover:text-white border border-slate-600 hover:border-slate-500 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors mb-3"
+          >
+            <ChevronLeft size={15} /> Volver al resumen
           </button>
         )}
         <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
@@ -183,42 +262,37 @@ export default function ReclamosIncidenciasRed({
         </h2>
         {subtitulo && <p className="text-sm text-slate-400 mt-0.5">{subtitulo}</p>}
       </div>
-      <button
-        onClick={onClose}
-        className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 border border-slate-700 hover:border-slate-500 px-3 py-1.5 rounded-lg text-sm transition-colors"
-      >
-        <X size={15} /> Cerrar
-      </button>
+      {!panel && (
+        <button
+          onClick={onClose}
+          className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 border border-slate-700 hover:border-slate-500 px-3 py-1.5 rounded-lg text-sm transition-colors"
+        >
+          <X size={15} /> Cerrar
+        </button>
+      )}
     </div>
   );
 
-  /* ── Filtro de sucursal compartido ── */
+  /* ── Selector de sucursal: click abre el dashboard de esa sucursal (overview only) ── */
   const FiltroSucursal = () => (
     sucursalesDisponibles.length > 1 ? (
       <section>
-        <div className="flex items-center justify-between mb-2">
-          <h3 className="text-slate-400 font-medium text-xs uppercase tracking-wider">Sucursal</h3>
-          {sucursalesSel.length > 0 && (
-            <button onClick={() => setSucursalesSel([])} className="text-xs text-slate-500 hover:text-slate-300 transition-colors">
-              Todas
-            </button>
-          )}
-        </div>
+        <h3 className="text-slate-400 font-medium text-xs uppercase tracking-wider mb-2">
+          Dashboard por sucursal
+        </h3>
         <div className="flex flex-wrap gap-2">
           {sucursalesDisponibles.map((cod) => {
-            const active = sucursalesSel.includes(cod);
-            const cant   = rows.filter((r) => r.cod_sucursal === cod).length;
+            const cant = rows.filter((r) => r.cod_sucursal === cod).length;
             return (
               <button
                 key={cod}
-                onClick={() => toggleSucursal(cod)}
-                className="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
-                style={active
-                  ? { backgroundColor: "#f43f5e22", borderColor: "#f43f5e", color: "#fb7185" }
-                  : { borderColor: "#334155", color: "#94a3b8" }}
+                onClick={() => setSucursalView(cod)}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium border border-slate-600 bg-slate-800 text-slate-200 hover:border-rose-500 hover:text-rose-300 hover:bg-rose-500/10 transition-colors"
               >
                 {SUCURSALES[cod] ?? `Suc. ${cod}`}
-                <span className="ml-1.5 opacity-60">{cant}</span>
+                {cant > 0 && (
+                  <span className="px-1.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 text-xs font-bold">{cant}</span>
+                )}
               </button>
             );
           })}
@@ -226,6 +300,19 @@ export default function ReclamosIncidenciasRed({
       </section>
     ) : null
   );
+
+  /* ────────────────────────────────────────────────────────────
+     DASHBOARD DE SUCURSAL
+  ──────────────────────────────────────────────────────────── */
+  if (sucursalView !== null) {
+    return (
+      <ReclamosSucursalDashboard
+        codSucursal={sucursalView}
+        onBack={() => setSucursalView(null)}
+        onClose={onClose}
+      />
+    );
+  }
 
   /* ────────────────────────────────────────────────────────────
      LOADING / ERROR
@@ -258,7 +345,7 @@ export default function ReclamosIncidenciasRed({
       <div className="min-h-screen bg-slate-900 text-white">
         <div className="max-w-screen-xl mx-auto px-6 py-8 space-y-6">
           <Header titulo="Por tipo de problema" subtitulo={`${total} reclamos activos`} />
-          <FiltroSucursal />
+          <FiltroSucursalPanel />
           <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 space-y-4">
             {porProblema.map((p, i) => (
               <BarRow key={p.nombre} label={p.nombre} cantidad={p.cantidad} total={total} color={getColor(p.nombre, i)} />
@@ -278,7 +365,7 @@ export default function ReclamosIncidenciasRed({
       <div className="min-h-screen bg-slate-900 text-white">
         <div className="max-w-screen-xl mx-auto px-6 py-8 space-y-6">
           <Header titulo="Por cuadrilla" subtitulo={`${total} reclamos asignados`} />
-          <FiltroSucursal />
+          <FiltroSucursalPanel />
           <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 space-y-4">
             {porCuadrilla.map((c, i) => (
               <BarRow key={c.nombre} label={c.nombre} cantidad={c.cantidad} total={total} color={getColor(c.nombre, i)} />
@@ -298,7 +385,7 @@ export default function ReclamosIncidenciasRed({
       <div className="min-h-screen bg-slate-900 text-white">
         <div className="max-w-screen-xl mx-auto px-6 py-8 space-y-6">
           <Header titulo="NAPs con reclamos" subtitulo={`${porNap.length} NAPs afectadas`} />
-          <FiltroSucursal />
+          <FiltroSucursalPanel />
           <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 space-y-3">
             {porNap.map((n, i) => (
               <BarRow key={n.nap} label={n.nap} cantidad={n.cantidad} total={total} color={getColor(n.nap, i)} />
@@ -318,7 +405,7 @@ export default function ReclamosIncidenciasRed({
       <div className="min-h-screen bg-slate-900 text-white">
         <div className="max-w-screen-xl mx-auto px-6 py-8 space-y-6">
           <Header titulo="Antigüedad de reclamos" subtitulo="Cuánto tiempo llevan abiertos" />
-          <FiltroSucursal />
+          <FiltroSucursalPanel />
           <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 space-y-4">
             {porAntiguedad.map((b, i) => (
               <BarRow key={b.label} label={b.label} cantidad={b.cantidad} total={total}
@@ -379,7 +466,7 @@ export default function ReclamosIncidenciasRed({
       <div className="min-h-screen bg-slate-900 text-white">
         <div className="max-w-screen-xl mx-auto px-6 py-8 space-y-6">
           <Header titulo="Detalle completo" subtitulo={`${filtered.length} reclamos activos`} />
-          <FiltroSucursal />
+          <FiltroSucursalPanel />
           <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5">
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
@@ -449,8 +536,9 @@ export default function ReclamosIncidenciasRed({
       total: sRows.length,
       pendientes: sRows.filter((r) => r.estado_incidencia === 1).length,
       asignados: sRows.filter((r) => r.estado_incidencia === 2).length,
+      asignadosMas7: sRows.filter((r) => r.estado_incidencia === 2 && r.dias >= 7).length,
     };
-  }).filter((s) => s.total > 0);
+  }).sort((a, b) => b.total - a.total || a.nombre.localeCompare(b.nombre));
 
   return (
     <div className="min-h-screen bg-slate-900 text-white">
@@ -491,16 +579,31 @@ export default function ReclamosIncidenciasRed({
                   <th className="text-left py-3 px-4">Sucursal</th>
                   <th className="text-right py-3 px-4">Pendientes</th>
                   <th className="text-right py-3 px-4">Asignados</th>
+                  <th className="text-right py-3 px-4 text-red-400">+7 días</th>
                   <th className="text-right py-3 px-4">Total</th>
                 </tr>
               </thead>
               <tbody>
                 {porSucursal.map((s) => (
-                  <tr key={s.cod} className="border-b border-slate-800 last:border-0 hover:bg-slate-700/30 transition-colors">
-                    <td className="py-3 px-4 text-slate-200 font-medium">{s.nombre}</td>
-                    <td className="py-3 px-4 text-right text-amber-400 font-semibold">{s.pendientes}</td>
-                    <td className="py-3 px-4 text-right text-emerald-400 font-semibold">{s.asignados}</td>
-                    <td className="py-3 px-4 text-right text-slate-100 font-bold">{s.total}</td>
+                  <tr key={s.cod} className={`border-b border-slate-800 last:border-0 transition-colors ${s.total === 0 ? "opacity-40" : "hover:bg-slate-700/30"}`}>
+                    <td className="py-3 px-4 font-medium">
+                      <span className={s.total === 0 ? "text-slate-500" : "text-slate-200"}>{s.nombre}</span>
+                      {s.total === 0 && <span className="ml-2 text-[11px] text-emerald-600 font-normal">al día</span>}
+                    </td>
+                    <td className="py-3 px-4 text-right text-amber-400 font-semibold">{s.pendientes > 0 ? s.pendientes : <span className="text-slate-700">—</span>}</td>
+                    <td className="py-3 px-4 text-right text-emerald-400 font-semibold">{s.asignados > 0 ? s.asignados : <span className="text-slate-700">—</span>}</td>
+                    <td className="py-3 px-4 text-right">
+                      {s.asignadosMas7 > 0 ? (
+                        <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 font-semibold text-xs">
+                          {s.asignadosMas7}
+                        </span>
+                      ) : (
+                        <span className="text-slate-700">—</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-right font-bold">
+                      {s.total > 0 ? <span className="text-slate-100">{s.total}</span> : <span className="text-emerald-600 text-sm">✓</span>}
+                    </td>
                   </tr>
                 ))}
               </tbody>

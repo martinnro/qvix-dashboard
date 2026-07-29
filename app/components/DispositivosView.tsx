@@ -1,6 +1,6 @@
 "use client";
-import { useEffect, useState, useCallback, useMemo } from "react";
-import { RefreshCw, Monitor, Wifi, Download, PackageOpen, ChevronDown, ChevronUp, ArrowLeft } from "lucide-react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { RefreshCw, Monitor, Wifi, Download, PackageOpen, ChevronDown, ChevronUp, ArrowLeft, ChevronsUpDown } from "lucide-react";
 import { getColorById } from "./MapaUtils";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList } from "recharts";
 import { useTheme } from "../lib/useTheme";
@@ -79,6 +79,8 @@ function getEstadoColor(estado: string): EstadoColor {
 }
 
 
+type SortCol = "tipo" | "modelo" | "fecha_carga" | "estado_stock" | "estado_dispositivo" | "fecha_carga_recibo";
+
 function parseFechaAR(s: string): number {
   if (!s) return 0;
   const [d, m, y] = s.split("/");
@@ -94,11 +96,35 @@ function StockDetalleModal({ onClose, sucursal, tipo }: {
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState<string | null>(null);
   const [search, setSearch]           = useState("");
-  const [modeloFiltro, setModeloFiltro]         = useState<string | null>(null);
-  const [estadoFiltro, setEstadoFiltro]         = useState<string | null>(null);
+  const [modelosFiltro, setModelosFiltro]       = useState<Set<string>>(new Set());
+  const [modeloMenuOpen, setModeloMenuOpen]     = useState(false);
+  const modeloMenuRef                           = useRef<HTMLDivElement>(null);
+  const [estadosFiltro, setEstadosFiltro]       = useState<Set<string>>(new Set());
+  const [estadoMenuOpen, setEstadoMenuOpen]     = useState(false);
+  const estadoMenuRef                           = useRef<HTMLDivElement>(null);
   const [tipoRetiroFiltro, setTipoRetiroFiltro] = useState<string | null>(null);
   const [tipoFiltro, setTipoFiltro]   = useState<"all" | "ont" | "deco">("all");
-  const [sortDir, setSortDir]         = useState<"asc" | "desc">("desc");
+  const [sort, setSort]               = useState<{ col: SortCol; dir: "asc" | "desc" }>({ col: "fecha_carga", dir: "desc" });
+
+  useEffect(() => {
+    if (!modeloMenuOpen) return;
+    function handler(e: MouseEvent) {
+      if (modeloMenuRef.current && !modeloMenuRef.current.contains(e.target as Node))
+        setModeloMenuOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [modeloMenuOpen]);
+
+  useEffect(() => {
+    if (!estadoMenuOpen) return;
+    function handler(e: MouseEvent) {
+      if (estadoMenuRef.current && !estadoMenuRef.current.contains(e.target as Node))
+        setEstadoMenuOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [estadoMenuOpen]);
 
   useEffect(() => {
     // Sin filtro de tipo para construir el mapa de colores desde todos los estados posibles
@@ -118,26 +144,35 @@ function StockDetalleModal({ onClose, sucursal, tipo }: {
     : allRows
   , [allRows, tipoFiltro]);
 
-  const modelos     = useMemo(() => Array.from(new Set(rowsTipo.map((r) => r.modelo))).sort(), [rowsTipo]);
-  const tiposRetiro = useMemo(() => Array.from(new Set(rowsTipo.map((r) => r.tipo_retiro).filter(Boolean))).sort(), [rowsTipo]);
+  const modelosPorTipo = useMemo(() => ({
+    onts:  Array.from(new Set(rowsTipo.filter((r) => r.tipo === "ONT").map((r) => r.modelo))).sort(),
+    decos: Array.from(new Set(rowsTipo.filter((r) => r.tipo !== "ONT").map((r) => r.modelo))).sort(),
+  }), [rowsTipo]);
+  const tiposRetiro  = useMemo(() => Array.from(new Set(rowsTipo.map((r) => r.tipo_retiro).filter(Boolean))).sort(), [rowsTipo]);
+  const estadosTipo  = useMemo(() => Array.from(new Set(rowsTipo.map((r) => r.estado_stock).filter(Boolean))).sort(), [rowsTipo]);
 
   const filtradas = useMemo(() => {
     const result = rowsTipo.filter((r) => {
       const q = search.toLowerCase();
       if (q && !r.mac.toLowerCase().includes(q) && !r.modelo.toLowerCase().includes(q) && !r.nom_usr.toLowerCase().includes(q)) return false;
-      if (modeloFiltro     && r.modelo       !== modeloFiltro)     return false;
-      if (estadoFiltro     && r.estado_stock !== estadoFiltro)     return false;
+      if (modelosFiltro.size > 0 && !modelosFiltro.has(r.modelo))  return false;
+      if (estadosFiltro.size > 0 && !estadosFiltro.has(r.estado_stock)) return false;
       if (tipoRetiroFiltro && r.tipo_retiro  !== tipoRetiroFiltro) return false;
       return true;
     });
     result.sort((a, b) => {
-      const diff = parseFechaAR(a.fecha_carga) - parseFechaAR(b.fecha_carga);
-      return sortDir === "asc" ? diff : -diff;
+      let diff = 0;
+      if (sort.col === "fecha_carga" || sort.col === "fecha_carga_recibo") {
+        diff = parseFechaAR(a[sort.col]) - parseFechaAR(b[sort.col]);
+      } else {
+        diff = (a[sort.col] ?? "").localeCompare(b[sort.col] ?? "");
+      }
+      return sort.dir === "asc" ? diff : -diff;
     });
     return result;
-  }, [rowsTipo, search, modeloFiltro, estadoFiltro, tipoRetiroFiltro, sortDir]);
+  }, [rowsTipo, search, modelosFiltro, estadosFiltro, tipoRetiroFiltro, sort]);
 
-  const hayFiltros = !!(search || modeloFiltro || estadoFiltro || tipoRetiroFiltro || tipoFiltro !== "all");
+  const hayFiltros = !!(search || modelosFiltro.size > 0 || estadosFiltro.size > 0 || tipoRetiroFiltro || tipoFiltro !== "all");
   const tipoLabel  = tipoFiltro === "ont" ? "ONTs" : tipoFiltro === "deco" ? "Decos / STB" : "Todos";
   const exportUrl  = (() => {
     const p = new URLSearchParams();
@@ -146,10 +181,37 @@ function StockDetalleModal({ onClose, sucursal, tipo }: {
     return `/api/export/dispositivos?${p}`;
   })();
 
-  const SortIcon = sortDir === "asc" ? ChevronUp : ChevronDown;
+  function toggleSort(col: SortCol) {
+    setSort((s) => ({ col, dir: s.col === col ? (s.dir === "asc" ? "desc" : "asc") : "asc" }));
+  }
+  function SortBtn({ col, label }: { col: SortCol; label: string }) {
+    const active = sort.col === col;
+    const Icon = active ? (sort.dir === "asc" ? ChevronUp : ChevronDown) : ChevronsUpDown;
+    return (
+      <button onClick={() => toggleSort(col)}
+        className={`flex items-center gap-1 transition-colors ${active ? "text-indigo-400 hover:text-indigo-300" : "text-slate-400 hover:text-slate-200"}`}>
+        {label} <Icon size={11} />
+      </button>
+    );
+  }
 
-  const staticCols = ["Sucursal", "Tipo", "Modelo", "MAC", "MTA MAC"];
-  const afterDateCols = ["Estado Stock", "Estado Dispositivo", "Última Conexión", "Último Estado", "Recibo CM", "Order Servicio", "Fecha Recibo", "Tipo Retiro", "Usuario"];
+  const cols: { label: string; sortCol?: SortCol }[] = [
+    { label: "Sucursal" },
+    { label: "Tipo",             sortCol: "tipo" },
+    { label: "Modelo",           sortCol: "modelo" },
+    { label: "MAC" },
+    { label: "MTA MAC" },
+    { label: "Fecha Carga Stock",sortCol: "fecha_carga" },
+    { label: "Estado Stock",     sortCol: "estado_stock" },
+    { label: "Estado Dispositivo", sortCol: "estado_dispositivo" },
+    { label: "Última Conexión" },
+    { label: "Último Estado" },
+    { label: "Recibo CM" },
+    { label: "Order Servicio" },
+    { label: "Fecha Recibo",     sortCol: "fecha_carga_recibo" },
+    { label: "Tipo Retiro" },
+    { label: "Usuario" },
+  ];
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-950 flex flex-col">
@@ -175,7 +237,7 @@ function StockDetalleModal({ onClose, sucursal, tipo }: {
       <div className="px-4 sm:px-6 py-3 border-b border-slate-700 flex flex-wrap gap-2 flex-shrink-0">
         <div className="flex gap-1 bg-slate-800 border border-slate-700 rounded-lg p-1">
           {([["all", "Todos"], ["ont", "ONTs"], ["deco", "Decos"]] as const).map(([val, label]) => (
-            <button key={val} onClick={() => { setTipoFiltro(val); setModeloFiltro(null); }}
+            <button key={val} onClick={() => { setTipoFiltro(val); setModelosFiltro(new Set()); }}
               className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${tipoFiltro === val ? "bg-slate-600 text-white" : "text-slate-400 hover:text-slate-200"}`}>
               {label}
             </button>
@@ -187,21 +249,75 @@ function StockDetalleModal({ onClose, sucursal, tipo }: {
           placeholder="Buscar MAC, modelo, usuario…"
           className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 w-56"
         />
-        <select value={modeloFiltro ?? ""} onChange={(e) => setModeloFiltro(e.target.value || null)}
-          className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500">
-          <option value="">Todos los modelos</option>
-          {modelos.map((m) => <option key={m} value={m}>{m}</option>)}
-        </select>
-        {(() => {
-          const estadosTipo = Array.from(new Set(rowsTipo.map((r) => r.estado_stock).filter(Boolean))).sort();
-          return estadosTipo.length > 0 ? (
-            <select value={estadoFiltro ?? ""} onChange={(e) => setEstadoFiltro(e.target.value || null)}
-              className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500">
-              <option value="">Todos los estados</option>
-              {estadosTipo.map((e) => <option key={e} value={e}>{e}</option>)}
-            </select>
-          ) : null;
-        })()}
+        <div className="relative" ref={modeloMenuRef}>
+          <button
+            onClick={() => setModeloMenuOpen((o) => !o)}
+            className={`flex items-center gap-2 bg-slate-800 border rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none transition-colors ${modelosFiltro.size > 0 ? "border-indigo-500" : "border-slate-700 hover:border-slate-500"}`}
+          >
+            {modelosFiltro.size === 0 ? "Todos los modelos" : `${modelosFiltro.size} modelo${modelosFiltro.size > 1 ? "s" : ""}`}
+            <ChevronDown size={11} className="text-slate-400" />
+          </button>
+          {modeloMenuOpen && (
+            <div className="absolute top-full mt-1 left-0 z-20 bg-slate-800 border border-slate-700 rounded-lg shadow-xl min-w-[220px] max-h-72 overflow-y-auto">
+              {(["onts", "decos"] as const).map((grupo) => {
+                const lista = modelosPorTipo[grupo];
+                if (lista.length === 0) return null;
+                return (
+                  <div key={grupo}>
+                    <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-900/60 border-b border-slate-700/60 sticky top-0">
+                      {grupo === "onts" ? "ONTs" : "Decos / STB"}
+                    </div>
+                    {lista.map((m) => (
+                      <label key={m} className="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-700/60 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={modelosFiltro.has(m)}
+                          onChange={() => setModelosFiltro((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(m)) next.delete(m); else next.add(m);
+                            return next;
+                          })}
+                          className="accent-indigo-500 w-3.5 h-3.5 flex-shrink-0"
+                        />
+                        <span className="text-xs text-slate-200 truncate">{m}</span>
+                      </label>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        {estadosTipo.length > 0 && (
+          <div className="relative" ref={estadoMenuRef}>
+            <button
+              onClick={() => setEstadoMenuOpen((o) => !o)}
+              className={`flex items-center gap-2 bg-slate-800 border rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none transition-colors ${estadosFiltro.size > 0 ? "border-indigo-500" : "border-slate-700 hover:border-slate-500"}`}
+            >
+              {estadosFiltro.size === 0 ? "Todos los estados" : `${estadosFiltro.size} estado${estadosFiltro.size > 1 ? "s" : ""}`}
+              <ChevronDown size={11} className="text-slate-400" />
+            </button>
+            {estadoMenuOpen && (
+              <div className="absolute top-full mt-1 left-0 z-20 bg-slate-800 border border-slate-700 rounded-lg shadow-xl min-w-[200px] max-h-64 overflow-y-auto">
+                {estadosTipo.map((e) => (
+                  <label key={e} className="flex items-center gap-2.5 px-3 py-2 hover:bg-slate-700/60 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={estadosFiltro.has(e)}
+                      onChange={() => setEstadosFiltro((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(e)) next.delete(e); else next.add(e);
+                        return next;
+                      })}
+                      className="accent-indigo-500 w-3.5 h-3.5 flex-shrink-0"
+                    />
+                    <span className="text-xs text-slate-200">{e}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
         {tiposRetiro.length > 0 && (
           <select value={tipoRetiroFiltro ?? ""} onChange={(e) => setTipoRetiroFiltro(e.target.value || null)}
             className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500">
@@ -210,7 +326,7 @@ function StockDetalleModal({ onClose, sucursal, tipo }: {
           </select>
         )}
         {hayFiltros && (
-          <button onClick={() => { setSearch(""); setTipoFiltro("all"); setModeloFiltro(null); setEstadoFiltro(null); setTipoRetiroFiltro(null); }}
+          <button onClick={() => { setSearch(""); setTipoFiltro("all"); setModelosFiltro(new Set()); setEstadosFiltro(new Set()); setTipoRetiroFiltro(null); }}
             className="px-3 py-1.5 rounded-lg text-xs text-slate-400 hover:text-white transition-colors border border-slate-700">
             Limpiar
           </button>
@@ -225,25 +341,18 @@ function StockDetalleModal({ onClose, sucursal, tipo }: {
           <table className="w-full text-xs text-slate-300 min-w-max">
             <thead className="sticky top-0 bg-slate-900 border-b border-slate-700">
               <tr>
-                {staticCols.map((h) => (
-                  <th key={h} className="text-left px-3 py-2.5 text-slate-400 font-medium whitespace-nowrap">{h}</th>
-                ))}
-                <th className="text-left px-3 py-2.5 font-medium whitespace-nowrap">
-                  <button
-                    onClick={() => setSortDir((d) => d === "asc" ? "desc" : "asc")}
-                    className="flex items-center gap-1 text-indigo-400 hover:text-indigo-300 transition-colors"
-                  >
-                    Fecha Carga Stock <SortIcon size={11} />
-                  </button>
-                </th>
-                {afterDateCols.map((h) => (
-                  <th key={h} className="text-left px-3 py-2.5 text-slate-400 font-medium whitespace-nowrap">{h}</th>
+                {cols.map((col) => (
+                  <th key={col.label} className="text-left px-3 py-2.5 font-medium whitespace-nowrap">
+                    {col.sortCol
+                      ? <SortBtn col={col.sortCol} label={col.label} />
+                      : <span className="text-slate-400">{col.label}</span>}
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/80">
               {filtradas.length === 0 && (
-                <tr><td colSpan={staticCols.length + 1 + afterDateCols.length} className="px-3 py-8 text-center text-slate-500">Sin resultados</td></tr>
+                <tr><td colSpan={cols.length} className="px-3 py-8 text-center text-slate-500">Sin resultados</td></tr>
               )}
               {filtradas.map((r, i) => {
                 const estadoColor = r.estado_stock ? getEstadoColor(r.estado_stock) : null;

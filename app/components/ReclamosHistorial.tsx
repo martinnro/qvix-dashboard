@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Loader2, AlertCircle, ChevronLeft, History, ChevronsUpDown, ChevronUp, ChevronDown } from "lucide-react";
+import { Loader2, AlertCircle, ChevronLeft, History, ChevronsUpDown, ChevronUp, ChevronDown, Package } from "lucide-react";
 
 type SortCol = "conexion" | "dias" | "fecha_carga" | "estado_incidencia";
 type SortDir = "asc" | "desc";
@@ -101,12 +101,20 @@ export default function ReclamosHistorial({
   onBack: () => void;
   onClose: () => void;
 }) {
+  const [vista, setVista] = useState<"historial" | "materiales">("historial");
+
   const [rows, setRows] = useState<RowData[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(false);
   const [loadingAll, setLoadingAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Materiales
+  interface MaterialRow { material: string; total_unidades: number; cantidad_ordenes: number; }
+  const [materiales, setMateriales] = useState<MaterialRow[]>([]);
+  const [loadingMat, setLoadingMat] = useState(false);
+  const [errorMat, setErrorMat] = useState<string | null>(null);
 
   const [filters, setFilters] = useState<Filters>({ sucursal: "", anio: "", mesAnio: "", estado: "", durMin: "", durMax: "" });
   const [durInput, setDurInput] = useState({ min: "", max: "" });
@@ -131,8 +139,31 @@ export default function ReclamosHistorial({
   }, []);
 
   useEffect(() => {
-    fetchPage(filters, 0, true);
-  }, [filters, fetchPage]);
+    if (vista === "historial") fetchPage(filters, 0, true);
+  }, [filters, fetchPage, vista]);
+
+  const fetchMateriales = useCallback(async (f: Filters) => {
+    setLoadingMat(true);
+    setErrorMat(null);
+    try {
+      const p = new URLSearchParams();
+      if (f.sucursal) p.set("sucursal", f.sucursal);
+      if (f.mesAnio) p.set("mes_anio", f.mesAnio);
+      else if (f.anio) p.set("anio", f.anio);
+      const res = await fetch(`/api/materiales-historial?${p.toString()}`);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setMateriales(data.rows ?? []);
+    } catch (e: unknown) {
+      setErrorMat(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoadingMat(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (vista === "materiales") fetchMateriales(filters);
+  }, [filters, fetchMateriales, vista]);
 
   const setFilter = (key: keyof Filters, value: string) => {
     setFilters((prev) => ({ ...prev, [key]: value }));
@@ -215,10 +246,29 @@ export default function ReclamosHistorial({
           >
             <ChevronLeft size={15} /> Volver al resumen
           </button>
-          <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-            <History size={20} className="text-indigo-400" /> Historial de Reclamos
-          </h2>
-          <p className="text-sm text-slate-400 mt-0.5">Todos los reclamos desde 2025 — duración desde asignación hasta cierre</p>
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+                <History size={20} className="text-indigo-400" /> Historial de Reclamos
+              </h2>
+              <p className="text-sm text-slate-400 mt-0.5">Todos los reclamos desde 2025 — duración desde asignación hasta cierre</p>
+            </div>
+            {/* Tab selector */}
+            <div className="flex bg-slate-800 border border-slate-700 rounded-xl p-1 gap-1">
+              <button
+                onClick={() => setVista("historial")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${vista === "historial" ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-slate-200"}`}
+              >
+                <History size={14} /> Reclamos
+              </button>
+              <button
+                onClick={() => setVista("materiales")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${vista === "materiales" ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-slate-200"}`}
+              >
+                <Package size={14} /> Materiales
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Filtros */}
@@ -333,6 +383,79 @@ export default function ReclamosHistorial({
           )}
         </div>
 
+        {/* ── VISTA MATERIALES ── */}
+        {vista === "materiales" && (
+          <>
+            {errorMat && (
+              <div className="flex items-center gap-2 text-red-400 text-sm bg-red-950/30 border border-red-800 rounded-lg px-4 py-3">
+                <AlertCircle size={16} /> {errorMat}
+              </div>
+            )}
+            {loadingMat && (
+              <div className="flex items-center gap-2 text-slate-400 text-sm py-4">
+                <Loader2 size={16} className="animate-spin" /> Cargando materiales...
+              </div>
+            )}
+            {!loadingMat && !errorMat && materiales.length === 0 && (
+              <div className="text-center py-16 text-slate-500 text-sm">Sin materiales para los filtros seleccionados</div>
+            )}
+            {!loadingMat && materiales.length > 0 && (() => {
+              const maxUnidades = materiales[0].total_unidades;
+              const totalUnidades = materiales.reduce((s, r) => s + r.total_unidades, 0);
+              return (
+                <div className="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden">
+                  <div className="flex items-center justify-between px-5 py-3 border-b border-slate-700 bg-slate-900/40">
+                    <p className="text-xs text-slate-400">
+                      <span className="text-slate-200 font-semibold">{materiales.length}</span> materiales ·{" "}
+                      <span className="text-slate-200 font-semibold">{totalUnidades.toLocaleString()}</span> unidades totales
+                    </p>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-slate-400 uppercase tracking-wider border-b border-slate-700">
+                          <th className="text-left py-3 px-4 w-8">#</th>
+                          <th className="text-left py-3 px-4">Material</th>
+                          <th className="text-right py-3 px-4">Unidades</th>
+                          <th className="text-right py-3 px-4">Órdenes</th>
+                          <th className="py-3 px-4 w-48">Proporción</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {materiales.map((r, i) => {
+                          const pct = Math.round((r.total_unidades / maxUnidades) * 100);
+                          return (
+                            <tr key={i} className="border-b border-slate-800 last:border-0 hover:bg-slate-700/30 transition-colors">
+                              <td className="py-2.5 px-4 text-slate-600 font-mono">{i + 1}</td>
+                              <td className="py-2.5 px-4 text-slate-200 font-medium">{r.material}</td>
+                              <td className="py-2.5 px-4 text-right text-white font-semibold tabular-nums">{r.total_unidades.toLocaleString()}</td>
+                              <td className="py-2.5 px-4 text-right text-slate-400 tabular-nums">{r.cantidad_ordenes}</td>
+                              <td className="py-2.5 px-4">
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-1 bg-slate-700 rounded-full h-2">
+                                    <div
+                                      className="bg-indigo-500 h-2 rounded-full transition-all"
+                                      style={{ width: `${pct}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-slate-500 w-8 text-right tabular-nums">{Math.round((r.total_unidades / totalUnidades) * 100)}%</span>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })()}
+          </>
+        )}
+
+        {/* ── VISTA HISTORIAL ── */}
+        {vista === "historial" && <>
+
         {/* Error */}
         {error && (
           <div className="flex items-center gap-2 text-red-400 text-sm bg-red-950/30 border border-red-800 rounded-lg px-4 py-3">
@@ -445,6 +568,8 @@ export default function ReclamosHistorial({
         {!loading && !error && rows.length === 0 && (
           <div className="text-center py-16 text-slate-500 text-sm">Sin reclamos para los filtros seleccionados</div>
         )}
+
+        </>}
 
       </div>
     </div>

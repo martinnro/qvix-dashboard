@@ -8,7 +8,7 @@ const config: sql.config = {
   database: process.env.DB_DATABASE!,
   options: { encrypt: false, trustServerCertificate: true },
   pool: { max: 10, min: 0, idleTimeoutMillis: 30000 },
-  requestTimeout: 60000, // 60 s — queries pesados como fuentes-control necesitan más tiempo
+  requestTimeout: 60000,
 };
 
 let pool: sql.ConnectionPool | null = null;
@@ -18,4 +18,11 @@ export async function getPool(): Promise<sql.ConnectionPool> {
     pool = await new sql.ConnectionPool(config).connect();
   }
   return pool;
+}
+
+export async function resetPool(): Promise<void> {
+  if (pool) {
+    try { await pool.close(); } catch {}
+    pool = null;
+  }
 }

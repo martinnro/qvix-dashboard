@@ -2,8 +2,6 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { RefreshCw, Monitor, Wifi, Download, PackageOpen, ChevronDown, ChevronUp, ArrowLeft, ChevronsUpDown } from "lucide-react";
 import { getColorById } from "./MapaUtils";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList } from "recharts";
-import { useTheme } from "../lib/useTheme";
 
 const SUCURSALES: Record<number, string> = {
   0: "Central",
@@ -394,6 +392,62 @@ function fmt(n: number) {
   return n.toLocaleString("es-AR");
 }
 
+type StackedBarItem = { label: string; total: number; segments: { name: string; value: number; color: string }[] };
+
+function StackedHBarList({ items }: { items: StackedBarItem[] }) {
+  const [tooltip, setTooltip] = useState<{ item: StackedBarItem; x: number; y: number } | null>(null);
+  const max = Math.max(...items.map((d) => d.total), 1);
+  return (
+    <>
+      <div className="space-y-3">
+        {items.map((item, i) => (
+          <div key={i}
+            onMouseEnter={(e) => setTooltip({ item, x: e.clientX, y: e.clientY })}
+            onMouseMove={(e)  => setTooltip((t) => t ? { ...t, x: e.clientX, y: e.clientY } : null)}
+            onMouseLeave={()  => setTooltip(null)}
+          >
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs text-slate-300 font-medium leading-tight">{item.label}</span>
+              <span className="text-xs font-bold text-slate-300 ml-3 flex-shrink-0">{fmt(item.total)}</span>
+            </div>
+            <div className="h-2 rounded-full bg-slate-700/50 overflow-hidden flex cursor-default">
+              <div className="h-full flex rounded-full overflow-hidden" style={{ width: `${(item.total / max) * 100}%` }}>
+                {item.segments.map((seg, j) => (
+                  <div key={j} style={{ flex: seg.value, backgroundColor: seg.color }} />
+                ))}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {tooltip && (
+        <div
+          className="fixed z-50 pointer-events-none"
+          style={{ left: tooltip.x + 14, top: tooltip.y - 10 }}
+        >
+          <div className="bg-slate-800 border border-slate-600 rounded-xl px-4 py-3 shadow-2xl min-w-[200px]">
+            <p className="text-xs font-semibold text-white mb-2 leading-tight">{tooltip.item.label}</p>
+            {tooltip.item.segments.map((seg, i) => (
+              <div key={i} className="flex items-center justify-between gap-4 mb-1">
+                <div className="flex items-center gap-1.5">
+                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: seg.color }} />
+                  <span className="text-xs text-slate-300">{seg.name}</span>
+                </div>
+                <span className="text-xs font-medium text-white">{fmt(seg.value)}</span>
+              </div>
+            ))}
+            <div className="border-t border-slate-700 mt-2 pt-2 flex justify-between">
+              <span className="text-xs text-slate-400">Total</span>
+              <span className="text-xs font-bold text-white">{fmt(tooltip.item.total)}</span>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 function esOnt(tipo: string) {
   return tipo === "B";
 }
@@ -437,39 +491,16 @@ function TablaActivos({ rows, sucursalSel, colTitulo, colSubtitulo, excelHref }:
   const onts  = filtrados.filter((r) =>  esOnt(r.tipo_dispositivo));
 
   const Seccion = ({ titulo, data, color }: { titulo: string; data: DispositivoRow[]; color: string }) => {
-    const { chart } = useTheme();
     if (data.length === 0) return null;
     const total = data.reduce((s, r) => s + r.cantidad, 0);
-    const { chartData, allStates, states } = buildChartData(data);
-    const chartH = chartData.length * 42 + 10;
-
-    type TEntry = { name: string; value: number; fill: string };
-    const EstadoTooltip = ({ active, payload, label }: { active?: boolean; payload?: TEntry[]; label?: string }) => {
-      if (!active || !payload?.length) return null;
-      const entries = payload
-        .filter((p) => p.name !== "__label" && p.value > 0)
-        .map((p) => ({ nombre: allStates.get(Number(p.name.replace("s_", ""))) ?? p.name, value: p.value, fill: p.fill }))
-        .sort((a, b) => b.value - a.value);
-      const tot = entries.reduce((s, e) => s + e.value, 0);
-      return (
-        <div style={{ background: chart.tooltipBg, border: `1px solid ${chart.tooltipBorder}`, borderRadius: 10, padding: "10px 14px", minWidth: 200 }}>
-          <div style={{ color: chart.tooltipLabel, fontWeight: 600, fontSize: 12, marginBottom: 8 }}>{label}</div>
-          {entries.map((e) => (
-            <div key={e.nombre} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 4, fontSize: 12 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: e.fill, flexShrink: 0 }} />
-                <span style={{ color: chart.tooltipItem }}>{e.nombre}</span>
-              </div>
-              <span style={{ color: chart.tooltipLabel, fontWeight: 500 }}>{fmt(e.value)}</span>
-            </div>
-          ))}
-          <div style={{ borderTop: `1px solid ${chart.tooltipBorder}`, marginTop: 8, paddingTop: 8, display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-            <span style={{ color: chart.axis }}>Total</span>
-            <span style={{ color: chart.tooltipLabel, fontWeight: 700 }}>{fmt(tot)}</span>
-          </div>
-        </div>
-      );
-    };
+    const { chartData, states } = buildChartData(data);
+    const items: StackedBarItem[] = chartData.map((row) => ({
+      label: String(row.modelo),
+      total: row.__total as number,
+      segments: states
+        .map(([id, nombre]) => ({ name: nombre, value: (row[`s_${id}`] as number) || 0, color: getColorById(id) }))
+        .filter((s) => s.value > 0),
+    }));
 
     return (
       <div>
@@ -494,39 +525,7 @@ function TablaActivos({ rows, sucursalSel, colTitulo, colSubtitulo, excelHref }:
           </div>
         </div>
         <div className="bg-slate-800 border border-slate-700 rounded-2xl p-3 sm:p-5">
-          <ResponsiveContainer width="100%" height={chartH}>
-            <BarChart
-              layout="vertical"
-              data={chartData}
-              margin={{ top: 0, right: 40, left: 0, bottom: 0 }}
-              barSize={20}
-            >
-              <XAxis type="number" hide />
-              <YAxis
-                type="category"
-                dataKey="modelo"
-                width={160}
-                tickLine={false}
-                axisLine={false}
-                tick={(props: { x: string | number; y: string | number; payload: { value: string } }) => {
-                  const { x, y, payload } = props;
-                  const text = payload.value.length > 22 ? payload.value.slice(0, 20) + "…" : payload.value;
-                  return (
-                    <text x={x} y={y} dy={5} textAnchor="end" fill="#94a3b8" fontSize={11}>
-                      {text}
-                    </text>
-                  );
-                }}
-              />
-              <Tooltip cursor={{ fill: "rgba(255,255,255,0.04)" }} content={<EstadoTooltip />} />
-              {states.map(([id]) => (
-                <Bar key={id} dataKey={`s_${id}`} stackId="a" fill={getColorById(id)} />
-              ))}
-              <Bar dataKey="__label" stackId="a" fill="transparent" minPointSize={1} isAnimationActive={false}>
-                <LabelList dataKey="__total" position="right" style={{ fill: "#94a3b8", fontSize: 11 }} formatter={(v: unknown) => fmt(Number(v))} />
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          <StackedHBarList items={items} />
         </div>
         <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-3">
           {states.map(([id, nombre]) => (
@@ -577,39 +576,20 @@ function TablaStock({ rows, sucursalSel, colTitulo, colSubtitulo, excelHref, onV
   };
 
   const Seccion = ({ titulo, data, color }: { titulo: string; data: DispositivoRow[]; color: string }) => {
-    const { chart } = useTheme();
     if (data.length === 0) return null;
     const total = data.reduce((s, r) => s + r.cantidad, 0);
     const { chartData, sucursales } = buildStockChart(data);
-    const chartH = chartData.length * 42 + 10;
-
-    type TEntry = { name: string; value: number; fill: string };
-    const SucursalTooltip = ({ active, payload, label }: { active?: boolean; payload?: TEntry[]; label?: string }) => {
-      if (!active || !payload?.length) return null;
-      const entries = payload
-        .filter((p) => p.name !== "__label" && p.value > 0)
-        .map((p) => ({ nombre: SUCURSALES[Number(p.name.replace("suc_", ""))] ?? p.name, value: p.value, fill: p.fill }))
-        .sort((a, b) => b.value - a.value);
-      const tot = entries.reduce((s, e) => s + e.value, 0);
-      return (
-        <div style={{ background: chart.tooltipBg, border: `1px solid ${chart.tooltipBorder}`, borderRadius: 10, padding: "10px 14px", minWidth: 200 }}>
-          <div style={{ color: chart.tooltipLabel, fontWeight: 600, fontSize: 12, marginBottom: 8 }}>{label}</div>
-          {entries.map((e) => (
-            <div key={e.nombre} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 4, fontSize: 12 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: e.fill, flexShrink: 0 }} />
-                <span style={{ color: chart.tooltipItem }}>{e.nombre}</span>
-              </div>
-              <span style={{ color: chart.tooltipLabel, fontWeight: 500 }}>{fmt(e.value)}</span>
-            </div>
-          ))}
-          <div style={{ borderTop: `1px solid ${chart.tooltipBorder}`, marginTop: 8, paddingTop: 8, display: "flex", justifyContent: "space-between", fontSize: 12 }}>
-            <span style={{ color: chart.axis }}>Total</span>
-            <span style={{ color: chart.tooltipLabel, fontWeight: 700 }}>{fmt(tot)}</span>
-          </div>
-        </div>
-      );
-    };
+    const items: StackedBarItem[] = chartData.map((row) => ({
+      label: String(row.modelo),
+      total: row.__total as number,
+      segments: sucursales
+        .map((id) => ({
+          name: SUCURSALES[id] ?? String(id),
+          value: (row[`suc_${id}`] as number) || 0,
+          color: sucursales.length === 1 ? color : (SUCURSAL_COLORS[id] ?? "#94a3b8"),
+        }))
+        .filter((s) => s.value > 0),
+    }));
 
     return (
       <div>
@@ -639,39 +619,7 @@ function TablaStock({ rows, sucursalSel, colTitulo, colSubtitulo, excelHref, onV
           </div>
         </div>
         <div className="bg-slate-800 border border-slate-700 rounded-2xl p-3 sm:p-5">
-          <ResponsiveContainer width="100%" height={chartH}>
-            <BarChart
-              layout="vertical"
-              data={chartData}
-              margin={{ top: 0, right: 40, left: 0, bottom: 0 }}
-              barSize={20}
-            >
-              <XAxis type="number" hide />
-              <YAxis
-                type="category"
-                dataKey="modelo"
-                width={160}
-                tickLine={false}
-                axisLine={false}
-                tick={(props: { x: string | number; y: string | number; payload: { value: string } }) => {
-                  const { x, y, payload } = props;
-                  const text = payload.value.length > 22 ? payload.value.slice(0, 20) + "…" : payload.value;
-                  return (
-                    <text x={x} y={y} dy={5} textAnchor="end" fill="#94a3b8" fontSize={11}>
-                      {text}
-                    </text>
-                  );
-                }}
-              />
-              <Tooltip cursor={{ fill: "rgba(255,255,255,0.04)" }} content={<SucursalTooltip />} />
-              {sucursales.map((id) => (
-                <Bar key={id} dataKey={`suc_${id}`} stackId="a" fill={sucursales.length === 1 ? color : (SUCURSAL_COLORS[id] ?? "#94a3b8")} />
-              ))}
-              <Bar dataKey="__label" stackId="a" fill="transparent" minPointSize={1} isAnimationActive={false}>
-                <LabelList dataKey="__total" position="right" style={{ fill: "#94a3b8", fontSize: 11 }} formatter={(v: unknown) => fmt(Number(v))} />
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          <StackedHBarList items={items} />
         </div>
         {sucursales.length > 1 && (
           <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-3">

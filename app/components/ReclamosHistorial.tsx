@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Loader2, AlertCircle, ChevronLeft, History, ChevronsUpDown, ChevronUp, ChevronDown, Package, BarChart2, ChevronRight } from "lucide-react";
+import { Loader2, AlertCircle, ChevronLeft, History, ChevronsUpDown, ChevronUp, ChevronDown, Package, BarChart2, ChevronRight, TrendingUp, TrendingDown } from "lucide-react";
 
 type SortCol = "conexion" | "dias" | "fecha_carga" | "estado_incidencia";
 type SortDir = "asc" | "desc";
@@ -59,6 +59,35 @@ const MESES = [
   { value: "10", label: "Oct" }, { value: "11", label: "Nov" }, { value: "12", label: "Dic" },
 ];
 
+function prevMesAnioStr(f: Filters): string {
+  let base: string;
+  if (f.mesAnio) {
+    base = f.mesAnio;
+  } else {
+    const now = new Date();
+    base = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  }
+  const [y, m] = base.split("-").map(Number);
+  const pm = m === 1 ? 12 : m - 1;
+  const py = m === 1 ? y - 1 : y;
+  return `${py}-${String(pm).padStart(2, "0")}`;
+}
+
+function buildPrevMatParams(f: Filters): URLSearchParams {
+  const p = new URLSearchParams();
+  if (f.sucursal) p.set("sucursal", f.sucursal);
+  if (f.anio && !f.mesAnio) p.set("anio", String(parseInt(f.anio) - 1));
+  else p.set("mes_anio", prevMesAnioStr(f));
+  return p;
+}
+
+function prevLabel(f: Filters): string {
+  if (f.anio && !f.mesAnio) return String(parseInt(f.anio) - 1);
+  const pm = prevMesAnioStr(f);
+  const m = MESES.find(x => pm.endsWith(`-${x.value}`));
+  return `${m?.label ?? pm.slice(5)} '${pm.slice(2, 4)}`;
+}
+
 const YEARS = (() => {
   const years: string[] = [];
   for (let y = 2025; y <= new Date().getFullYear(); y++) years.push(String(y));
@@ -113,6 +142,7 @@ export default function ReclamosHistorial({
   // Materiales — resumen
   interface MaterialRow { material: string; total_unidades: number; cantidad_ordenes: number; }
   const [materiales, setMateriales] = useState<MaterialRow[]>([]);
+  const [materialesPrev, setMaterialesPrev] = useState<MaterialRow[]>([]);
   const [loadingMat, setLoadingMat] = useState(false);
   const [errorMat, setErrorMat] = useState<string | null>(null);
 
@@ -162,9 +192,13 @@ export default function ReclamosHistorial({
       if (f.sucursal) p.set("sucursal", f.sucursal);
       if (f.mesAnio) p.set("mes_anio", f.mesAnio);
       else if (f.anio) p.set("anio", f.anio);
-      const res = await fetch(`/api/materiales-historial?${p.toString()}`);
-      const data = await res.json();
+      const [res, resPrev] = await Promise.all([
+        fetch(`/api/materiales-historial?${p.toString()}`),
+        fetch(`/api/materiales-historial?${buildPrevMatParams(f).toString()}`),
+      ]);
+      const [data, dataPrev] = await Promise.all([res.json(), resPrev.json()]);
       if (data.error) throw new Error(data.error);
+      setMaterialesPrev(dataPrev.rows ?? []);
       setMateriales(data.rows ?? []);
     } catch (e: unknown) {
       setErrorMat(e instanceof Error ? e.message : String(e));
@@ -333,68 +367,21 @@ export default function ReclamosHistorial({
         </div>
 
         {/* Filtros */}
-        <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5 space-y-4">
+        <div className="bg-slate-800 border border-slate-700 rounded-2xl px-4 py-3 flex flex-col gap-2">
 
-          {/* Estado */}
-          <div>
-            <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Estado</p>
-            <div className="flex flex-wrap gap-2">
+          {/* Fila 1: Estado + Sucursal */}
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] text-slate-500 uppercase tracking-wider mr-1">Estado</span>
               {ESTADOS.map((e) => (
                 <PillButton key={e.value} active={filters.estado === e.value} onClick={() => setFilter("estado", e.value)}>
                   {e.label}
                 </PillButton>
               ))}
             </div>
-          </div>
-
-          {/* Año / Mes */}
-          <div>
-            <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Año / Mes</p>
-            <div className="flex flex-wrap gap-2">
-              <PillButton
-                active={!filters.anio && !filters.mesAnio}
-                onClick={() => setFilters((p) => ({ ...p, anio: "", mesAnio: "" }))}
-              >
-                Todos
-              </PillButton>
-              {YEARS.map((y) => (
-                <PillButton
-                  key={y}
-                  active={filters.anio === y || filters.mesAnio.startsWith(y)}
-                  onClick={() => setFilters((p) => ({ ...p, anio: y, mesAnio: "" }))}
-                >
-                  {y}
-                </PillButton>
-              ))}
-            </div>
-            {(filters.anio || filters.mesAnio) && (() => {
-              const activeYear = filters.mesAnio ? filters.mesAnio.slice(0, 4) : filters.anio;
-              return (
-                <div className="flex flex-wrap gap-2 mt-2 pl-3 border-l-2 border-indigo-800">
-                  <PillButton
-                    active={!!filters.anio && !filters.mesAnio}
-                    onClick={() => setFilters((p) => ({ ...p, anio: activeYear, mesAnio: "" }))}
-                  >
-                    Todo {activeYear}
-                  </PillButton>
-                  {getMonthsForYear(activeYear).map((m) => (
-                    <PillButton
-                      key={m.value}
-                      active={filters.mesAnio === `${activeYear}-${m.value}`}
-                      onClick={() => setFilters((p) => ({ ...p, anio: "", mesAnio: `${activeYear}-${m.value}` }))}
-                    >
-                      {m.label}
-                    </PillButton>
-                  ))}
-                </div>
-              );
-            })()}
-          </div>
-
-          {/* Sucursal */}
-          <div>
-            <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Sucursal</p>
-            <div className="flex flex-wrap gap-2">
+            <div className="w-px h-4 bg-slate-700 hidden sm:block" />
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] text-slate-500 uppercase tracking-wider mr-1">Sucursal</span>
               <PillButton active={filters.sucursal === ""} onClick={() => setFilter("sucursal", "")}>Todas</PillButton>
               {Object.entries(SUCURSALES).map(([cod, nombre]) => (
                 <PillButton key={cod} active={filters.sucursal === cod} onClick={() => setFilter("sucursal", cod)}>
@@ -404,41 +391,60 @@ export default function ReclamosHistorial({
             </div>
           </div>
 
-          {/* Duración */}
-          <div>
-            <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Duración (días)</p>
-            <div className="flex items-center gap-2">
-              <input
-                type="number" min={0} placeholder="Mín"
-                value={durInput.min}
+          {/* Fila 2: Período + Duración */}
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] text-slate-500 uppercase tracking-wider mr-1">Período</span>
+              <PillButton active={!filters.anio && !filters.mesAnio} onClick={() => setFilters((p) => ({ ...p, anio: "", mesAnio: "" }))}>
+                Todos
+              </PillButton>
+              {YEARS.map((y) => (
+                <PillButton key={y} active={filters.anio === y || filters.mesAnio.startsWith(y)} onClick={() => setFilters((p) => ({ ...p, anio: y, mesAnio: "" }))}>
+                  {y}
+                </PillButton>
+              ))}
+            </div>
+            <div className="w-px h-4 bg-slate-700 hidden sm:block" />
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] text-slate-500 uppercase tracking-wider mr-1">Días</span>
+              <input type="number" min={0} placeholder="Mín" value={durInput.min}
                 onChange={(e) => setDurInput((d) => ({ ...d, min: e.target.value }))}
-                className="w-20 bg-slate-700 border border-slate-600 text-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-slate-400"
-              />
+                className="w-16 bg-slate-700 border border-slate-600 text-slate-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-slate-400" />
               <span className="text-slate-600 text-xs">—</span>
-              <input
-                type="number" min={0} placeholder="Máx"
-                value={durInput.max}
+              <input type="number" min={0} placeholder="Máx" value={durInput.max}
                 onChange={(e) => setDurInput((d) => ({ ...d, max: e.target.value }))}
-                className="w-20 bg-slate-700 border border-slate-600 text-slate-200 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-slate-400"
-              />
-              <button
-                onClick={applyDuracion}
-                className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 border border-slate-600 text-slate-200 text-xs rounded-lg transition-colors"
-              >
+                className="w-16 bg-slate-700 border border-slate-600 text-slate-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-slate-400" />
+              <button onClick={applyDuracion} className="px-2.5 py-1 bg-slate-700 hover:bg-slate-600 border border-slate-600 text-slate-200 text-xs rounded-lg transition-colors">
                 Aplicar
               </button>
               {(filters.durMin || filters.durMax) && (
                 <button onClick={() => { setFilters((f) => ({ ...f, durMin: "", durMax: "" })); setDurInput({ min: "", max: "" }); }}
-                  className="text-xs text-slate-500 hover:text-slate-300 transition-colors">
-                  Quitar
-                </button>
+                  className="text-xs text-slate-500 hover:text-slate-300 transition-colors">✕</button>
               )}
             </div>
           </div>
 
-          {/* Limpiar todo */}
+          {/* Fila 3: Meses (solo cuando hay año seleccionado) */}
+          {(filters.anio || filters.mesAnio) && (() => {
+            const activeYear = filters.mesAnio ? filters.mesAnio.slice(0, 4) : filters.anio;
+            return (
+              <div className="flex items-center gap-1.5 flex-wrap pl-3 border-l-2 border-indigo-800">
+                <PillButton active={!!filters.anio && !filters.mesAnio} onClick={() => setFilters((p) => ({ ...p, anio: activeYear, mesAnio: "" }))}>
+                  Todo {activeYear}
+                </PillButton>
+                {getMonthsForYear(activeYear).map((m) => (
+                  <PillButton key={m.value} active={filters.mesAnio === `${activeYear}-${m.value}`}
+                    onClick={() => setFilters((p) => ({ ...p, anio: "", mesAnio: `${activeYear}-${m.value}` }))}>
+                    {m.label}
+                  </PillButton>
+                ))}
+              </div>
+            );
+          })()}
+
+          {/* Limpiar */}
           {hayFiltros && (
-            <button onClick={resetAll} className="text-xs text-slate-500 hover:text-slate-300 transition-colors">
+            <button onClick={resetAll} className="self-start text-xs text-slate-500 hover:text-slate-300 transition-colors">
               Limpiar todos los filtros
             </button>
           )}
@@ -461,7 +467,6 @@ export default function ReclamosHistorial({
               <div className="text-center py-16 text-slate-500 text-sm">Sin materiales para los filtros seleccionados</div>
             )}
             {!loadingMat && materiales.length > 0 && (() => {
-              const maxUnidades = materiales[0].total_unidades;
               const totalUnidades = materiales.reduce((s, r) => s + r.total_unidades, 0);
               return (
                 <div className="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden">
@@ -479,15 +484,25 @@ export default function ReclamosHistorial({
                           <th className="text-left py-3 px-4">Material</th>
                           <th className="text-right py-3 px-4">Unidades</th>
                           <th className="text-right py-3 px-4">Órdenes</th>
-                          <th className="py-3 px-4 w-48">Proporción</th>
+                          <th className="text-right py-3 px-4 whitespace-nowrap">VS {prevLabel(filters)}</th>
                         </tr>
                       </thead>
                       <tbody>
                         {materiales.map((r, i) => {
-                          const pct = Math.round((r.total_unidades / maxUnidades) * 100);
                           const isExpanded = expandedMaterial === r.material;
                           const details = materialDetails[r.material];
                           const isLoadingThis = loadingDetail === r.material;
+                          const prevRow = materialesPrev.find(p => p.material === r.material);
+                          const prevUnidades = prevRow?.total_unidades ?? null;
+                          let deltaCell = <span className="text-slate-600 text-xs">—</span>;
+                          if (prevUnidades === null || prevUnidades === 0) {
+                            deltaCell = <span className="text-indigo-400 text-xs font-medium">nuevo</span>;
+                          } else {
+                            const dpct = Math.round(((r.total_unidades - prevUnidades) / prevUnidades) * 100);
+                            if (dpct > 0) deltaCell = <span className="flex items-center justify-end gap-1 text-rose-400 font-semibold"><TrendingUp size={12}/>+{dpct}%</span>;
+                            else if (dpct < 0) deltaCell = <span className="flex items-center justify-end gap-1 text-emerald-400 font-semibold"><TrendingDown size={12}/>{dpct}%</span>;
+                            else deltaCell = <span className="text-slate-500 text-xs">=</span>;
+                          }
                           return (
                             <>
                               <tr
@@ -504,14 +519,7 @@ export default function ReclamosHistorial({
                                 </td>
                                 <td className="py-2.5 px-4 text-right text-white font-semibold tabular-nums">{r.total_unidades.toLocaleString()}</td>
                                 <td className="py-2.5 px-4 text-right text-slate-400 tabular-nums">{r.cantidad_ordenes}</td>
-                                <td className="py-2.5 px-4">
-                                  <div className="flex items-center gap-2">
-                                    <div className="flex-1 bg-slate-700 rounded-full h-2">
-                                      <div className="bg-indigo-500 h-2 rounded-full transition-all" style={{ width: `${pct}%` }} />
-                                    </div>
-                                    <span className="text-slate-500 w-8 text-right tabular-nums">{Math.round((r.total_unidades / totalUnidades) * 100)}%</span>
-                                  </div>
-                                </td>
+                                <td className="py-2.5 px-4 text-right tabular-nums">{deltaCell}</td>
                               </tr>
                               {isExpanded && (
                                 <tr key={`${i}-detail`} className="border-b border-slate-800 bg-slate-900/50">

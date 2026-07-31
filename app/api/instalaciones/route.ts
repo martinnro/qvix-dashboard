@@ -14,6 +14,12 @@ const SUCURSALES: Record<number, string> = {
 };
 const SUCURSALES_VALIDAS = Object.keys(SUCURSALES).map(Number);
 
+const DIMENSIONES_FILTRO: Record<string, string> = {
+  subtipo:   "tsi.descripcion",
+  cuadrilla: "vods.cuadrilla",
+  modelo:    "d.nombre_dispositivo",
+};
+
 function validDate(s: string | null, fallback: string): string {
   return s && /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : fallback;
 }
@@ -40,6 +46,26 @@ export async function GET(req: NextRequest) {
   const desde = validDate(req.nextUrl.searchParams.get("desde"), inicioAnio);
   const hasta = validDate(req.nextUrl.searchParams.get("hasta"), hoy);
 
+  const filtrosActivos = Object.entries(DIMENSIONES_FILTRO)
+    .map(([dim, columna]) => ({
+      dim,
+      columna,
+      vals: req.nextUrl.searchParams.getAll(`filtro_${dim}`).filter((v) => v.trim() !== ""),
+    }))
+    .filter((f) => f.vals.length > 0);
+
+  const filtroParams: { nombre: string; valor: string }[] = [];
+  const filtroWhere = filtrosActivos
+    .map((f, fi) => {
+      const placeholders = f.vals.map((v, vi) => {
+        const nombre = `f${fi}_${vi}`;
+        filtroParams.push({ nombre, valor: v });
+        return `@${nombre}`;
+      });
+      return `AND ${f.columna} IN (${placeholders.join(",")})`;
+    })
+    .join("\n      ");
+
   const baseFrom = `
     FROM v_con_dom v
     INNER JOIN conexion_dispostivos cd ON cd.id_conexion = v.id_conexion
@@ -58,12 +84,18 @@ export async function GET(req: NextRequest) {
       AND CONVERT(date, vods.fecha_solucion) >= '${desde}'
       AND CONVERT(date, vods.fecha_solucion) <= '${hasta}'
       AND v.cod_sucursal ${sucursalClause}
+      ${filtroWhere}
   `;
 
   try {
     const pool = await getPool();
+    const mkReq = () => {
+      const r = pool.request();
+      filtroParams.forEach(({ nombre, valor }) => r.input(nombre, valor));
+      return r;
+    };
 
-    const modeloRes = await pool.request().query(`
+    const modeloRes = await mkReq().query(`
       SET ARITHABORT ON;
       SELECT d.nombre_dispositivo AS modelo, d.tipo_dispositivo AS tipo, COUNT(*) AS cantidad
       ${baseFrom}
@@ -71,7 +103,7 @@ export async function GET(req: NextRequest) {
       GROUP BY d.nombre_dispositivo, d.tipo_dispositivo
       ORDER BY cantidad DESC
     `);
-    const mesRes = await pool.request().query(`
+    const mesRes = await mkReq().query(`
       SET ARITHABORT ON;
       SELECT FORMAT(vods.fecha_solucion, 'yyyy-MM') AS mes, COUNT(*) AS cantidad
       ${baseFrom}
@@ -79,7 +111,7 @@ export async function GET(req: NextRequest) {
       GROUP BY FORMAT(vods.fecha_solucion, 'yyyy-MM')
       ORDER BY mes
     `);
-    const subtipoRes = await pool.request().query(`
+    const subtipoRes = await mkReq().query(`
       SET ARITHABORT ON;
       SELECT tsi.descripcion AS subtipo, COUNT(*) AS cantidad
       ${baseFrom}
@@ -87,7 +119,7 @@ export async function GET(req: NextRequest) {
       GROUP BY tsi.descripcion
       ORDER BY cantidad DESC
     `);
-    const detalleRes = await pool.request().query(`
+    const detalleRes = await mkReq().query(`
       SET ARITHABORT ON;
       SELECT TOP 500
         v.cod_sucursal,
@@ -105,7 +137,7 @@ export async function GET(req: NextRequest) {
       ${baseWhere}
       ORDER BY vods.fecha_solucion DESC
     `);
-    const sucursalRes = await pool.request().query(`
+    const sucursalRes = await mkReq().query(`
       SET ARITHABORT ON;
       SELECT v.cod_sucursal, COUNT(*) AS cantidad
       ${baseFrom}
@@ -113,27 +145,39 @@ export async function GET(req: NextRequest) {
       GROUP BY v.cod_sucursal
       ORDER BY cantidad DESC
     `);
-    const cuadrillaRes = await pool.request().query(`
+    const cuadrillaRes = await mkReq().query(`
       SET ARITHABORT ON;
-      SELECT vods.cuadrilla, COUNT(*) AS cantidad
+      SELECT vods.cuadrilla, COUNT(*) AS cantidad,
+        AVG(DATEDIFF(day, vods.fecha_reclamo, vods.fecha_solucion)) AS promedio_dias
       ${baseFrom}
       ${baseWhere}
         AND vods.cuadrilla IS NOT NULL
       GROUP BY vods.cuadrilla
       ORDER BY cantidad DESC
     `);
+    const tiempoRes = await mkReq().query(`
+      SET ARITHABORT ON;
+      SELECT
+        AVG(DATEDIFF(day, vods.fecha_reclamo, vods.fecha_solucion)) AS promedio_dias,
+        SUM(CASE WHEN DATEDIFF(day, vods.fecha_reclamo, vods.fecha_solucion) <= 3 THEN 1 ELSE 0 END) AS dentro_sla,
+        COUNT(*) AS total_con_fecha
+      ${baseFrom}
+      ${baseWhere}
+        AND vods.fecha_reclamo IS NOT NULL
+    `);
 
     const pendientesWhere = `
       WHERE vods.fecha_solucion IS NULL
         AND v.cod_sucursal ${sucursalClause}
+        ${filtroWhere}
     `;
-    const pendientesCountRes = await pool.request().query(`
+    const pendientesCountRes = await mkReq().query(`
       SET ARITHABORT ON;
       SELECT COUNT(*) AS total
       ${baseFrom}
       ${pendientesWhere}
     `);
-    const pendientesDetalleRes = await pool.request().query(`
+    const pendientesDetalleRes = await mkReq().query(`
       SET ARITHABORT ON;
       SELECT TOP 500
         v.cod_sucursal,
@@ -148,6 +192,25 @@ export async function GET(req: NextRequest) {
       ${baseFrom}
       ${pendientesWhere}
       ORDER BY dias_demora DESC
+    `);
+    const fueraSlaDetalleRes = await mkReq().query(`
+      SET ARITHABORT ON;
+      SELECT TOP 500
+        v.cod_sucursal,
+        d.nombre_dispositivo AS modelo,
+        d.tipo_dispositivo AS tipo,
+        cd.mac,
+        cd.id_conexion,
+        CONVERT(varchar, vods.fecha_reclamo, 103) AS fecha_reclamo,
+        CONVERT(varchar, vods.fecha_solucion, 103) AS fecha_solucion,
+        DATEDIFF(day, vods.fecha_reclamo, vods.fecha_solucion) AS dias_instalacion,
+        tsi.descripcion AS subtipo,
+        vods.cuadrilla
+      ${baseFrom}
+      ${baseWhere}
+        AND vods.fecha_reclamo IS NOT NULL
+        AND DATEDIFF(day, vods.fecha_reclamo, vods.fecha_solucion) > 3
+      ORDER BY dias_instalacion DESC
     `);
 
     const porModelo = (modeloRes.recordset as Record<string, unknown>[]).map((r) => ({
@@ -180,9 +243,15 @@ export async function GET(req: NextRequest) {
       cantidad:     Number(r.cantidad),
     }));
     const porCuadrilla = (cuadrillaRes.recordset as Record<string, unknown>[]).map((r) => ({
-      cuadrilla: String(r.cuadrilla ?? ""),
-      cantidad:  Number(r.cantidad),
+      cuadrilla:     String(r.cuadrilla ?? ""),
+      cantidad:      Number(r.cantidad),
+      promedioDias:  r.promedio_dias != null ? Math.round(Number(r.promedio_dias) * 10) / 10 : null,
     }));
+    const tiempoRow = tiempoRes.recordset[0] as Record<string, unknown> | undefined;
+    const tiempoPromedioDias = tiempoRow?.promedio_dias != null ? Math.round(Number(tiempoRow.promedio_dias) * 10) / 10 : null;
+    const totalConFecha = Number(tiempoRow?.total_con_fecha ?? 0);
+    const dentroSla = Number(tiempoRow?.dentro_sla ?? 0);
+    const pctDentroSla = totalConFecha === 0 ? 0 : Math.round((dentroSla / totalConFecha) * 100);
     const pendientesTotal = Number((pendientesCountRes.recordset[0] as Record<string, unknown>)?.total ?? 0);
     const pendientesDetalle = (pendientesDetalleRes.recordset as Record<string, unknown>[]).map((r) => ({
       sucursal:      SUCURSALES[Number(r.cod_sucursal)] ?? String(r.cod_sucursal),
@@ -196,9 +265,26 @@ export async function GET(req: NextRequest) {
       cuadrilla:     r.cuadrilla != null ? String(r.cuadrilla) : null,
     }));
 
+    const fueraSlaTotal = totalConFecha - dentroSla;
+    const fueraSlaDetalle = (fueraSlaDetalleRes.recordset as Record<string, unknown>[]).map((r) => ({
+      sucursal:         SUCURSALES[Number(r.cod_sucursal)] ?? String(r.cod_sucursal),
+      modelo:           String(r.modelo ?? ""),
+      tipo:             String(r.tipo ?? ""),
+      mac:              String(r.mac ?? ""),
+      id_conexion:      r.id_conexion != null ? Number(r.id_conexion) : null,
+      fecha_reclamo:    String(r.fecha_reclamo ?? ""),
+      fecha_solucion:   String(r.fecha_solucion ?? ""),
+      dias_instalacion: Number(r.dias_instalacion ?? 0),
+      subtipo:          String(r.subtipo ?? ""),
+      cuadrilla:        r.cuadrilla != null ? String(r.cuadrilla) : null,
+    }));
+
     const total = porModelo.reduce((s, r) => s + r.cantidad, 0);
 
-    return NextResponse.json({ porModelo, porMes, porSubtipo, porSucursal, porCuadrilla, pendientesTotal, pendientesDetalle, detalle, total });
+    return NextResponse.json({
+      porModelo, porMes, porSubtipo, porSucursal, porCuadrilla, pendientesTotal, pendientesDetalle,
+      detalle, total, tiempoPromedioDias, pctDentroSla, fueraSlaTotal, fueraSlaDetalle,
+    });
   } catch (err: unknown) {
     console.error("[instalaciones]", err);
     await resetPool();

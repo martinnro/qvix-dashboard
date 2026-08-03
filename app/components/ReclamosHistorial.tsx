@@ -499,8 +499,8 @@ export default function ReclamosHistorial({
                             deltaCell = <span className="text-indigo-400 text-xs font-medium">nuevo</span>;
                           } else {
                             const dpct = Math.round(((r.total_unidades - prevUnidades) / prevUnidades) * 100);
-                            if (dpct > 0) deltaCell = <span className="flex items-center justify-end gap-1 text-rose-400 font-semibold"><TrendingUp size={12}/>+{dpct}%</span>;
-                            else if (dpct < 0) deltaCell = <span className="flex items-center justify-end gap-1 text-emerald-400 font-semibold"><TrendingDown size={12}/>{dpct}%</span>;
+                            if (dpct > 0) deltaCell = <span className="flex items-center justify-end gap-1 text-emerald-400 font-semibold"><TrendingUp size={12}/>+{dpct}%</span>;
+                            else if (dpct < 0) deltaCell = <span className="flex items-center justify-end gap-1 text-rose-400 font-semibold"><TrendingDown size={12}/>{dpct}%</span>;
                             else deltaCell = <span className="text-slate-500 text-xs">=</span>;
                           }
                           return (

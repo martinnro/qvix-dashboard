@@ -76,13 +76,11 @@ function prevMesAnioStr(f: Filters): string {
 function buildPrevMatParams(f: Filters): URLSearchParams {
   const p = new URLSearchParams();
   if (f.sucursal) p.set("sucursal", f.sucursal);
-  if (f.anio && !f.mesAnio) p.set("anio", String(parseInt(f.anio) - 1));
-  else p.set("mes_anio", prevMesAnioStr(f));
+  p.set("mes_anio", prevMesAnioStr(f));
   return p;
 }
 
 function prevLabel(f: Filters): string {
-  if (f.anio && !f.mesAnio) return String(parseInt(f.anio) - 1);
   const pm = prevMesAnioStr(f);
   const m = MESES.find(x => pm.endsWith(`-${x.value}`));
   return `${m?.label ?? pm.slice(5)} '${pm.slice(2, 4)}`;
@@ -519,7 +517,7 @@ export default function ReclamosHistorial({
                                 </td>
                                 <td className="py-2.5 px-4 text-right text-white font-semibold tabular-nums">{r.total_unidades.toLocaleString()}</td>
                                 <td className="py-2.5 px-4 text-right text-slate-400 tabular-nums">{r.cantidad_ordenes}</td>
-                                <td className="py-2.5 px-4 text-right tabular-nums">{deltaCell}</td>
+                                <td className="py-2.5 px-4 text-right tabular-nums" title={prevUnidades !== null ? `${prevUnidades.toLocaleString()} uds. en ${prevLabel(filters)}` : undefined}>{deltaCell}</td>
                               </tr>
                               {isExpanded && (
                                 <tr key={`${i}-detail`} className="border-b border-slate-800 bg-slate-900/50">

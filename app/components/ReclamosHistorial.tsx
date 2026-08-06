@@ -482,7 +482,7 @@ export default function ReclamosHistorial({
                           <th className="text-left py-3 px-4">Material</th>
                           <th className="text-right py-3 px-4">Unidades</th>
                           <th className="text-right py-3 px-4">Órdenes</th>
-                          <th className="text-right py-3 px-4 whitespace-nowrap">VS {prevLabel(filters)}</th>
+                          {filters.mesAnio && <th className="text-right py-3 px-4 whitespace-nowrap">VS {prevLabel(filters)}</th>}
                         </tr>
                       </thead>
                       <tbody>
@@ -517,7 +517,7 @@ export default function ReclamosHistorial({
                                 </td>
                                 <td className="py-2.5 px-4 text-right text-white font-semibold tabular-nums">{r.total_unidades.toLocaleString()}</td>
                                 <td className="py-2.5 px-4 text-right text-slate-400 tabular-nums">{r.cantidad_ordenes}</td>
-                                <td className="py-2.5 px-4 text-right tabular-nums" title={prevUnidades !== null ? `${prevUnidades.toLocaleString()} uds. en ${prevLabel(filters)}` : undefined}>{deltaCell}</td>
+                                {filters.mesAnio && <td className="py-2.5 px-4 text-right tabular-nums" title={prevUnidades !== null ? `${prevUnidades.toLocaleString()} uds. en ${prevLabel(filters)}` : undefined}>{deltaCell}</td>}
                               </tr>
                               {isExpanded && (
                                 <tr key={`${i}-detail`} className="border-b border-slate-800 bg-slate-900/50">

@@ -263,7 +263,7 @@ function Home() {
             </div>}
 
             {/* Reportes dropdown */}
-            {(puedeVer("mapa") || puedeVer("fuentes") || puedeVer("dispositivos")) && <div ref={reportesRef} className="relative">
+            {(puedeVer("reclamos") || puedeVer("instalaciones") || puedeVer("mapa") || puedeVer("fuentes") || puedeVer("dispositivos")) && <div ref={reportesRef} className="relative">
               <button
                 onClick={() => { setShowReportesMenu(v => !v); setShowTVMenu(false); }}
                 className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
@@ -275,7 +275,7 @@ function Home() {
               </button>
               {showReportesMenu && (
                 <div className="absolute left-0 top-full mt-2 w-52 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 p-1.5">
-                  {puedeVer("mapa") && <>
+                  {puedeVer("reclamos") && <>
                     {/* Reclamos — va directo al dashboard; chevron expande sub-ítem */}
                     <div className="flex items-center rounded-lg overflow-hidden">
                       <button
@@ -302,16 +302,20 @@ function Home() {
                         Cambio de Drop
                       </button>
                     )}
+                  </>}
 
+                  {puedeVer("instalaciones") && (
                     <button onClick={() => { goHome(); setShowInstalaciones(true); setShowReportesMenu(false); }} className={menuItem}>
                       <span className="w-2 h-2 rounded-full flex-shrink-0 bg-amber-400" />
                       Instalaciones
                     </button>
+                  )}
+                  {puedeVer("mapa") && (
                     <button onClick={() => { goHome(); setShowMapa(true); setShowReportesMenu(false); }} className={menuItem}>
                       <span className="w-2 h-2 rounded-full flex-shrink-0 bg-emerald-500" />
                       Mapa
                     </button>
-                  </>}
+                  )}
 
                   {(puedeVer("fuentes") || puedeVer("dispositivos")) && <>
                     <div className="border-t border-slate-800 my-1" />

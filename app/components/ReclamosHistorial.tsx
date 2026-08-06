@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Loader2, AlertCircle, ChevronLeft, History, ChevronsUpDown, ChevronUp, ChevronDown, Package, BarChart2, ChevronRight, TrendingUp, TrendingDown } from "lucide-react";
+import { Loader2, AlertCircle, ChevronLeft, History, ChevronsUpDown, ChevronUp, ChevronDown, Package, BarChart2, ChevronRight, TrendingUp, TrendingDown, AlertTriangle } from "lucide-react";
 
 type SortCol = "conexion" | "dias" | "fecha_carga" | "estado_incidencia";
 type SortDir = "asc" | "desc";
@@ -644,6 +644,65 @@ export default function ReclamosHistorial({
                   </div>
                 </div>
               )}
+
+              {/* ── Cargas inusuales ── */}
+              {!loadingEstad && (() => {
+                const byMat: Record<string, { mes: string; total_unidades: number }[]> = {};
+                for (const r of estadData) {
+                  if (!byMat[r.material]) byMat[r.material] = [];
+                  byMat[r.material].push({ mes: r.mes, total_unidades: r.total_unidades });
+                }
+                const anomalies: { material: string; mes: string; unidades: number; promedio: number; ratio: number }[] = [];
+                for (const [mat, rows] of Object.entries(byMat)) {
+                  if (rows.length < 2) continue;
+                  const avg = rows.reduce((s, r) => s + r.total_unidades, 0) / rows.length;
+                  for (const r of rows) {
+                    if (r.total_unidades >= avg * 3 && r.total_unidades - avg >= 10) {
+                      anomalies.push({ material: mat, mes: r.mes, unidades: r.total_unidades, promedio: Math.round(avg), ratio: Math.round(r.total_unidades / avg) });
+                    }
+                  }
+                }
+                anomalies.sort((a, b) => b.ratio - a.ratio);
+                if (anomalies.length === 0) return null;
+                const mesLabel = (mes: string) => {
+                  const m = MESES.find(x => mes.endsWith(`-${x.value}`));
+                  return m?.label ?? mes.slice(5);
+                };
+                return (
+                  <div className="bg-slate-800 border border-amber-800/50 rounded-2xl overflow-hidden">
+                    <div className="flex items-center gap-2 px-5 py-3 border-b border-amber-800/40 bg-amber-950/20">
+                      <AlertTriangle size={14} className="text-amber-400 shrink-0" />
+                      <p className="text-xs font-medium text-amber-300">Cargas inusuales detectadas</p>
+                      <span className="ml-auto text-xs text-amber-600">{anomalies.length} {anomalies.length === 1 ? "registro" : "registros"} · &gt;3× el promedio mensual</span>
+                    </div>
+                    <table className="text-xs w-full">
+                      <thead>
+                        <tr className="text-slate-500 uppercase tracking-wider border-b border-slate-700 bg-slate-900/20">
+                          <th className="text-left py-2.5 px-5 font-medium">Material</th>
+                          <th className="text-right py-2.5 px-4 font-medium">Mes</th>
+                          <th className="text-right py-2.5 px-4 font-medium">Unidades</th>
+                          <th className="text-right py-2.5 px-4 font-medium">Promedio</th>
+                          <th className="text-right py-2.5 px-5 font-medium">Ratio</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {anomalies.map((a, i) => {
+                          const severity = a.ratio >= 10 ? "text-rose-400" : "text-amber-400";
+                          return (
+                            <tr key={i} className="border-b border-slate-800 last:border-0 hover:bg-slate-700/20">
+                              <td className="py-2.5 px-5 text-slate-200 max-w-[220px] truncate">{a.material}</td>
+                              <td className="py-2.5 px-4 text-right text-slate-400">{mesLabel(a.mes)}</td>
+                              <td className="py-2.5 px-4 text-right text-white font-semibold tabular-nums">{a.unidades.toLocaleString()}</td>
+                              <td className="py-2.5 px-4 text-right text-slate-500 tabular-nums">{a.promedio.toLocaleString()}</td>
+                              <td className={`py-2.5 px-5 text-right font-bold tabular-nums ${severity}`}>{a.ratio}×</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
             </>
           );
         })()}

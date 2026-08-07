@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
-import { RefreshCw, ChevronDown, Check, Wifi, MapPin, Plus, Trash2, Loader2 } from "lucide-react";
+import { RefreshCw, ChevronDown, Check, Wifi, MapPin, Plus, Trash2, Loader2, Download } from "lucide-react";
 import { getColorById, type MapStyle, type NapItem } from "./MapaUtils";
 import type { PinCustom } from "./MapaLeaflet";
 
@@ -205,6 +205,15 @@ export default function MapaView({ onClose, sucursalesPermitidas = null }: { onC
     setEstados((prev) => prev.includes(id) ? prev.filter((e) => e !== id) : [...prev, id]);
   const toggleBarrio = (id: number) =>
     setBarriosSel((prev) => prev.includes(id) ? prev.filter((b) => b !== id) : [...prev, id]);
+
+  const buildExportUrl = () => {
+    const params = new URLSearchParams();
+    params.set("sucursal", String(sucursal));
+    params.set("estados", estados.join(","));
+    if (barriosSel.length > 0) params.set("barrios", barriosSel.join(","));
+    if (estados.includes(7) && bajaModo) params.set("bajaModo", bajaModo);
+    return `/api/export/mapa?${params.toString()}`;
+  };
 
   const addPin = async () => {
     if (!pinForm.url) { setPinError("Pegá el link de Google Maps."); return; }
@@ -619,6 +628,12 @@ export default function MapaView({ onClose, sucursalesPermitidas = null }: { onC
             </div>
           )}
         </div>
+
+        <a href={buildExportUrl()}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-400 hover:text-white hover:border-slate-500 text-xs transition-colors"
+        >
+          <Download size={13} /> Exportar Excel
+        </a>
 
         <button onClick={fetchPuntos} disabled={loading}
           className="p-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-colors disabled:opacity-50"

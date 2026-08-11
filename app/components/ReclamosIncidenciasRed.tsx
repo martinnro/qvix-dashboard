@@ -30,7 +30,7 @@ interface Row {
   cuadrilla: string | null;
 }
 
-type Panel = "problema" | "cuadrilla" | "nap" | "antiguedad" | "detalle" | "historial";
+type Panel = "problema" | "cuadrilla" | "nap" | "antiguedad" | "detalle" | "historial" | "materiales" | "reincidencias";
 
 function pct(n: number, total: number) {
   return total === 0 ? 0 : Math.round((n / total) * 100);

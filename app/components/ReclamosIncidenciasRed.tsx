@@ -2,9 +2,10 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import {
   X, Loader2, ChevronLeft, Radio, AlertCircle,
-  Clock, UserCheck, Layers, Network, Calendar, List, History,
+  Clock, UserCheck, Layers, Network, Calendar, List, History, Package,
 } from "lucide-react";
 import ReclamosHistorial from "./ReclamosHistorial";
+import MaterialesView from "./MaterialesView";
 import ReclamosSucursalDashboard from "./ReclamosSucursalDashboard";
 import { getColor } from "../lib/dataUtils";
 
@@ -525,6 +526,10 @@ export default function ReclamosIncidenciasRed({
     );
   }
 
+  if (panel === "materiales") {
+    return <MaterialesView onBack={() => setPanel(null)} />;
+  }
+
   /* ────────────────────────────────────────────────────────────
      OVERVIEW (panel === null)
   ──────────────────────────────────────────────────────────── */
@@ -634,6 +639,12 @@ export default function ReclamosIncidenciasRed({
             className="flex items-center gap-2 text-slate-400 hover:text-slate-200 border border-slate-700 hover:border-slate-500 px-4 py-2.5 rounded-lg text-sm transition-colors"
           >
             <History size={15} /> Historial de reclamos
+          </button>
+          <button
+            onClick={() => setPanel("materiales")}
+            className="flex items-center gap-2 text-slate-400 hover:text-slate-200 border border-slate-700 hover:border-slate-500 px-4 py-2.5 rounded-lg text-sm transition-colors"
+          >
+            <Package size={15} /> Materiales
           </button>
         </div>
 

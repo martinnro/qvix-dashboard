@@ -2,10 +2,11 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import {
   X, Loader2, ChevronLeft, Radio, AlertCircle,
-  Clock, UserCheck, Layers, Network, Calendar, List, History, Package,
+  Clock, UserCheck, Layers, Network, Calendar, List, History, Package, RefreshCw,
 } from "lucide-react";
 import ReclamosHistorial from "./ReclamosHistorial";
 import MaterialesView from "./MaterialesView";
+import ReincidenciasView from "./ReincidenciasView";
 import ReclamosSucursalDashboard from "./ReclamosSucursalDashboard";
 import { getColor } from "../lib/dataUtils";
 
@@ -530,6 +531,10 @@ export default function ReclamosIncidenciasRed({
     return <MaterialesView onBack={() => setPanel(null)} />;
   }
 
+  if (panel === "reincidencias") {
+    return <ReincidenciasView onBack={() => setPanel(null)} />;
+  }
+
   /* ────────────────────────────────────────────────────────────
      OVERVIEW (panel === null)
   ──────────────────────────────────────────────────────────── */
@@ -619,11 +624,12 @@ export default function ReclamosIncidenciasRed({
         {/* Tarjetas de acceso rápido */}
         <div>
           <h3 className="text-slate-400 font-medium text-xs uppercase tracking-wider mb-3">Ver detalle por</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
             <NavCard icon={Calendar} titulo="Antigüedad" subtitulo="Cuántos días llevan abiertos" color="#f43f5e" onClick={() => setPanel("antiguedad")} />
             <NavCard icon={Layers} titulo="Tipo de problema" subtitulo="Qué falla en cada reclamo" color="#f97316" onClick={() => setPanel("problema")} />
             <NavCard icon={UserCheck} titulo="Cuadrilla" subtitulo="Quién tiene asignado cada reclamo" color="#06b6d4" onClick={() => setPanel("cuadrilla")} />
             <NavCard icon={Network} titulo="NAPs" subtitulo="Nodos con más reclamos activos" color="#a855f7" onClick={() => setPanel("nap")} />
+            <NavCard icon={RefreshCw} titulo="Reincidencias" subtitulo="Conexiones con reclamos repetidos" color="#f43f5e" onClick={() => setPanel("reincidencias")} />
           </div>
         </div>
 

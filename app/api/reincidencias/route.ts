@@ -49,9 +49,14 @@ export async function GET(req: NextRequest) {
             FORMAT(ih.fecha_carga, 'dd/MM/yyyy HH:mm') AS fecha_carga,
             FORMAT(vos.fecha_reclamo, 'dd/MM/yyyy')    AS fecha_asignacion,
             FORMAT(ISNULL(vos.fecha_solucion, ih.fecha_anulacion), 'dd/MM/yyyy') AS fecha_cierre,
-            ih.estado_incidencia,
-            ps.problema_descripcion AS problema,
-            cu.descripcion          AS cuadrilla,
+            CASE
+              WHEN ih.fecha_anulacion IS NOT NULL THEN 'Anulado'
+              WHEN ih.estado_incidencia = 1       THEN 'Pendiente'
+              WHEN ih.estado_incidencia = 2       THEN 'Asignado'
+              ELSE 'Cerrado'
+            END AS estado_incidencia,
+            prob.problema_descripcion AS problema,
+            cu.descripcion            AS cuadrilla,
             CASE
               WHEN vos.fecha_solucion IS NOT NULL
                 THEN DATEDIFF(DAY, vos.fecha_reclamo, vos.fecha_solucion)
@@ -60,23 +65,28 @@ export async function GET(req: NextRequest) {
               ELSE DATEDIFF(DAY, ih.fecha_carga, GETDATE())
             END AS dias
           FROM incidencias_header ih WITH (NOLOCK)
-          JOIN incidencias_detalle id WITH (NOLOCK)
-            ON id.id_incidencia = ih.id_incidencia
-          LEFT JOIN problemas ps WITH (NOLOCK)
-            ON ps.id_problema = id.id_problema
           OUTER APPLY (
-            SELECT TOP 1
-              o.fecha_reclamo, o.fecha_solucion, o.id_cuadrilla
+            SELECT TOP 1 o.fecha_reclamo, o.fecha_solucion, o.id_cuadrilla
             FROM v_ordenes_servicios o WITH (NOLOCK)
             WHERE o.id_incidencia = ih.id_incidencia
             ORDER BY o.id_Orden_Servicio DESC
           ) vos
+          OUTER APPLY (
+            SELECT TOP 1 ps2.problema_descripcion
+            FROM incidencias_detalle id2 WITH (NOLOCK)
+            LEFT JOIN problemas ps2 WITH (NOLOCK) ON ps2.id_problema = id2.id_problema
+            WHERE id2.id_incidencia = ih.id_incidencia
+          ) prob
           LEFT JOIN cuadrillas cu WITH (NOLOCK)
             ON cu.id_cuadrilla = vos.id_cuadrilla
           WHERE ih.tipo_incidencia = 2
             AND ih.id_conexion = @conexion
-            AND id.cod_sucursal ${sucursalClause}
             AND ${dateFilter}
+            AND EXISTS (
+              SELECT 1 FROM incidencias_detalle id_f WITH (NOLOCK)
+              WHERE id_f.id_incidencia = ih.id_incidencia
+                AND id_f.cod_sucursal ${sucursalClause}
+            )
           ORDER BY ih.fecha_carga DESC
         `);
       return NextResponse.json({ detalles: result.recordset });

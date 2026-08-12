@@ -43,18 +43,18 @@ function PillButton({ active, onClick, children }: { active: boolean; onClick: (
   );
 }
 
-function EstadoBadge({ estado }: { estado: string }) {
-  const e = (estado ?? "").toLowerCase();
-  const cls = e.includes("cerrad") || e.includes("solucionad") || e.includes("resuel")
+function EstadoBadge({ estado }: { estado: string | number | null }) {
+  const e = String(estado ?? "").toLowerCase();
+  const cls = e === "cerrado" || e.includes("cerrad") || e.includes("solucionad")
     ? "bg-emerald-500/20 text-emerald-400"
-    : e.includes("anulad")
+    : e === "anulado" || e.includes("anulad")
     ? "bg-slate-600/50 text-slate-400"
-    : e.includes("asignad") || e.includes("en curso")
+    : e === "asignado" || e === "pendiente" || e.includes("asignad") || e.includes("pendient")
     ? "bg-amber-500/20 text-amber-400"
     : "bg-rose-500/20 text-rose-400";
   return (
     <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${cls}`}>
-      {estado ?? "—"}
+      {estado != null ? String(estado) : "—"}
     </span>
   );
 }

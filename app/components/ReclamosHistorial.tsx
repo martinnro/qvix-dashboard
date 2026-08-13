@@ -280,16 +280,19 @@ export default function ReclamosHistorial({
           {(filters.anio || filters.mesAnio) && (() => {
             const activeYear = filters.mesAnio ? filters.mesAnio.slice(0, 4) : filters.anio;
             return (
-              <div className="flex items-center gap-1.5 flex-wrap pl-3 border-l-2 border-indigo-800">
-                <PillButton active={!!filters.anio && !filters.mesAnio} onClick={() => setFilters((p) => ({ ...p, anio: activeYear, mesAnio: "" }))}>
-                  Todo {activeYear}
-                </PillButton>
-                {getMonthsForYear(activeYear).map((m) => (
-                  <PillButton key={m.value} active={filters.mesAnio === `${activeYear}-${m.value}`}
-                    onClick={() => setFilters((p) => ({ ...p, anio: "", mesAnio: `${activeYear}-${m.value}` }))}>
-                    {m.label}
+              <div className="flex flex-col gap-1 pl-3 border-l-2 border-indigo-800">
+                <span className="text-[10px] text-indigo-400 font-semibold tracking-widest uppercase">{activeYear}</span>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <PillButton active={!!filters.anio && !filters.mesAnio} onClick={() => setFilters((p) => ({ ...p, anio: activeYear, mesAnio: "" }))}>
+                    Todo
                   </PillButton>
-                ))}
+                  {getMonthsForYear(activeYear).map((m) => (
+                    <PillButton key={m.value} active={filters.mesAnio === `${activeYear}-${m.value}`}
+                      onClick={() => setFilters((p) => ({ ...p, anio: "", mesAnio: `${activeYear}-${m.value}` }))}>
+                      {m.label}
+                    </PillButton>
+                  ))}
+                </div>
               </div>
             );
           })()}

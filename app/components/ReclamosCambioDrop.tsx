@@ -1,6 +1,5 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
-import Papa from "papaparse";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   PieChart, Pie, Cell,
@@ -55,10 +54,9 @@ export default function ReclamosCambioDrop({
 
   useEffect(() => {
     fetch("/api/reclamos")
-      .then((r) => r.text())
-      .then((text) => {
-        const result = Papa.parse<ReclamoRow>(text, { header: true, skipEmptyLines: true });
-        setRows(result.data);
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data.error) setRows(data.rows ?? []);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -210,24 +208,32 @@ export default function ReclamosCambioDrop({
                   </button>
                 )}
               </div>
-              <div className="flex flex-wrap gap-2">
-                {meses.map((mes) => {
-                  const active = selectedMonths.includes(mes);
-                  return (
-                    <button
-                      key={mes}
-                      onClick={() => toggleMonth(mes)}
-                      className="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
-                      style={
-                        active
-                          ? { backgroundColor: "#6366f133", borderColor: "#6366f1", color: "#a5b4fc" }
-                          : { borderColor: "#334155", color: "#94a3b8" }
-                      }
-                    >
-                      {fmtMes(mes)}
-                    </button>
-                  );
-                })}
+              <div className="flex flex-col gap-2">
+                {[...new Set(meses.map((m) => m.slice(0, 4)))].map((anio) => (
+                  <div key={anio} className="flex flex-col gap-1 pl-3 border-l-2 border-indigo-800">
+                    <span className="text-[10px] text-indigo-400 font-semibold tracking-widest uppercase">{anio}</span>
+                    <div className="flex flex-wrap gap-2">
+                      {meses.filter((m) => m.startsWith(anio)).map((mes) => {
+                        const active = selectedMonths.includes(mes);
+                        const [, m] = mes.split("-");
+                        return (
+                          <button
+                            key={mes}
+                            onClick={() => toggleMonth(mes)}
+                            className="px-3 py-1 rounded-full text-xs font-medium border transition-colors"
+                            style={
+                              active
+                                ? { backgroundColor: "#6366f133", borderColor: "#6366f1", color: "#a5b4fc" }
+                                : { borderColor: "#334155", color: "#94a3b8" }
+                            }
+                          >
+                            {MESES[Number(m) - 1]}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
               </div>
             </section>
 

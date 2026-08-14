@@ -27,8 +27,60 @@ export async function GET(req: NextRequest) {
 
   const mesAnio = params.get("mes_anio");
   const anio = params.get("anio");
+  const modo = params.get("modo");
   const limitesRaw = params.get("limites");
 
+  const pool = await getPool();
+
+  // ── Modo promedios: calcula promedio y máximo por material para sugerir límites ──
+  if (modo === "promedios") {
+    const dateExtras: string[] = [];
+    if (mesAnio) dateExtras.push(`FORMAT(vos.fecha_solucion, 'yyyy-MM') = '${mesAnio.replace(/'/g, "")}'`);
+    else if (anio) dateExtras.push(`YEAR(vos.fecha_solucion) = ${parseInt(anio, 10)}`);
+    const dateWhere = dateExtras.length > 0 ? `AND ${dateExtras.join(" AND ")}` : "";
+
+    const sql = `
+      SELECT TOP 60
+        sub.material,
+        CAST(CEILING(AVG(CAST(sub.total_por_orden AS FLOAT))) AS INT) AS sugerido,
+        CAST(AVG(CAST(sub.total_por_orden AS FLOAT)) AS DECIMAL(10, 2))  AS promedio,
+        MAX(sub.total_por_orden)                                          AS maximo,
+        COUNT(*)                                                           AS total_ordenes
+      FROM (
+        SELECT
+          d.nombre_dispositivo  AS material,
+          vos.id_incidencia,
+          SUM(im.cantidad)      AS total_por_orden
+        FROM v_ordenes_servicios vos WITH (NOLOCK)
+        INNER JOIN incidencias_materiales im WITH (NOLOCK)
+          ON im.id_incidencia = vos.id_incidencia
+        INNER JOIN DISPOSITIVOS d WITH (NOLOCK)
+          ON d.id_dispositivo = im.id_dispositivo
+        WHERE vos.cod_sucursal        ${sucursalClause}
+          AND vos.estado_ods          IN (1, 2, 4)
+          AND vos.estado_incidencia   IN (1, 2, 3)
+          AND vos.fecha_solucion      IS NOT NULL
+          ${dateWhere}
+          AND EXISTS (
+            SELECT 1 FROM incidencias_soluciones is2 WITH (NOLOCK)
+            WHERE is2.id_incidencia = vos.id_incidencia
+          )
+        GROUP BY d.nombre_dispositivo, vos.id_incidencia
+      ) sub
+      GROUP BY sub.material
+      HAVING COUNT(*) >= 10
+      ORDER BY total_ordenes DESC
+    `;
+    try {
+      const result = await pool.request().query(sql);
+      return NextResponse.json({ rows: result.recordset });
+    } catch (err: unknown) {
+      console.error("[materiales-anomalias promedios]", err);
+      return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
+    }
+  }
+
+  // ── Modo anomalias: órdenes que superan el límite por material ──
   if (!limitesRaw) return NextResponse.json({ rows: [] });
 
   let limites: Record<string, number>;
@@ -91,7 +143,6 @@ export async function GET(req: NextRequest) {
   `;
 
   try {
-    const pool = await getPool();
     const result = await pool.request().query(querySql);
     return NextResponse.json({ rows: result.recordset });
   } catch (err: unknown) {

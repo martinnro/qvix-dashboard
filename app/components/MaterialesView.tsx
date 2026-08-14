@@ -1,6 +1,9 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
-import { Loader2, AlertCircle, ChevronLeft, ChevronRight, Package, BarChart2, TrendingUp, TrendingDown, AlertTriangle } from "lucide-react";
+import { useState, useEffect, useCallback, Fragment } from "react";
+import {
+  Loader2, AlertCircle, ChevronLeft, ChevronRight, Package, BarChart2,
+  TrendingUp, TrendingDown, AlertTriangle, ShieldAlert, Plus, X, SlidersHorizontal,
+} from "lucide-react";
 
 const SUCURSALES: Record<number, string> = {
   1: "Chumbicha", 4: "Valle Viejo",
@@ -46,7 +49,12 @@ function prevLabel(f: Filters): string {
 
 function PillButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button onClick={onClick} className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors whitespace-nowrap ${active ? "bg-indigo-600 border-indigo-500 text-white" : "border-slate-600 text-slate-400 hover:border-slate-400 hover:text-slate-200"}`}>
+    <button
+      onClick={onClick}
+      className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors whitespace-nowrap ${
+        active ? "bg-indigo-600 border-indigo-500 text-white" : "border-slate-600 text-slate-400 hover:border-slate-400 hover:text-slate-200"
+      }`}
+    >
       {children}
     </button>
   );
@@ -55,9 +63,19 @@ function PillButton({ active, onClick, children }: { active: boolean; onClick: (
 interface MaterialRow { material: string; total_unidades: number; cantidad_ordenes: number; }
 interface DetailRow { conexion: string; fecha_cierre: string; cod_sucursal: number; cantidad: number; }
 interface EstadRow { material: string; mes: string; total_unidades: number; total_material: number; }
+interface AnomaliaRow {
+  material: string;
+  conexion: string;
+  id_incidencia: number;
+  fecha_cierre: string;
+  cod_sucursal: number;
+  cantidad_usada: number;
+}
+
+const STORAGE_KEY = "mat_limites_v1";
 
 export default function MaterialesView({ onBack }: { onBack: () => void }) {
-  const [vista, setVista] = useState<"materiales" | "estadisticas">("materiales");
+  const [vista, setVista] = useState<"materiales" | "estadisticas" | "fuera-de-norma">("materiales");
   const [filters, setFiltersState] = useState<Filters>({ sucursal: "", anio: "", mesAnio: "" });
 
   // Materiales
@@ -74,10 +92,34 @@ export default function MaterialesView({ onBack }: { onBack: () => void }) {
   const [loadingEstad, setLoadingEstad] = useState(false);
   const [errorEstad, setErrorEstad] = useState<string | null>(null);
 
+  // Fuera de norma
+  const [limites, setLimites] = useState<Record<string, number>>({});
+  const [anomalias, setAnomalias] = useState<AnomaliaRow[]>([]);
+  const [loadingAnomalias, setLoadingAnomalias] = useState(false);
+  const [errorAnomalias, setErrorAnomalias] = useState<string | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newMaterial, setNewMaterial] = useState("");
+  const [newLimite, setNewLimite] = useState(1);
+  const [allMaterialNames, setAllMaterialNames] = useState<string[]>([]);
+  const [loadingAllMat, setLoadingAllMat] = useState(false);
+
+  // Cargar límites desde localStorage después de hidratación
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) setLimites(JSON.parse(saved));
+    } catch {}
+  }, []);
+
   const setFilter = (update: Partial<Filters>) => {
     setFiltersState(prev => ({ ...prev, ...update }));
     setMaterialDetails({});
     setExpandedMaterial(null);
+  };
+
+  const updateLimites = (next: Record<string, number>) => {
+    setLimites(next);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch {}
   };
 
   const fetchMateriales = useCallback(async (f: Filters) => {
@@ -118,8 +160,30 @@ export default function MaterialesView({ onBack }: { onBack: () => void }) {
     } finally { setLoadingEstad(false); }
   }, []);
 
+  const fetchAnomalias = useCallback(async (f: Filters, lims: Record<string, number>) => {
+    if (Object.keys(lims).length === 0) { setAnomalias([]); return; }
+    setLoadingAnomalias(true); setErrorAnomalias(null);
+    try {
+      const p = new URLSearchParams({ limites: JSON.stringify(lims) });
+      if (f.sucursal) p.set("sucursal", f.sucursal);
+      if (f.mesAnio) p.set("mes_anio", f.mesAnio);
+      else if (f.anio) p.set("anio", f.anio);
+      const res = await fetch(`/api/materiales-anomalias?${p}`);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setAnomalias(data.rows ?? []);
+    } catch (e: unknown) {
+      setErrorAnomalias(e instanceof Error ? e.message : String(e));
+    } finally { setLoadingAnomalias(false); }
+  }, []);
+
   useEffect(() => { if (vista === "materiales") fetchMateriales(filters); }, [filters, fetchMateriales, vista]);
   useEffect(() => { if (vista === "estadisticas") fetchEstadisticas(filters); }, [filters, fetchEstadisticas, vista]);
+  useEffect(() => {
+    if (vista !== "fuera-de-norma") return;
+    const t = setTimeout(() => fetchAnomalias(filters, limites), 400);
+    return () => clearTimeout(t);
+  }, [filters, vista, limites, fetchAnomalias]);
 
   const toggleMaterialDetail = async (material: string) => {
     if (expandedMaterial === material) { setExpandedMaterial(null); return; }
@@ -136,6 +200,22 @@ export default function MaterialesView({ onBack }: { onBack: () => void }) {
       setMaterialDetails(prev => ({ ...prev, [material]: data.rows ?? [] }));
     } catch { /* ignore */ }
     finally { setLoadingDetail(null); }
+  };
+
+  const handleAddMaterial = () => {
+    setShowAddForm(true);
+    if (allMaterialNames.length === 0 && !loadingAllMat) {
+      if (materiales.length > 0) {
+        setAllMaterialNames(materiales.map(r => r.material).sort());
+      } else {
+        setLoadingAllMat(true);
+        fetch("/api/materiales-historial")
+          .then(r => r.json())
+          .then(data => setAllMaterialNames((data.rows ?? []).map((r: MaterialRow) => r.material).sort()))
+          .catch(() => {})
+          .finally(() => setLoadingAllMat(false));
+      }
+    }
   };
 
   const hayFiltros = filters.sucursal || filters.anio || filters.mesAnio;
@@ -158,11 +238,23 @@ export default function MaterialesView({ onBack }: { onBack: () => void }) {
               <p className="text-sm text-slate-400 mt-0.5">Materiales utilizados en reclamos desde 2025</p>
             </div>
             <div className="flex bg-slate-800 border border-slate-700 rounded-xl p-1 gap-1">
-              <button onClick={() => setVista("materiales")} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${vista === "materiales" ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-slate-200"}`}>
+              <button
+                onClick={() => setVista("materiales")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${vista === "materiales" ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-slate-200"}`}
+              >
                 <Package size={14} /> Materiales
               </button>
-              <button onClick={() => setVista("estadisticas")} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${vista === "estadisticas" ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-slate-200"}`}>
+              <button
+                onClick={() => setVista("estadisticas")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${vista === "estadisticas" ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-slate-200"}`}
+              >
                 <BarChart2 size={14} /> Estadísticas
+              </button>
+              <button
+                onClick={() => setVista("fuera-de-norma")}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${vista === "fuera-de-norma" ? "bg-amber-600 text-white" : "text-slate-400 hover:text-slate-200"}`}
+              >
+                <ShieldAlert size={14} /> Fuera de norma
               </button>
             </div>
           </div>
@@ -200,7 +292,7 @@ export default function MaterialesView({ onBack }: { onBack: () => void }) {
             </div>
           )}
           {hayFiltros && (
-            <button onClick={() => { setFilter({ sucursal: "", anio: "", mesAnio: "" }); }} className="self-start text-xs text-slate-500 hover:text-slate-300 transition-colors">
+            <button onClick={() => setFilter({ sucursal: "", anio: "", mesAnio: "" })} className="self-start text-xs text-slate-500 hover:text-slate-300 transition-colors">
               Limpiar filtros
             </button>
           )}
@@ -250,8 +342,8 @@ export default function MaterialesView({ onBack }: { onBack: () => void }) {
                             else deltaCell = <span className="text-slate-500 text-xs">=</span>;
                           }
                           return (
-                            <>
-                              <tr key={i} onClick={() => toggleMaterialDetail(r.material)} className="border-b border-slate-800 hover:bg-slate-700/30 transition-colors cursor-pointer">
+                            <Fragment key={r.material}>
+                              <tr onClick={() => toggleMaterialDetail(r.material)} className="border-b border-slate-800 hover:bg-slate-700/30 transition-colors cursor-pointer">
                                 <td className="py-2.5 px-4 text-slate-600 font-mono">{i + 1}</td>
                                 <td className="py-2.5 px-4">
                                   <div className="flex items-center gap-2">
@@ -261,10 +353,14 @@ export default function MaterialesView({ onBack }: { onBack: () => void }) {
                                 </td>
                                 <td className="py-2.5 px-4 text-right text-white font-semibold tabular-nums">{r.total_unidades.toLocaleString()}</td>
                                 <td className="py-2.5 px-4 text-right text-slate-400 tabular-nums">{r.cantidad_ordenes}</td>
-                                {filters.mesAnio && <td className="py-2.5 px-4 text-right tabular-nums" title={prevUnidades !== null ? `${prevUnidades.toLocaleString()} uds. en ${prevLabel(filters)}` : undefined}>{deltaCell}</td>}
+                                {filters.mesAnio && (
+                                  <td className="py-2.5 px-4 text-right tabular-nums" title={prevUnidades !== null ? `${prevUnidades.toLocaleString()} uds. en ${prevLabel(filters)}` : undefined}>
+                                    {deltaCell}
+                                  </td>
+                                )}
                               </tr>
                               {isExpanded && (
-                                <tr key={`${i}-d`} className="border-b border-slate-800 bg-slate-900/50">
+                                <tr className="border-b border-slate-800 bg-slate-900/50">
                                   <td colSpan={filters.mesAnio ? 5 : 4} className="px-4 py-3">
                                     {isLoadingThis && <div className="flex items-center gap-2 text-slate-400 text-xs py-1"><Loader2 size={12} className="animate-spin"/> Cargando reclamos...</div>}
                                     {!isLoadingThis && details && details.length === 0 && <p className="text-slate-500 text-xs">Sin reclamos encontrados.</p>}
@@ -295,7 +391,7 @@ export default function MaterialesView({ onBack }: { onBack: () => void }) {
                                   </td>
                                 </tr>
                               )}
-                            </>
+                            </Fragment>
                           );
                         })}
                       </tbody>
@@ -425,6 +521,186 @@ export default function MaterialesView({ onBack }: { onBack: () => void }) {
             </>
           );
         })()}
+
+        {/* ── VISTA FUERA DE NORMA ── */}
+        {vista === "fuera-de-norma" && (
+          <>
+            {/* Configuración de límites */}
+            <div className="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-3 border-b border-slate-700 bg-slate-900/40">
+                <div className="flex items-center gap-2">
+                  <SlidersHorizontal size={14} className="text-slate-400" />
+                  <span className="text-xs font-medium text-slate-300">Límites por material</span>
+                  <span className="text-xs text-slate-600">· se guardan en tu navegador</span>
+                </div>
+                <button
+                  onClick={handleAddMaterial}
+                  className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 transition-colors font-medium"
+                >
+                  <Plus size={13} /> Agregar material
+                </button>
+              </div>
+
+              {Object.keys(limites).length === 0 && !showAddForm ? (
+                <div className="px-5 py-10 text-center">
+                  <ShieldAlert size={36} className="mx-auto text-slate-700 mb-3" />
+                  <p className="text-slate-400 text-sm font-medium">Sin límites configurados</p>
+                  <p className="text-slate-600 text-xs mt-1 max-w-xs mx-auto">
+                    Definí cuántas unidades es normal usar por orden para cada material. Las órdenes que superen ese valor aparecerán acá.
+                  </p>
+                  <button
+                    onClick={handleAddMaterial}
+                    className="mt-5 inline-flex items-center gap-1.5 text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-lg transition-colors font-medium"
+                  >
+                    <Plus size={13} /> Configurar primer límite
+                  </button>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-700/50">
+                  {Object.entries(limites).map(([material, limite]) => (
+                    <div key={material} className="flex items-center gap-3 px-5 py-2.5">
+                      <span className="text-sm text-slate-200 flex-1 truncate">{material}</span>
+                      <span className="text-xs text-slate-500 shrink-0">máx.</span>
+                      <input
+                        type="number"
+                        min={1}
+                        value={limite}
+                        onChange={(e) => {
+                          const v = Math.max(1, parseInt(e.target.value) || 1);
+                          updateLimites({ ...limites, [material]: v });
+                        }}
+                        className="w-16 bg-slate-700 border border-slate-600 rounded-lg px-2 py-1 text-xs text-white text-center tabular-nums focus:outline-none focus:border-indigo-500 transition-colors"
+                      />
+                      <span className="text-xs text-slate-500 whitespace-nowrap shrink-0">ud. por orden</span>
+                      <button
+                        onClick={() => { const next = { ...limites }; delete next[material]; updateLimites(next); }}
+                        className="text-slate-600 hover:text-rose-400 transition-colors ml-1 shrink-0"
+                        title="Eliminar límite"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Formulario para agregar */}
+              {showAddForm && (
+                <div className="border-t border-slate-700 bg-slate-900/30 px-5 py-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex-1 min-w-[200px]">
+                      {loadingAllMat ? (
+                        <div className="flex items-center gap-2 text-slate-400 text-xs py-1.5">
+                          <Loader2 size={12} className="animate-spin" /> Cargando materiales...
+                        </div>
+                      ) : (
+                        <select
+                          value={newMaterial}
+                          onChange={(e) => setNewMaterial(e.target.value)}
+                          className="w-full bg-slate-700 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 transition-colors"
+                        >
+                          <option value="">Seleccionar material...</option>
+                          {allMaterialNames.filter(m => !(m in limites)).map(m => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-xs text-slate-500">máx.</span>
+                      <input
+                        type="number"
+                        min={1}
+                        value={newLimite}
+                        onChange={(e) => setNewLimite(Math.max(1, parseInt(e.target.value) || 1))}
+                        className="w-16 bg-slate-700 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-white text-center tabular-nums focus:outline-none focus:border-indigo-500 transition-colors"
+                      />
+                      <span className="text-xs text-slate-500 whitespace-nowrap">ud.</span>
+                      <button
+                        onClick={() => {
+                          if (!newMaterial) return;
+                          updateLimites({ ...limites, [newMaterial]: newLimite });
+                          setNewMaterial(""); setNewLimite(1); setShowAddForm(false);
+                        }}
+                        disabled={!newMaterial}
+                        className="text-xs bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded-lg transition-colors font-medium"
+                      >
+                        Agregar
+                      </button>
+                      <button
+                        onClick={() => { setShowAddForm(false); setNewMaterial(""); }}
+                        className="text-slate-500 hover:text-slate-300 transition-colors"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Resultados */}
+            {Object.keys(limites).length > 0 && (
+              <>
+                {errorAnomalias && (
+                  <div className="flex items-center gap-2 text-red-400 text-sm bg-red-950/30 border border-red-800 rounded-lg px-4 py-3">
+                    <AlertCircle size={16} /> {errorAnomalias}
+                  </div>
+                )}
+                {loadingAnomalias && (
+                  <div className="flex items-center gap-2 text-slate-400 text-sm py-4">
+                    <Loader2 size={16} className="animate-spin" /> Buscando órdenes fuera de norma...
+                  </div>
+                )}
+                {!loadingAnomalias && !errorAnomalias && anomalias.length === 0 && (
+                  <div className="text-center py-12 bg-slate-800/40 border border-slate-700 rounded-2xl">
+                    <p className="text-slate-400 text-sm font-medium">Todo dentro de lo normal</p>
+                    <p className="text-slate-600 text-xs mt-1">No hay órdenes que superen los límites configurados.</p>
+                  </div>
+                )}
+                {!loadingAnomalias && anomalias.length > 0 && (
+                  <div className="bg-slate-800 border border-amber-800/50 rounded-2xl overflow-hidden">
+                    <div className="flex items-center gap-2 px-5 py-3 border-b border-amber-800/40 bg-amber-950/20">
+                      <AlertTriangle size={14} className="text-amber-400 shrink-0" />
+                      <span className="text-xs font-medium text-amber-300">
+                        {anomalias.length} {anomalias.length === 1 ? "orden" : "órdenes"} con uso excesivo
+                      </span>
+                      <span className="ml-auto text-xs text-amber-700">cantidad supera el límite configurado</span>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-slate-400 uppercase tracking-wider border-b border-slate-700 bg-slate-900/20">
+                            <th className="text-left py-3 px-4">Material</th>
+                            <th className="text-left py-3 px-4">Incidencia</th>
+                            <th className="text-left py-3 px-4">Conexión</th>
+                            <th className="text-left py-3 px-4">Sucursal</th>
+                            <th className="text-right py-3 px-4">Fecha</th>
+                            <th className="text-right py-3 px-4">Usadas</th>
+                            <th className="text-right py-3 px-4">Límite</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {anomalias.map((a, i) => (
+                            <tr key={i} className="border-b border-slate-800 last:border-0 hover:bg-slate-700/20 transition-colors">
+                              <td className="py-2.5 px-4 text-slate-200 font-medium max-w-[160px] truncate">{a.material}</td>
+                              <td className="py-2.5 px-4 font-mono text-slate-400 tabular-nums">{a.id_incidencia}</td>
+                              <td className="py-2.5 px-4 font-mono text-slate-300 tabular-nums">{a.conexion}</td>
+                              <td className="py-2.5 px-4 text-slate-400">{SUCURSALES[a.cod_sucursal] ?? `Suc. ${a.cod_sucursal}`}</td>
+                              <td className="py-2.5 px-4 text-right text-slate-400 tabular-nums">{a.fecha_cierre}</td>
+                              <td className="py-2.5 px-4 text-right font-bold tabular-nums text-rose-400">{a.cantidad_usada}</td>
+                              <td className="py-2.5 px-4 text-right text-slate-600 tabular-nums">{limites[a.material]}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </>
+        )}
 
       </div>
     </div>

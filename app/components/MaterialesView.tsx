@@ -401,7 +401,7 @@ export default function MaterialesView({ onBack }: { onBack: () => void }) {
                                     {isLoadingThis && <div className="flex items-center gap-2 text-slate-400 text-xs py-1"><Loader2 size={12} className="animate-spin"/> Cargando reclamos...</div>}
                                     {!isLoadingThis && details && details.length === 0 && <p className="text-slate-500 text-xs">Sin reclamos encontrados.</p>}
                                     {!isLoadingThis && details && details.length > 0 && (() => {
-                                      const showDeco = details.some(d => d.tipo_deco != null);
+                                      const showDeco = /control remoto/i.test(r.material);
                                       return (
                                         <div className="overflow-x-auto">
                                           <table className="text-xs w-full">
@@ -424,13 +424,12 @@ export default function MaterialesView({ onBack }: { onBack: () => void }) {
                                                   <td className="py-1.5 pr-4 text-slate-400">{d.fecha_cierre}</td>
                                                   {showDeco && (
                                                     <td className="py-1.5 pr-4">
-                                                      {d.tipo_deco === "Colsecor" && (
-                                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-900/50 text-blue-300">Colsecor</span>
-                                                      )}
-                                                      {d.tipo_deco === "OTT" && (
-                                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-violet-900/50 text-violet-300">OTT</span>
-                                                      )}
-                                                      {!d.tipo_deco && <span className="text-slate-700 text-[10px]">—</span>}
+                                                      {d.tipo_deco === "Colsecor"
+                                                        ? <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-900/50 text-blue-300">Colsecor</span>
+                                                        : d.tipo_deco
+                                                          ? <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-violet-900/50 text-violet-300">{d.tipo_deco}</span>
+                                                          : <span className="text-slate-700 text-[10px]">—</span>
+                                                      }
                                                     </td>
                                                   )}
                                                   <td className="py-1.5 text-right text-slate-300 font-semibold tabular-nums">{d.cantidad}</td>

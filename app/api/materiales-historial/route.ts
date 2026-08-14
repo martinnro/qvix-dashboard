@@ -74,6 +74,8 @@ export async function GET(req: NextRequest) {
             CASE
               WHEN d2.alias = 'COLSECOR' OR d2.nombre_dispositivo LIKE '%BOLD%'
               THEN 'Colsecor'
+              WHEN d2.alias IS NOT NULL AND LEN(LTRIM(d2.alias)) > 0
+              THEN LTRIM(RTRIM(d2.alias))
               ELSE 'OTT'
             END AS tipo_deco
           FROM conexion_dispostivos cd WITH (NOLOCK)

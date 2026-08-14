@@ -62,7 +62,7 @@ function PillButton({ active, onClick, children }: { active: boolean; onClick: (
 }
 
 interface MaterialRow { material: string; total_unidades: number; cantidad_ordenes: number; }
-interface DetailRow { conexion: string; fecha_cierre: string; cod_sucursal: number; cantidad: number; }
+interface DetailRow { conexion: string; fecha_cierre: string; cod_sucursal: number; cantidad: number; tarifa?: string; tipo_deco?: string; }
 interface EstadRow { material: string; mes: string; total_unidades: number; total_material: number; }
 interface AnomaliaRow {
   material: string;
@@ -400,30 +400,47 @@ export default function MaterialesView({ onBack }: { onBack: () => void }) {
                                   <td colSpan={filters.mesAnio ? 5 : 4} className="px-4 py-3">
                                     {isLoadingThis && <div className="flex items-center gap-2 text-slate-400 text-xs py-1"><Loader2 size={12} className="animate-spin"/> Cargando reclamos...</div>}
                                     {!isLoadingThis && details && details.length === 0 && <p className="text-slate-500 text-xs">Sin reclamos encontrados.</p>}
-                                    {!isLoadingThis && details && details.length > 0 && (
-                                      <div className="overflow-x-auto">
-                                        <table className="text-xs w-full">
-                                          <thead>
-                                            <tr className="text-slate-500 border-b border-slate-700">
-                                              <th className="text-left pb-1.5 pr-4 font-medium">Conexión</th>
-                                              <th className="text-left pb-1.5 pr-4 font-medium">Sucursal</th>
-                                              <th className="text-left pb-1.5 pr-4 font-medium">Fecha cierre</th>
-                                              <th className="text-right pb-1.5 font-medium">Cant.</th>
-                                            </tr>
-                                          </thead>
-                                          <tbody className="divide-y divide-slate-800/60">
-                                            {details.map((d, di) => (
-                                              <tr key={di} className="hover:bg-slate-700/20">
-                                                <td className="py-1.5 pr-4 font-mono text-slate-300">{d.conexion}</td>
-                                                <td className="py-1.5 pr-4 text-slate-400">{SUCURSALES[d.cod_sucursal] ?? `Suc. ${d.cod_sucursal}`}</td>
-                                                <td className="py-1.5 pr-4 text-slate-400">{d.fecha_cierre}</td>
-                                                <td className="py-1.5 text-right text-slate-300 font-semibold tabular-nums">{d.cantidad}</td>
+                                    {!isLoadingThis && details && details.length > 0 && (() => {
+                                      const showDeco = details.some(d => d.tipo_deco != null);
+                                      return (
+                                        <div className="overflow-x-auto">
+                                          <table className="text-xs w-full">
+                                            <thead>
+                                              <tr className="text-slate-500 border-b border-slate-700">
+                                                <th className="text-left pb-1.5 pr-4 font-medium">Conexión</th>
+                                                <th className="text-left pb-1.5 pr-4 font-medium">Tarifa</th>
+                                                <th className="text-left pb-1.5 pr-4 font-medium">Sucursal</th>
+                                                <th className="text-left pb-1.5 pr-4 font-medium">Fecha cierre</th>
+                                                {showDeco && <th className="text-left pb-1.5 pr-4 font-medium">Tipo deco</th>}
+                                                <th className="text-right pb-1.5 font-medium">Cant.</th>
                                               </tr>
-                                            ))}
-                                          </tbody>
-                                        </table>
-                                      </div>
-                                    )}
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-800/60">
+                                              {details.map((d, di) => (
+                                                <tr key={di} className="hover:bg-slate-700/20">
+                                                  <td className="py-1.5 pr-4 font-mono text-slate-300">{d.conexion}</td>
+                                                  <td className="py-1.5 pr-4 text-slate-400 max-w-[140px] truncate" title={d.tarifa ?? ""}>{d.tarifa ?? <span className="text-slate-700">—</span>}</td>
+                                                  <td className="py-1.5 pr-4 text-slate-400">{SUCURSALES[d.cod_sucursal] ?? `Suc. ${d.cod_sucursal}`}</td>
+                                                  <td className="py-1.5 pr-4 text-slate-400">{d.fecha_cierre}</td>
+                                                  {showDeco && (
+                                                    <td className="py-1.5 pr-4">
+                                                      {d.tipo_deco === "Colsecor" && (
+                                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-900/50 text-blue-300">Colsecor</span>
+                                                      )}
+                                                      {d.tipo_deco === "OTT" && (
+                                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-violet-900/50 text-violet-300">OTT</span>
+                                                      )}
+                                                      {!d.tipo_deco && <span className="text-slate-700 text-[10px]">—</span>}
+                                                    </td>
+                                                  )}
+                                                  <td className="py-1.5 text-right text-slate-300 font-semibold tabular-nums">{d.cantidad}</td>
+                                                </tr>
+                                              ))}
+                                            </tbody>
+                                          </table>
+                                        </div>
+                                      );
+                                    })()}
                                   </td>
                                 </tr>
                               )}

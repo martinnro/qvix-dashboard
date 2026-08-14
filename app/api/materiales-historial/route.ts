@@ -55,7 +55,9 @@ export async function GET(req: NextRequest) {
           ih.id_conexion                              AS conexion,
           CONVERT(VARCHAR, vos.fecha_solucion, 5)     AS fecha_cierre,
           vos.cod_sucursal,
-          im.cantidad
+          im.cantidad,
+          t.descripcion                               AS tarifa,
+          deco.tipo_deco
         FROM v_ordenes_servicios vos WITH (NOLOCK)
         INNER JOIN incidencias_materiales im WITH (NOLOCK)
           ON im.id_incidencia = vos.id_incidencia
@@ -63,6 +65,27 @@ export async function GET(req: NextRequest) {
           ON d.id_dispositivo = im.id_dispositivo
         INNER JOIN incidencias_header ih WITH (NOLOCK)
           ON ih.id_incidencia = vos.id_incidencia
+        LEFT JOIN v_con_dom vcd WITH (NOLOCK)
+          ON vcd.id_conexion = ih.id_conexion
+        LEFT JOIN tarifas t WITH (NOLOCK)
+          ON t.id_tarifa = vcd.tarifa
+        OUTER APPLY (
+          SELECT TOP 1
+            CASE
+              WHEN d2.alias = 'COLSECOR' OR d2.nombre_dispositivo LIKE '%BOLD%'
+              THEN 'Colsecor'
+              ELSE 'OTT'
+            END AS tipo_deco
+          FROM conexion_dispostivos cd WITH (NOLOCK)
+          INNER JOIN DISPOSITIVOS d2 WITH (NOLOCK)
+            ON d2.id_dispositivo = cd.id_dispositivo
+          WHERE cd.id_conexion = ih.id_conexion
+            AND cd.estado = 0
+            AND (d2.nombre_dispositivo LIKE '%STB%' OR d2.alias = 'COLSECOR')
+          ORDER BY
+            CASE WHEN d2.alias = 'COLSECOR' OR d2.nombre_dispositivo LIKE '%BOLD%' THEN 0 ELSE 1 END,
+            cd.fecha_carga DESC
+        ) deco
         WHERE ${baseWhere}
           AND d.nombre_dispositivo = '${matSafe}'
         ORDER BY vos.fecha_solucion DESC

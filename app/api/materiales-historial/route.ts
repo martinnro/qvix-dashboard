@@ -70,23 +70,28 @@ export async function GET(req: NextRequest) {
         LEFT JOIN tarifas t WITH (NOLOCK)
           ON t.id_tarifa = vcd.tarifa
         OUTER APPLY (
-          SELECT TOP 1
-            CASE
-              WHEN d2.alias = 'COLSECOR' OR d2.nombre_dispositivo LIKE '%BOLD%'
-              THEN 'Colsecor'
-              WHEN d2.alias IS NOT NULL AND LEN(LTRIM(d2.alias)) > 0
-              THEN LTRIM(RTRIM(d2.alias))
-              ELSE 'OTT'
-            END AS tipo_deco
-          FROM conexion_dispostivos cd WITH (NOLOCK)
-          INNER JOIN DISPOSITIVOS d2 WITH (NOLOCK)
-            ON d2.id_dispositivo = cd.id_dispositivo
-          WHERE cd.id_conexion = ih.id_conexion
-            AND cd.estado = 0
-            AND (d2.nombre_dispositivo LIKE '%STB%' OR d2.alias = 'COLSECOR')
-          ORDER BY
-            CASE WHEN d2.alias = 'COLSECOR' OR d2.nombre_dispositivo LIKE '%BOLD%' THEN 0 ELSE 1 END,
-            cd.fecha_carga DESC
+          SELECT STRING_AGG(t.tipo_deco_calc, ', ')
+            WITHIN GROUP (
+              ORDER BY CASE WHEN t.tipo_deco_calc = 'Colsecor' THEN 0 ELSE 1 END, t.tipo_deco_calc
+            ) AS tipo_deco
+          FROM (
+            SELECT DISTINCT
+              CASE
+                WHEN d2.alias = 'COLSECOR' OR d2.nombre_dispositivo LIKE '%BOLD%' THEN 'Colsecor'
+                WHEN d2.alias IS NOT NULL AND LEN(LTRIM(d2.alias)) > 0 THEN LTRIM(RTRIM(d2.alias))
+                ELSE NULL
+              END AS tipo_deco_calc
+            FROM conexion_dispostivos cd WITH (NOLOCK)
+            INNER JOIN DISPOSITIVOS d2 WITH (NOLOCK)
+              ON d2.id_dispositivo = cd.id_dispositivo
+            WHERE cd.id_conexion = ih.id_conexion
+              AND (
+                d2.nombre_dispositivo LIKE '%STB%'
+                OR d2.nombre_dispositivo LIKE '%TV BOX%'
+                OR d2.alias IN ('COLSECOR', 'ZTE', 'BVS')
+              )
+          ) t
+          WHERE t.tipo_deco_calc IS NOT NULL
         ) deco
         WHERE ${baseWhere}
           AND d.nombre_dispositivo = '${matSafe}'

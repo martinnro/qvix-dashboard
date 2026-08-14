@@ -424,11 +424,15 @@ export default function MaterialesView({ onBack }: { onBack: () => void }) {
                                                   <td className="py-1.5 pr-4 text-slate-400">{d.fecha_cierre}</td>
                                                   {showDeco && (
                                                     <td className="py-1.5 pr-4">
-                                                      {d.tipo_deco === "Colsecor"
-                                                        ? <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-900/50 text-blue-300">Colsecor</span>
-                                                        : d.tipo_deco
-                                                          ? <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-violet-900/50 text-violet-300">{d.tipo_deco}</span>
-                                                          : <span className="text-slate-700 text-[10px]">—</span>
+                                                      {d.tipo_deco
+                                                        ? <span className="flex gap-1 flex-wrap">
+                                                            {d.tipo_deco.split(', ').map((t) =>
+                                                              t === "Colsecor"
+                                                                ? <span key={t} className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-900/50 text-blue-300">Colsecor</span>
+                                                                : <span key={t} className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-violet-900/50 text-violet-300">{t}</span>
+                                                            )}
+                                                          </span>
+                                                        : <span className="text-slate-700 text-[10px]">—</span>
                                                       }
                                                     </td>
                                                   )}

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { MapContainer, TileLayer, CircleMarker, Marker, Popup, Polyline, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, CircleMarker, Marker, Popup, Polyline, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { getColorById, getNapColor, type MapStyle, type NapItem } from "./MapaUtils";
@@ -124,6 +124,27 @@ function FitBounds({ puntos }: { puntos: Punto[] }) {
   return null;
 }
 
+interface CtxMenuState { x: number; y: number; lat: number; lng: number }
+
+// Captura el click derecho sobre el mapa y avisa al padre dónde mostrar el menú contextual
+function ContextMenuCapture({ onOpen, onClose }: { onOpen: (s: CtxMenuState) => void; onClose: () => void }) {
+  useMapEvents({
+    contextmenu(e) {
+      e.originalEvent.preventDefault();
+      onOpen({
+        x: e.containerPoint.x,
+        y: e.containerPoint.y,
+        lat: e.latlng.lat,
+        lng: e.latlng.lng,
+      });
+    },
+    click: onClose,
+    movestart: onClose,
+    zoomstart: onClose,
+  });
+  return null;
+}
+
 interface Props {
   puntos: Punto[];
   mapStyle: MapStyle;
@@ -153,104 +174,145 @@ export default function MapaLeaflet({
   // NAP seleccionado — dibuja líneas a todas sus conexiones
   const [napSel, setNapSel] = useState<string | null>(null);
 
+  // Menú contextual (click derecho) — copiar coordenadas
+  const [ctxMenu, setCtxMenu] = useState<CtxMenuState | null>(null);
+  const [copiado, setCopiado] = useState(false);
+
+  const copiarCoordenadas = async () => {
+    if (!ctxMenu) return;
+    const texto = `${ctxMenu.lat.toFixed(6)}, ${ctxMenu.lng.toFixed(6)}`;
+    try {
+      await navigator.clipboard.writeText(texto);
+    } catch {
+      // Fallback por si el navegador bloquea el acceso al portapapeles
+      const el = document.createElement("textarea");
+      el.value = texto;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+    }
+    setCopiado(true);
+    setTimeout(() => { setCtxMenu(null); setCopiado(false); }, 700);
+  };
+
   return (
-    <MapContainer
-      center={centro}
-      zoom={13}
-      style={{ height: "100%", width: "100%", borderRadius: "0 0 1rem 1rem" }}
-      className="z-0"
-    >
-      <TileLayer url={style.url} attribution={style.attribution} maxNativeZoom={17} maxZoom={22} />
-      {mapStyle === "satellite-labels" && (
-        <TileLayer url={labelsUrl} attribution="" maxNativeZoom={19} maxZoom={22} />
+    <div style={{ position: "relative", height: "100%", width: "100%" }}>
+      <MapContainer
+        center={centro}
+        zoom={13}
+        style={{ height: "100%", width: "100%", borderRadius: "0 0 1rem 1rem" }}
+        className="z-0"
+      >
+        <TileLayer url={style.url} attribution={style.attribution} maxNativeZoom={17} maxZoom={22} />
+        {mapStyle === "satellite-labels" && (
+          <TileLayer url={labelsUrl} attribution="" maxNativeZoom={19} maxZoom={22} />
+        )}
+        <FitBounds puntos={puntos} />
+        <ContextMenuCapture onOpen={setCtxMenu} onClose={() => setCtxMenu(null)} />
+
+        {/* Líneas NAP → todas sus conexiones */}
+        {napSel && (() => {
+          const nap = naps.find((n) => n.nap === napSel);
+          if (!nap) return null;
+          return puntos
+            .filter((p) => p.nap === napSel)
+            .map((p) => {
+              const metros = Math.round(distanciaM(nap.latitud, nap.longitud, p.latitud, p.longitud));
+              return (
+                <Polyline
+                  key={p.id_conexion}
+                  positions={[[nap.latitud, nap.longitud], [p.latitud, p.longitud]]}
+                  pathOptions={{ color: "#000000", weight: 1.5, dashArray: "5 4", opacity: 0.8 }}
+                >
+                  <Popup>
+                    <div className="text-sm space-y-0.5">
+                      <p><strong>NAP:</strong> {nap.nap}</p>
+                      <p><strong>Conexión:</strong> {p.id_conexion}</p>
+                      <p><strong>Distancia:</strong> {metros} m</p>
+                    </div>
+                  </Popup>
+                </Polyline>
+              );
+            });
+        })()}
+
+        {/* NAPs */}
+        {showNaps && naps.map((n) => (
+          <Marker
+            key={n.nap}
+            position={[n.latitud, n.longitud]}
+            icon={makeNapIcon(n.cantidad)}
+            eventHandlers={{
+              click: () => {
+                const next = napSel === n.nap ? null : n.nap;
+                setNapSel(next);
+                onNapSelect?.(next);
+              },
+            }}
+          />
+        ))}
+
+        {/* Conexiones */}
+        {puntos.map((p) => (
+          <CircleMarker
+            key={p.id_conexion}
+            center={[p.latitud, p.longitud]}
+            radius={6}
+            pathOptions={{
+              fillColor: getColorById(p.Estado_Servicio),
+              fillOpacity: 0.85,
+              color: "#fff",
+              weight: 1,
+            }}
+          >
+            <Popup>
+              <div className="text-sm space-y-0.5">
+                <p><strong>Conexión:</strong> {p.id_conexion}</p>
+                <p><strong>Estado:</strong> {p.estado_nombre}</p>
+                {p.nap && <p><strong>NAP:</strong> {p.nap}</p>}
+                {p.fecha_baja && (
+                  <p><strong>Fecha baja:</strong> {new Date(p.fecha_baja).toLocaleDateString("es-AR")}</p>
+                )}
+              </div>
+            </Popup>
+          </CircleMarker>
+        ))}
+
+        {/* Pines custom */}
+        {showPinesCustom && pinesCustom.map((pin) => (
+          <Marker
+            key={pin.id}
+            position={[pin.lat, pin.lng]}
+            icon={makePinIcon(pin.color)}
+          >
+            <Popup>
+              <div style={{ minWidth: 160 }} className="text-sm space-y-1">
+                <p style={{ fontWeight: 700, color: pin.color }}>{pin.titulo}</p>
+                {pin.cx && <p><strong>CX:</strong> {pin.cx}</p>}
+                {pin.abonado && <p><strong>Abonado:</strong> {pin.abonado}</p>}
+                {pin.barrio && <p><strong>Barrio:</strong> {pin.barrio}</p>}
+              </div>
+            </Popup>
+          </Marker>
+        ))}
+      </MapContainer>
+
+      {/* Menú contextual — click derecho */}
+      {ctxMenu && (
+        <div
+          className="absolute z-[1000] bg-slate-900 border border-slate-600 rounded-lg shadow-2xl overflow-hidden text-sm"
+          style={{ left: ctxMenu.x, top: ctxMenu.y }}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          <button
+            onClick={copiarCoordenadas}
+            className="flex items-center gap-2 w-full px-3 py-2 text-left text-slate-200 hover:bg-slate-700 transition-colors whitespace-nowrap"
+          >
+            {copiado ? "✓ Coordenadas copiadas" : `Copiar coordenadas (${ctxMenu.lat.toFixed(6)}, ${ctxMenu.lng.toFixed(6)})`}
+          </button>
+        </div>
       )}
-      <FitBounds puntos={puntos} />
-
-      {/* Líneas NAP → todas sus conexiones */}
-      {napSel && (() => {
-        const nap = naps.find((n) => n.nap === napSel);
-        if (!nap) return null;
-        return puntos
-          .filter((p) => p.nap === napSel)
-          .map((p) => {
-            const metros = Math.round(distanciaM(nap.latitud, nap.longitud, p.latitud, p.longitud));
-            return (
-              <Polyline
-                key={p.id_conexion}
-                positions={[[nap.latitud, nap.longitud], [p.latitud, p.longitud]]}
-                pathOptions={{ color: "#000000", weight: 1.5, dashArray: "5 4", opacity: 0.8 }}
-              >
-                <Popup>
-                  <div className="text-sm space-y-0.5">
-                    <p><strong>NAP:</strong> {nap.nap}</p>
-                    <p><strong>Conexión:</strong> {p.id_conexion}</p>
-                    <p><strong>Distancia:</strong> {metros} m</p>
-                  </div>
-                </Popup>
-              </Polyline>
-            );
-          });
-      })()}
-
-      {/* NAPs */}
-      {showNaps && naps.map((n) => (
-        <Marker
-          key={n.nap}
-          position={[n.latitud, n.longitud]}
-          icon={makeNapIcon(n.cantidad)}
-          eventHandlers={{
-            click: () => {
-              const next = napSel === n.nap ? null : n.nap;
-              setNapSel(next);
-              onNapSelect?.(next);
-            },
-          }}
-        />
-      ))}
-
-      {/* Conexiones */}
-      {puntos.map((p) => (
-        <CircleMarker
-          key={p.id_conexion}
-          center={[p.latitud, p.longitud]}
-          radius={6}
-          pathOptions={{
-            fillColor: getColorById(p.Estado_Servicio),
-            fillOpacity: 0.85,
-            color: "#fff",
-            weight: 1,
-          }}
-        >
-          <Popup>
-            <div className="text-sm space-y-0.5">
-              <p><strong>Conexión:</strong> {p.id_conexion}</p>
-              <p><strong>Estado:</strong> {p.estado_nombre}</p>
-              {p.nap && <p><strong>NAP:</strong> {p.nap}</p>}
-              {p.fecha_baja && (
-                <p><strong>Fecha baja:</strong> {new Date(p.fecha_baja).toLocaleDateString("es-AR")}</p>
-              )}
-            </div>
-          </Popup>
-        </CircleMarker>
-      ))}
-
-      {/* Pines custom */}
-      {showPinesCustom && pinesCustom.map((pin) => (
-        <Marker
-          key={pin.id}
-          position={[pin.lat, pin.lng]}
-          icon={makePinIcon(pin.color)}
-        >
-          <Popup>
-            <div style={{ minWidth: 160 }} className="text-sm space-y-1">
-              <p style={{ fontWeight: 700, color: pin.color }}>{pin.titulo}</p>
-              {pin.cx && <p><strong>CX:</strong> {pin.cx}</p>}
-              {pin.abonado && <p><strong>Abonado:</strong> {pin.abonado}</p>}
-              {pin.barrio && <p><strong>Barrio:</strong> {pin.barrio}</p>}
-            </div>
-          </Popup>
-        </Marker>
-      ))}
-    </MapContainer>
+    </div>
   );
 }

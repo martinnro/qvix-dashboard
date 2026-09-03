@@ -1,6 +1,7 @@
 "use client";
 import { useState, useCallback, useEffect, useRef } from "react";
-import { ChevronLeft, ChevronDown, X, Loader2, AlertCircle, Tv, Tag, TrendingUp, List, HardHat, Search } from "lucide-react";
+import { ChevronLeft, ChevronDown, X, Loader2, AlertCircle, Tv, Tag, TrendingUp, List, HardHat, Search, Package } from "lucide-react";
+import MaterialesView from "./MaterialesView";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   PieChart, Pie, Cell, Legend,
@@ -56,7 +57,7 @@ interface Data {
   fueraSlaDetalle:  FueraSlaRow[];
 }
 
-type PanelType = "modelo" | "subtipo" | "tendencia" | "cuadrilla" | "pendientes" | "detalle" | "fueraSla";
+type PanelType = "modelo" | "subtipo" | "tendencia" | "cuadrilla" | "pendientes" | "detalle" | "fueraSla" | "materiales";
 
 function hoy()      { return new Date().toISOString().slice(0, 10); }
 function inicioAnio() { return `${new Date().getFullYear()}-01-01`; }
@@ -802,6 +803,11 @@ export default function InstalacionesView({
     );
   }
 
+  // ── Sub-panel: Materiales ─────────────────────────────────────────────────
+  if (panel === "materiales") {
+    return <MaterialesView onBack={() => setPanel(null)} tipo="instalaciones" />;
+  }
+
   // ── Overview ───────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-slate-900 text-white">
@@ -1084,6 +1090,7 @@ export default function InstalacionesView({
             <NavCard icon={HardHat}   titulo="Por cuadrilla" subtitulo="Cuadrillas que más instalaron"     color="#f43f5e" onClick={() => setPanel("cuadrilla")} />
             <NavCard icon={TrendingUp} titulo="Tendencia"    subtitulo="Evolución mensual"                 color="#f59e0b" onClick={() => setPanel("tendencia")} />
             <NavCard icon={List}      titulo="Detalle"       subtitulo="Listado completo de registros"     color="#10b981" onClick={() => setPanel("detalle")}   />
+            <NavCard icon={Package}   titulo="Materiales"    subtitulo="Materiales usados en instalaciones" color="#e879f9" onClick={() => setPanel("materiales")} />
           </div>
         </div>
 

@@ -26,17 +26,23 @@ export async function GET(req: NextRequest) {
   const anio    = params.get("anio");
   const material = params.get("material");
   const modo    = params.get("modo");
+  const tipo    = params.get("tipo");
 
   const dateExtras: string[] = [];
   if (mesAnio) dateExtras.push(`FORMAT(vos.fecha_solucion, 'yyyy-MM') = '${mesAnio.replace(/'/g, "")}'`);
   else if (anio) dateExtras.push(`YEAR(vos.fecha_solucion) = ${parseInt(anio, 10)}`);
   const dateWhere = dateExtras.length > 0 ? `AND ${dateExtras.join(" AND ")}` : "";
 
+  const tipoFilter = tipo === "instalaciones"
+    ? `AND vos.tipo_incidencia = 1 AND vos.subtipo_inicidencia IN (16, 52, 53, 90)`
+    : "";
+
   const baseWhere = `
     vos.cod_sucursal        ${sucursalClause}
     AND vos.estado_ods      IN (1, 2, 4)
     AND vos.estado_incidencia IN (1, 2, 3)
     AND vos.fecha_solucion  IS NOT NULL
+    ${tipoFilter}
     AND EXISTS (
       SELECT 1 FROM incidencias_soluciones is2 WITH (NOLOCK)
       WHERE is2.id_incidencia = vos.id_incidencia

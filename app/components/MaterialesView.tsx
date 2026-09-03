@@ -80,9 +80,8 @@ interface PromedioRow {
   total_ordenes: number;
 }
 
-const STORAGE_KEY = "mat_limites_v1";
-
-export default function MaterialesView({ onBack }: { onBack: () => void }) {
+export default function MaterialesView({ onBack, tipo = "reclamos" }: { onBack: () => void; tipo?: "reclamos" | "instalaciones" }) {
+  const STORAGE_KEY = tipo === "instalaciones" ? "mat_limites_inst_v1" : "mat_limites_v1";
   const [vista, setVista] = useState<"materiales" | "estadisticas" | "fuera-de-lo-normal">("materiales");
   const [filters, setFiltersState] = useState<Filters>({ sucursal: "", anio: "", mesAnio: "" });
 
@@ -154,10 +153,12 @@ export default function MaterialesView({ onBack }: { onBack: () => void }) {
     setLoadingMat(true); setErrorMat(null);
     try {
       const p = new URLSearchParams();
+      if (tipo === "instalaciones") p.set("tipo", "instalaciones");
       if (f.sucursal) p.set("sucursal", f.sucursal);
       if (f.mesAnio) p.set("mes_anio", f.mesAnio);
       else if (f.anio) p.set("anio", f.anio);
       const pp = new URLSearchParams();
+      if (tipo === "instalaciones") pp.set("tipo", "instalaciones");
       if (f.sucursal) pp.set("sucursal", f.sucursal);
       pp.set("mes_anio", prevMesAnioStr(f));
       const [res, resPrev] = await Promise.all([
@@ -177,6 +178,7 @@ export default function MaterialesView({ onBack }: { onBack: () => void }) {
     setLoadingEstad(true); setErrorEstad(null);
     try {
       const p = new URLSearchParams({ modo: "estadisticas" });
+      if (tipo === "instalaciones") p.set("tipo", "instalaciones");
       if (f.sucursal) p.set("sucursal", f.sucursal);
       p.set("anio", f.anio || String(new Date().getFullYear()));
       const res = await fetch(`/api/materiales-historial?${p}`);
@@ -194,6 +196,7 @@ export default function MaterialesView({ onBack }: { onBack: () => void }) {
     setErrorPorMat(prev => { const next = { ...prev }; delete next[material]; return next; });
     try {
       const p = new URLSearchParams({ limites: JSON.stringify({ [material]: limite }) });
+      if (tipo === "instalaciones") p.set("tipo", "instalaciones");
       if (f.sucursal) p.set("sucursal", f.sucursal);
       if (f.mesAnio) p.set("mes_anio", f.mesAnio);
       else if (f.anio) p.set("anio", f.anio);
@@ -219,6 +222,7 @@ export default function MaterialesView({ onBack }: { onBack: () => void }) {
     setLoadingSugeridos(true);
     try {
       const p = new URLSearchParams({ modo: "promedios" });
+      if (tipo === "instalaciones") p.set("tipo", "instalaciones");
       if (filters.sucursal) p.set("sucursal", filters.sucursal);
       const res = await fetch(`/api/materiales-anomalias?${p}`);
       const data = await res.json();
@@ -242,7 +246,7 @@ export default function MaterialesView({ onBack }: { onBack: () => void }) {
         setAllMaterialNames(materiales.map(r => r.material).sort());
       } else {
         setLoadingAllMat(true);
-        fetch("/api/materiales-historial")
+        fetch(`/api/materiales-historial${tipo === "instalaciones" ? "?tipo=instalaciones" : ""}`)
           .then(r => r.json())
           .then(data => setAllMaterialNames((data.rows ?? []).map((r: MaterialRow) => r.material).sort()))
           .catch(() => {})

@@ -29,6 +29,11 @@ export async function GET(req: NextRequest) {
   const anio = params.get("anio");
   const modo = params.get("modo");
   const limitesRaw = params.get("limites");
+  const tipo = params.get("tipo");
+
+  const tipoFilter = tipo === "instalaciones"
+    ? `AND vos.tipo_incidencia = 1 AND vos.subtipo_inicidencia IN (16, 52, 53, 90)`
+    : "";
 
   const pool = await getPool();
 
@@ -60,6 +65,7 @@ export async function GET(req: NextRequest) {
           AND vos.estado_ods          IN (1, 2, 4)
           AND vos.estado_incidencia   IN (1, 2, 3)
           AND vos.fecha_solucion      IS NOT NULL
+          ${tipoFilter}
           ${dateWhere}
           AND EXISTS (
             SELECT 1 FROM incidencias_soluciones is2 WITH (NOLOCK)
@@ -124,6 +130,7 @@ export async function GET(req: NextRequest) {
       AND vos.estado_incidencia       IN (1, 2, 3)
       AND vos.fecha_solucion          IS NOT NULL
       AND d.nombre_dispositivo        IN (${matList})
+      ${tipoFilter}
       ${dateWhere}
       AND EXISTS (
         SELECT 1 FROM incidencias_soluciones is2 WITH (NOLOCK)

@@ -80,10 +80,15 @@ interface PromedioRow {
   total_ordenes: number;
 }
 
+function mesActual() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
 export default function MaterialesView({ onBack, tipo = "reclamos" }: { onBack: () => void; tipo?: "reclamos" | "instalaciones" }) {
   const STORAGE_KEY = tipo === "instalaciones" ? "mat_limites_inst_v1" : "mat_limites_v1";
   const [vista, setVista] = useState<"materiales" | "estadisticas" | "fuera-de-lo-normal">("materiales");
-  const [filters, setFiltersState] = useState<Filters>({ sucursal: "", anio: "", mesAnio: "" });
+  const [filters, setFiltersState] = useState<Filters>({ sucursal: "", anio: "", mesAnio: mesActual() });
 
   // Materiales
   const [materiales, setMateriales] = useState<MaterialRow[]>([]);

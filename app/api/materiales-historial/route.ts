@@ -126,6 +126,7 @@ export async function GET(req: NextRequest) {
           AND vos.estado_ods        IN (1, 2, 4)
           AND vos.estado_incidencia IN (1, 2, 3)
           AND vos.fecha_solucion    IS NOT NULL
+          ${tipoFilter}
           AND YEAR(vos.fecha_solucion) = ${estadAnio}
           AND EXISTS (
             SELECT 1 FROM incidencias_soluciones is2 WITH (NOLOCK)

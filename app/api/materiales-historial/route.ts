@@ -33,9 +33,14 @@ export async function GET(req: NextRequest) {
   else if (anio) dateExtras.push(`YEAR(vos.fecha_solucion) = ${parseInt(anio, 10)}`);
   const dateWhere = dateExtras.length > 0 ? `AND ${dateExtras.join(" AND ")}` : "";
 
-  const tipoFilter = tipo === "instalaciones"
+  const esInstalacion = tipo === "instalaciones";
+  const tipoFilter = esInstalacion
     ? `AND vos.tipo_incidencia = 1 AND vos.subtipo_inicidencia IN (16, 52, 53, 90)`
     : "";
+  const existsFilter = esInstalacion
+    ? ""
+    : `AND EXISTS (SELECT 1 FROM incidencias_soluciones is2 WITH (NOLOCK) WHERE is2.id_incidencia = vos.id_incidencia)`;
+  const cantidadFilter = esInstalacion ? "AND im.cantidad > 0" : "";
 
   const baseWhere = `
     vos.cod_sucursal        ${sucursalClause}
@@ -43,10 +48,7 @@ export async function GET(req: NextRequest) {
     AND vos.estado_incidencia IN (1, 2, 3)
     AND vos.fecha_solucion  IS NOT NULL
     ${tipoFilter}
-    AND EXISTS (
-      SELECT 1 FROM incidencias_soluciones is2 WITH (NOLOCK)
-      WHERE is2.id_incidencia = vos.id_incidencia
-    )
+    ${existsFilter}
     ${dateWhere}
   `;
 
@@ -101,6 +103,7 @@ export async function GET(req: NextRequest) {
         ) deco
         WHERE ${baseWhere}
           AND d.nombre_dispositivo = '${matSafe}'
+          ${cantidadFilter}
         ORDER BY vos.fecha_solucion DESC
       `);
       return NextResponse.json({ rows: result.recordset });
@@ -127,11 +130,9 @@ export async function GET(req: NextRequest) {
           AND vos.estado_incidencia IN (1, 2, 3)
           AND vos.fecha_solucion    IS NOT NULL
           ${tipoFilter}
+          ${existsFilter}
+          ${cantidadFilter}
           AND YEAR(vos.fecha_solucion) = ${estadAnio}
-          AND EXISTS (
-            SELECT 1 FROM incidencias_soluciones is2 WITH (NOLOCK)
-            WHERE is2.id_incidencia = vos.id_incidencia
-          )
         GROUP BY d.nombre_dispositivo, FORMAT(vos.fecha_solucion, 'yyyy-MM')
         ORDER BY total_material DESC, material, mes
       `);
@@ -150,6 +151,7 @@ export async function GET(req: NextRequest) {
       INNER JOIN DISPOSITIVOS d WITH (NOLOCK)
         ON d.id_dispositivo = im.id_dispositivo
       WHERE ${baseWhere}
+        ${cantidadFilter}
       GROUP BY d.nombre_dispositivo
       ORDER BY SUM(im.cantidad) DESC
     `);

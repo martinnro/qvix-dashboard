@@ -31,9 +31,13 @@ export async function GET(req: NextRequest) {
   const limitesRaw = params.get("limites");
   const tipo = params.get("tipo");
 
-  const tipoFilter = tipo === "instalaciones"
+  const esInstalacion = tipo === "instalaciones";
+  const tipoFilter = esInstalacion
     ? `AND vos.tipo_incidencia = 1 AND vos.subtipo_inicidencia IN (16, 52, 53, 90)`
     : "";
+  const existsFilter = esInstalacion
+    ? ""
+    : `AND EXISTS (SELECT 1 FROM incidencias_soluciones is2 WITH (NOLOCK) WHERE is2.id_incidencia = vos.id_incidencia)`;
 
   const pool = await getPool();
 
@@ -67,10 +71,7 @@ export async function GET(req: NextRequest) {
           AND vos.fecha_solucion      IS NOT NULL
           ${tipoFilter}
           ${dateWhere}
-          AND EXISTS (
-            SELECT 1 FROM incidencias_soluciones is2 WITH (NOLOCK)
-            WHERE is2.id_incidencia = vos.id_incidencia
-          )
+          ${existsFilter}
         GROUP BY d.nombre_dispositivo, vos.id_incidencia
       ) sub
       GROUP BY sub.material

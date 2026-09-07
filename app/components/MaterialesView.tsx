@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback, Fragment } from "react";
+import { useState, useEffect, useCallback, useRef, Fragment } from "react";
 import {
   Loader2, AlertCircle, ChevronLeft, ChevronRight, Package, BarChart2,
   TrendingUp, TrendingDown, AlertTriangle, ShieldAlert, Plus, X, SlidersHorizontal,
@@ -124,7 +124,9 @@ export default function MaterialesView({ onBack, tipo = "reclamos" }: { onBack: 
   const [loadingFalta, setLoadingFalta] = useState(false);
   const [errorFalta, setErrorFalta] = useState<string | null>(null);
   const [justificados, setJustificados] = useState<Set<string>>(new Set());
-  const [mostrarJustificados, setMostrarJustificados] = useState(false);
+  const [pendingKeys, setPendingKeys] = useState<Set<string>>(new Set());
+  const pendingTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const [faltaTab, setFaltaTab] = useState<"pendientes" | "justificadas">("pendientes");
   const [expandedFalta, setExpandedFalta] = useState<string | null>(null);
   const toggleFalta = (key: string) => setExpandedFalta(prev => prev === key ? null : key);
 
@@ -149,14 +151,41 @@ export default function MaterialesView({ onBack, tipo = "reclamos" }: { onBack: 
     setExpandedLimite(null);
   };
 
-  const toggleJustificado = (conexion: string) => {
-    setJustificados(prev => {
-      const next = new Set(prev);
-      if (next.has(conexion)) next.delete(conexion); else next.add(conexion);
-      try { localStorage.setItem("falta_cargar_just_v1", JSON.stringify([...next])); } catch {}
-      return next;
-    });
+  const toggleJustificado = (key: string) => {
+    if (justificados.has(key)) {
+      // Undo justification immediately
+      setJustificados(prev => {
+        const next = new Set(prev);
+        next.delete(key);
+        try { localStorage.setItem("falta_cargar_just_v1", JSON.stringify([...next])); } catch {}
+        return next;
+      });
+    } else if (pendingKeys.has(key)) {
+      // Cancel pending countdown
+      clearTimeout(pendingTimers.current.get(key)!);
+      pendingTimers.current.delete(key);
+      setPendingKeys(prev => { const n2 = new Set(prev); n2.delete(key); return n2; });
+    } else {
+      // Start 5-second countdown before saving to localStorage
+      setPendingKeys(prev => new Set([...prev, key]));
+      const t = setTimeout(() => {
+        setJustificados(prev => {
+          const next = new Set(prev);
+          next.add(key);
+          try { localStorage.setItem("falta_cargar_just_v1", JSON.stringify([...next])); } catch {}
+          return next;
+        });
+        setPendingKeys(prev => { const n2 = new Set(prev); n2.delete(key); return n2; });
+        pendingTimers.current.delete(key);
+      }, 5000);
+      pendingTimers.current.set(key, t);
+    }
   };
+
+  useEffect(() => {
+    const timers = pendingTimers.current;
+    return () => { timers.forEach(t => clearTimeout(t)); };
+  }, []);
 
   const saveLimites = (next: Record<string, number>) => {
     setLimites(next);
@@ -637,11 +666,14 @@ export default function MaterialesView({ onBack, tipo = "reclamos" }: { onBack: 
 
         {/* ── VISTA FALTA CARGAR ── */}
         {vista === "falta-cargar" && (() => {
-          const pendientes = faltaCargar.filter(r => !justificados.has(r.conexion));
-          const justificadosList = faltaCargar.filter(r => justificados.has(r.conexion));
-          const filas = mostrarJustificados ? faltaCargar : pendientes;
+          const pendingList   = faltaCargar.filter(r => pendingKeys.has(String(r.conexion)));
+          const pendienteList = faltaCargar.filter(r => !justificados.has(String(r.conexion)) && !pendingKeys.has(String(r.conexion)));
+          const justList      = faltaCargar.filter(r => justificados.has(String(r.conexion)));
+          const filasPend     = [...pendingList, ...pendienteList];
+          const filasCurrent  = faltaTab === "justificadas" ? justList : filasPend;
           return (
             <>
+              <style>{`@keyframes shrinkBar{from{width:100%}to{width:0%}}`}</style>
               {errorFalta && <div className="flex items-center gap-2 text-red-400 text-sm bg-red-950/30 border border-red-800 rounded-lg px-4 py-3"><AlertCircle size={16}/>{errorFalta}</div>}
               {loadingFalta && <div className="flex items-center gap-2 text-slate-400 text-sm py-4"><Loader2 size={16} className="animate-spin"/> Buscando instalaciones sin fibra cargada...</div>}
               {!loadingFalta && !errorFalta && faltaCargar.length === 0 && (
@@ -652,79 +684,99 @@ export default function MaterialesView({ onBack, tipo = "reclamos" }: { onBack: 
               )}
               {!loadingFalta && faltaCargar.length > 0 && (
                 <div className="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden">
-                  <div className="flex items-center gap-3 px-5 py-3 border-b border-slate-700 bg-rose-950/20 flex-wrap">
-                    <ClipboardX size={14} className="text-rose-400 shrink-0" />
-                    <p className="text-xs text-rose-300 font-medium">
-                      <span className="text-rose-200 font-bold">{pendientes.length}</span> pendientes
-                      {justificadosList.length > 0 && <span className="text-slate-500 ml-2">· {justificadosList.length} justificados</span>}
-                    </p>
-                    {justificadosList.length > 0 && (
-                      <button
-                        onClick={() => setMostrarJustificados(v => !v)}
-                        className="ml-auto text-xs text-slate-500 hover:text-slate-300 transition-colors"
-                      >
-                        {mostrarJustificados ? "Ocultar justificados" : "Mostrar justificados"}
-                      </button>
-                    )}
-                    {justificadosList.length === 0 && <span className="ml-auto text-xs text-slate-600">FIBRA DROP no registrada · check para justificar</span>}
+                  {/* Sub-tabs */}
+                  <div className="flex items-center border-b border-slate-700 bg-slate-900/30">
+                    <button
+                      onClick={() => setFaltaTab("pendientes")}
+                      className={`px-5 py-3 text-xs font-medium border-b-2 transition-colors ${faltaTab === "pendientes" ? "border-rose-500 text-rose-300" : "border-transparent text-slate-500 hover:text-slate-300"}`}
+                    >
+                      Pendientes <span className={`ml-1.5 px-1.5 py-0.5 rounded text-[10px] ${faltaTab === "pendientes" ? "bg-rose-900 text-rose-200" : "bg-slate-700 text-slate-400"}`}>{pendienteList.length + pendingList.length}</span>
+                    </button>
+                    <button
+                      onClick={() => setFaltaTab("justificadas")}
+                      className={`px-5 py-3 text-xs font-medium border-b-2 transition-colors ${faltaTab === "justificadas" ? "border-emerald-500 text-emerald-300" : "border-transparent text-slate-500 hover:text-slate-300"}`}
+                    >
+                      Justificadas <span className={`ml-1.5 px-1.5 py-0.5 rounded text-[10px] ${faltaTab === "justificadas" ? "bg-emerald-900 text-emerald-200" : "bg-slate-700 text-slate-400"}`}>{justList.length}</span>
+                    </button>
+                    <span className="ml-auto pr-4 text-[10px] text-slate-600">FIBRA DROP no registrada</span>
                   </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="text-slate-400 uppercase tracking-wider border-b border-slate-700 bg-slate-900/20">
-                          <th className="py-3 px-3 w-8"></th>
-                          <th className="text-left py-3 px-2 font-medium">Conexión</th>
-                          <th className="text-left py-3 px-4 font-medium">Tarifa</th>
-                          <th className="text-left py-3 px-4 font-medium">Sucursal</th>
-                          <th className="text-left py-3 px-4 font-medium">Fecha cierre</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filas.map((r, i) => {
-                          const key = String(r.conexion);
-                          const esJust = justificados.has(key);
-                          const isOpen = expandedFalta === key;
-                          return (
-                            <Fragment key={key}>
-                              <tr
-                                onClick={() => toggleFalta(key)}
-                                className={`border-b ${isOpen ? "border-indigo-800" : "border-slate-800"} transition-colors cursor-pointer ${esJust ? "opacity-40" : "hover:bg-slate-700/30"}`}
-                              >
-                                <td className="py-2 px-3" onClick={e => e.stopPropagation()}>
-                                  <button
-                                    onClick={() => toggleJustificado(key)}
-                                    title={esJust ? "Quitar justificación" : "Marcar como justificado"}
-                                    className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${esJust ? "bg-emerald-700 border-emerald-600 text-white" : "border-slate-600 text-slate-600 hover:border-emerald-500 hover:text-emerald-400"}`}
-                                  >
-                                    {esJust ? "✓" : ""}
-                                  </button>
-                                </td>
-                                <td className={`py-2.5 px-2 font-mono ${esJust ? "text-slate-500 line-through" : "text-slate-300"}`}>
-                                  <span className="flex items-center gap-1">
-                                    <ChevronRight size={11} className={`text-slate-500 shrink-0 transition-transform ${isOpen ? "rotate-90" : ""}`} />
-                                    {r.conexion}
-                                  </span>
-                                </td>
-                                <td className="py-2.5 px-4 text-slate-400 max-w-[200px] truncate" title={r.tarifa ?? ""}>{r.tarifa ?? <span className="text-slate-700">—</span>}</td>
-                                <td className="py-2.5 px-4 text-slate-400">{SUCURSALES[r.cod_sucursal] ?? `Suc. ${r.cod_sucursal}`}</td>
-                                <td className="py-2.5 px-4 text-slate-400 tabular-nums">{r.fecha_cierre}</td>
-                              </tr>
-                              {isOpen && (
-                                <tr className="border-b border-slate-800 bg-indigo-950/40">
-                                  <td colSpan={5} className="px-10 py-3">
-                                    {r.observaciones
-                                      ? <p className="text-slate-200 text-xs">📝 {r.observaciones}</p>
-                                      : <p className="text-slate-500 text-xs italic">Sin observaciones registradas en esta ODS.</p>
+                  {filasCurrent.length === 0 && (
+                    <div className="text-center py-10 text-slate-600 text-xs italic">
+                      {faltaTab === "justificadas" ? "Ninguna conexión justificada aún." : "Todo al día."}
+                    </div>
+                  )}
+                  {filasCurrent.length > 0 && (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-slate-400 uppercase tracking-wider border-b border-slate-700 bg-slate-900/20">
+                            <th className="py-3 px-3 w-8"></th>
+                            <th className="text-left py-3 px-2 font-medium">Conexión</th>
+                            <th className="text-left py-3 px-4 font-medium">Tarifa</th>
+                            <th className="text-left py-3 px-4 font-medium">Sucursal</th>
+                            <th className="text-left py-3 px-4 font-medium">Fecha cierre</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filasCurrent.map((r) => {
+                            const key      = String(r.conexion);
+                            const esPend   = pendingKeys.has(key);
+                            const esJust   = justificados.has(key);
+                            const isOpen   = expandedFalta === key;
+                            return (
+                              <Fragment key={key}>
+                                <tr
+                                  onClick={() => toggleFalta(key)}
+                                  className={`border-b relative ${isOpen ? "border-indigo-800" : "border-slate-800"} transition-colors cursor-pointer ${esPend ? "bg-amber-950/30" : esJust ? "bg-slate-900/20" : "hover:bg-slate-700/30"}`}
+                                >
+                                  <td className="py-2 px-3" onClick={e => e.stopPropagation()}>
+                                    <button
+                                      onClick={() => toggleJustificado(key)}
+                                      title={esPend ? "Deshacer (quedan 5s)" : esJust ? "Quitar justificación" : "Marcar como justificado"}
+                                      className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+                                        esPend  ? "bg-amber-600 border-amber-500 text-white animate-pulse" :
+                                        esJust  ? "bg-emerald-700 border-emerald-600 text-white" :
+                                                  "border-slate-600 text-slate-600 hover:border-emerald-500 hover:text-emerald-400"
+                                      }`}
+                                    >
+                                      {esPend ? "↩" : esJust ? "✓" : ""}
+                                    </button>
+                                  </td>
+                                  <td className={`py-2.5 px-2 font-mono ${esJust ? "text-slate-500 line-through" : esPend ? "text-amber-300" : "text-slate-300"}`}>
+                                    <span className="flex items-center gap-1">
+                                      <ChevronRight size={11} className={`text-slate-500 shrink-0 transition-transform ${isOpen ? "rotate-90" : ""}`} />
+                                      {r.conexion}
+                                    </span>
+                                  </td>
+                                  <td className="py-2.5 px-4 text-slate-400 max-w-[200px] truncate" title={r.tarifa ?? ""}>{r.tarifa ?? <span className="text-slate-700">—</span>}</td>
+                                  <td className="py-2.5 px-4 text-slate-400">{SUCURSALES[r.cod_sucursal] ?? `Suc. ${r.cod_sucursal}`}</td>
+                                  <td className="py-2.5 px-4 text-slate-400 tabular-nums relative">
+                                    {esPend
+                                      ? <span className="text-amber-400 text-[10px]">Justificando… tap para deshacer</span>
+                                      : r.fecha_cierre
                                     }
+                                    {esPend && (
+                                      <span style={{ animation: "shrinkBar 5s linear forwards", position: "absolute", bottom: 0, left: 0, height: "2px", background: "#f59e0b", display: "block", width: "100%" }} />
+                                    )}
                                   </td>
                                 </tr>
-                              )}
-                            </Fragment>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                                {isOpen && (
+                                  <tr className="border-b border-slate-800 bg-indigo-950/40">
+                                    <td colSpan={5} className="px-10 py-3">
+                                      {r.observaciones
+                                        ? <p className="text-slate-200 text-xs">📝 {r.observaciones}</p>
+                                        : <p className="text-slate-500 text-xs italic">Sin observaciones registradas en esta ODS.</p>
+                                      }
+                                    </td>
+                                  </tr>
+                                )}
+                              </Fragment>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               )}
             </>

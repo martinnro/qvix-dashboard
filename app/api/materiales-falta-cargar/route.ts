@@ -52,8 +52,8 @@ export async function GET(req: NextRequest) {
       LEFT JOIN tarifas t WITH (NOLOCK)
         ON t.id_tarifa = vcd.tarifa
       WHERE vos.cod_sucursal        ${sucursalClause}
-        AND vos.estado_ods          IN (1, 2, 4)
-        AND vos.estado_incidencia   IN (1, 2, 3)
+        AND vos.estado_ods          = 4
+        AND vos.estado_incidencia   = 3
         AND vos.fecha_solucion      IS NOT NULL
         AND vos.tipo_incidencia     = 1
         AND vos.subtipo_inicidencia = 16

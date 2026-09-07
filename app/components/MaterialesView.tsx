@@ -123,12 +123,18 @@ export default function MaterialesView({ onBack, tipo = "reclamos" }: { onBack: 
   const [faltaCargar, setFaltaCargar] = useState<FaltaCargarRow[]>([]);
   const [loadingFalta, setLoadingFalta] = useState(false);
   const [errorFalta, setErrorFalta] = useState<string | null>(null);
+  const [justificados, setJustificados] = useState<Set<string>>(new Set());
+  const [mostrarJustificados, setMostrarJustificados] = useState(false);
 
-  // Cargar límites desde localStorage después de hidratación
+  // Cargar límites y justificados desde localStorage después de hidratación
   useEffect(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) setLimites(JSON.parse(saved));
+    } catch {}
+    try {
+      const savedJ = localStorage.getItem("falta_cargar_just_v1");
+      if (savedJ) setJustificados(new Set(JSON.parse(savedJ)));
     } catch {}
   }, []);
 
@@ -139,6 +145,15 @@ export default function MaterialesView({ onBack, tipo = "reclamos" }: { onBack: 
     // Limpiar caché de anomalías al cambiar filtros
     setAnomaliasPorMat({});
     setExpandedLimite(null);
+  };
+
+  const toggleJustificado = (conexion: string) => {
+    setJustificados(prev => {
+      const next = new Set(prev);
+      if (next.has(conexion)) next.delete(conexion); else next.add(conexion);
+      try { localStorage.setItem("falta_cargar_just_v1", JSON.stringify([...next])); } catch {}
+      return next;
+    });
   };
 
   const saveLimites = (next: Record<string, number>) => {
@@ -619,51 +634,78 @@ export default function MaterialesView({ onBack, tipo = "reclamos" }: { onBack: 
         })()}
 
         {/* ── VISTA FALTA CARGAR ── */}
-        {vista === "falta-cargar" && (
-          <>
-            {errorFalta && <div className="flex items-center gap-2 text-red-400 text-sm bg-red-950/30 border border-red-800 rounded-lg px-4 py-3"><AlertCircle size={16}/>{errorFalta}</div>}
-            {loadingFalta && <div className="flex items-center gap-2 text-slate-400 text-sm py-4"><Loader2 size={16} className="animate-spin"/> Buscando instalaciones sin fibra cargada...</div>}
-            {!loadingFalta && !errorFalta && faltaCargar.length === 0 && (
-              <div className="text-center py-16 text-slate-500 text-sm">
-                <ClipboardX size={36} className="mx-auto text-slate-700 mb-3" />
-                Sin instalaciones FTTH pendientes de cargar materiales
-              </div>
-            )}
-            {!loadingFalta && faltaCargar.length > 0 && (
-              <div className="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden">
-                <div className="flex items-center gap-3 px-5 py-3 border-b border-slate-700 bg-rose-950/20">
-                  <ClipboardX size={14} className="text-rose-400 shrink-0" />
-                  <p className="text-xs text-rose-300 font-medium">
-                    <span className="text-rose-200 font-bold">{faltaCargar.length}</span> instalaciones FTTH sin fibra cargada
-                  </p>
-                  <span className="ml-auto text-xs text-slate-500">FIBRA DROP no registrada · ordenadas por fecha</span>
+        {vista === "falta-cargar" && (() => {
+          const pendientes = faltaCargar.filter(r => !justificados.has(r.conexion));
+          const justificadosList = faltaCargar.filter(r => justificados.has(r.conexion));
+          const filas = mostrarJustificados ? faltaCargar : pendientes;
+          return (
+            <>
+              {errorFalta && <div className="flex items-center gap-2 text-red-400 text-sm bg-red-950/30 border border-red-800 rounded-lg px-4 py-3"><AlertCircle size={16}/>{errorFalta}</div>}
+              {loadingFalta && <div className="flex items-center gap-2 text-slate-400 text-sm py-4"><Loader2 size={16} className="animate-spin"/> Buscando instalaciones sin fibra cargada...</div>}
+              {!loadingFalta && !errorFalta && faltaCargar.length === 0 && (
+                <div className="text-center py-16 text-slate-500 text-sm">
+                  <ClipboardX size={36} className="mx-auto text-slate-700 mb-3" />
+                  Sin instalaciones FTTH pendientes de cargar materiales
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="text-slate-400 uppercase tracking-wider border-b border-slate-700 bg-slate-900/20">
-                        <th className="text-left py-3 px-4 font-medium">Conexión</th>
-                        <th className="text-left py-3 px-4 font-medium">Tarifa</th>
-                        <th className="text-left py-3 px-4 font-medium">Sucursal</th>
-                        <th className="text-left py-3 px-4 font-medium">Fecha cierre</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {faltaCargar.map((r, i) => (
-                        <tr key={i} className="border-b border-slate-800 last:border-0 hover:bg-slate-700/20 transition-colors">
-                          <td className="py-2.5 px-4 font-mono text-slate-300">{r.conexion}</td>
-                          <td className="py-2.5 px-4 text-slate-400 max-w-[200px] truncate" title={r.tarifa ?? ""}>{r.tarifa ?? <span className="text-slate-700">—</span>}</td>
-                          <td className="py-2.5 px-4 text-slate-400">{SUCURSALES[r.cod_sucursal] ?? `Suc. ${r.cod_sucursal}`}</td>
-                          <td className="py-2.5 px-4 text-slate-400 tabular-nums">{r.fecha_cierre}</td>
+              )}
+              {!loadingFalta && faltaCargar.length > 0 && (
+                <div className="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden">
+                  <div className="flex items-center gap-3 px-5 py-3 border-b border-slate-700 bg-rose-950/20 flex-wrap">
+                    <ClipboardX size={14} className="text-rose-400 shrink-0" />
+                    <p className="text-xs text-rose-300 font-medium">
+                      <span className="text-rose-200 font-bold">{pendientes.length}</span> pendientes
+                      {justificadosList.length > 0 && <span className="text-slate-500 ml-2">· {justificadosList.length} justificados</span>}
+                    </p>
+                    {justificadosList.length > 0 && (
+                      <button
+                        onClick={() => setMostrarJustificados(v => !v)}
+                        className="ml-auto text-xs text-slate-500 hover:text-slate-300 transition-colors"
+                      >
+                        {mostrarJustificados ? "Ocultar justificados" : "Mostrar justificados"}
+                      </button>
+                    )}
+                    {justificadosList.length === 0 && <span className="ml-auto text-xs text-slate-600">FIBRA DROP no registrada · check para justificar</span>}
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead>
+                        <tr className="text-slate-400 uppercase tracking-wider border-b border-slate-700 bg-slate-900/20">
+                          <th className="py-3 px-3 w-8"></th>
+                          <th className="text-left py-3 px-2 font-medium">Conexión</th>
+                          <th className="text-left py-3 px-4 font-medium">Tarifa</th>
+                          <th className="text-left py-3 px-4 font-medium">Sucursal</th>
+                          <th className="text-left py-3 px-4 font-medium">Fecha cierre</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {filas.map((r, i) => {
+                          const esJust = justificados.has(r.conexion);
+                          return (
+                            <tr key={i} className={`border-b border-slate-800 last:border-0 transition-colors ${esJust ? "opacity-40" : "hover:bg-slate-700/20"}`}>
+                              <td className="py-2 px-3">
+                                <button
+                                  onClick={() => toggleJustificado(r.conexion)}
+                                  title={esJust ? "Quitar justificación" : "Marcar como justificado"}
+                                  className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${esJust ? "bg-emerald-700 border-emerald-600 text-white" : "border-slate-600 text-slate-600 hover:border-emerald-500 hover:text-emerald-400"}`}
+                                >
+                                  {esJust ? "✓" : ""}
+                                </button>
+                              </td>
+                              <td className={`py-2.5 px-2 font-mono ${esJust ? "text-slate-500 line-through" : "text-slate-300"}`}>{r.conexion}</td>
+                              <td className="py-2.5 px-4 text-slate-400 max-w-[200px] truncate" title={r.tarifa ?? ""}>{r.tarifa ?? <span className="text-slate-700">—</span>}</td>
+                              <td className="py-2.5 px-4 text-slate-400">{SUCURSALES[r.cod_sucursal] ?? `Suc. ${r.cod_sucursal}`}</td>
+                              <td className="py-2.5 px-4 text-slate-400 tabular-nums">{r.fecha_cierre}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
-            )}
-          </>
-        )}
+              )}
+            </>
+          );
+        })()}
 
         {/* ── VISTA FUERA DE LO NORMAL ── */}
         {vista === "fuera-de-lo-normal" && (

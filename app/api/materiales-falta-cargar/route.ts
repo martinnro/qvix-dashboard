@@ -58,6 +58,7 @@ export async function GET(req: NextRequest) {
         AND vos.tipo_incidencia     = 1
         AND vos.subtipo_inicidencia = 16
         AND t.descripcion           LIKE '%FTTH%'
+        AND vcd.Estado_Servicio     NOT IN (4, 5, 7, 8, 9, 10, 11)
         ${dateWhere}
         AND NOT EXISTS (
           SELECT 1

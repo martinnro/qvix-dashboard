@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, Fragment } from "react";
 import {
   Loader2, AlertCircle, ChevronLeft, ChevronRight, Package, BarChart2,
   TrendingUp, TrendingDown, AlertTriangle, ShieldAlert, Plus, X, SlidersHorizontal,
-  Sparkles,
+  Sparkles, ClipboardX,
 } from "lucide-react";
 
 const SUCURSALES: Record<number, string> = {
@@ -64,6 +64,8 @@ function PillButton({ active, onClick, children }: { active: boolean; onClick: (
 interface MaterialRow { material: string; total_unidades: number; cantidad_ordenes: number; }
 interface DetailRow { conexion: string; fecha_cierre: string; cod_sucursal: number; cantidad: number; tarifa?: string; tipo_deco?: string; }
 interface EstadRow { material: string; mes: string; total_unidades: number; total_material: number; }
+interface FaltaCargarRow { conexion: string; fecha_cierre: string; cod_sucursal: number; tarifa?: string; subtipo?: string; }
+
 interface AnomaliaRow {
   material: string;
   conexion: string;
@@ -87,7 +89,7 @@ function mesActual() {
 
 export default function MaterialesView({ onBack, tipo = "reclamos" }: { onBack: () => void; tipo?: "reclamos" | "instalaciones" }) {
   const STORAGE_KEY = tipo === "instalaciones" ? "mat_limites_inst_v1" : "mat_limites_v1";
-  const [vista, setVista] = useState<"materiales" | "estadisticas" | "fuera-de-lo-normal">("materiales");
+  const [vista, setVista] = useState<"materiales" | "estadisticas" | "fuera-de-lo-normal" | "falta-cargar">("materiales");
   const [filters, setFiltersState] = useState<Filters>({ sucursal: "", anio: "", mesAnio: mesActual() });
 
   // Materiales
@@ -116,6 +118,11 @@ export default function MaterialesView({ onBack, tipo = "reclamos" }: { onBack: 
   const [newLimite, setNewLimite] = useState(1);
   const [allMaterialNames, setAllMaterialNames] = useState<string[]>([]);
   const [loadingAllMat, setLoadingAllMat] = useState(false);
+
+  // Falta cargar
+  const [faltaCargar, setFaltaCargar] = useState<FaltaCargarRow[]>([]);
+  const [loadingFalta, setLoadingFalta] = useState(false);
+  const [errorFalta, setErrorFalta] = useState<string | null>(null);
 
   // Cargar límites desde localStorage después de hidratación
   useEffect(() => {
@@ -260,8 +267,25 @@ export default function MaterialesView({ onBack, tipo = "reclamos" }: { onBack: 
     }
   };
 
+  const fetchFaltaCargar = useCallback(async (f: Filters) => {
+    setLoadingFalta(true); setErrorFalta(null);
+    try {
+      const p = new URLSearchParams();
+      if (f.sucursal) p.set("sucursal", f.sucursal);
+      if (f.mesAnio) p.set("mes_anio", f.mesAnio);
+      else if (f.anio) p.set("anio", f.anio);
+      const res = await fetch(`/api/materiales-falta-cargar?${p}`);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setFaltaCargar(data.rows ?? []);
+    } catch (e: unknown) {
+      setErrorFalta(e instanceof Error ? e.message : String(e));
+    } finally { setLoadingFalta(false); }
+  }, []);
+
   useEffect(() => { if (vista === "materiales") fetchMateriales(filters); }, [filters, fetchMateriales, vista]);
   useEffect(() => { if (vista === "estadisticas") fetchEstadisticas(filters); }, [filters, fetchEstadisticas, vista]);
+  useEffect(() => { if (vista === "falta-cargar") fetchFaltaCargar(filters); }, [filters, fetchFaltaCargar, vista]);
 
   const hayFiltros = filters.sucursal || filters.anio || filters.mesAnio;
   const activeYear = filters.mesAnio ? filters.mesAnio.slice(0, 4) : filters.anio;
@@ -301,6 +325,14 @@ export default function MaterialesView({ onBack, tipo = "reclamos" }: { onBack: 
               >
                 <ShieldAlert size={14} /> Fuera de lo normal
               </button>
+              {tipo === "instalaciones" && (
+                <button
+                  onClick={() => setVista("falta-cargar")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${vista === "falta-cargar" ? "bg-rose-700 text-white" : "text-slate-400 hover:text-slate-200"}`}
+                >
+                  <ClipboardX size={14} /> Falta cargar
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -585,6 +617,53 @@ export default function MaterialesView({ onBack, tipo = "reclamos" }: { onBack: 
             </>
           );
         })()}
+
+        {/* ── VISTA FALTA CARGAR ── */}
+        {vista === "falta-cargar" && (
+          <>
+            {errorFalta && <div className="flex items-center gap-2 text-red-400 text-sm bg-red-950/30 border border-red-800 rounded-lg px-4 py-3"><AlertCircle size={16}/>{errorFalta}</div>}
+            {loadingFalta && <div className="flex items-center gap-2 text-slate-400 text-sm py-4"><Loader2 size={16} className="animate-spin"/> Buscando instalaciones sin fibra cargada...</div>}
+            {!loadingFalta && !errorFalta && faltaCargar.length === 0 && (
+              <div className="text-center py-16 text-slate-500 text-sm">
+                <ClipboardX size={36} className="mx-auto text-slate-700 mb-3" />
+                Sin instalaciones FTTH pendientes de cargar materiales
+              </div>
+            )}
+            {!loadingFalta && faltaCargar.length > 0 && (
+              <div className="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden">
+                <div className="flex items-center gap-3 px-5 py-3 border-b border-slate-700 bg-rose-950/20">
+                  <ClipboardX size={14} className="text-rose-400 shrink-0" />
+                  <p className="text-xs text-rose-300 font-medium">
+                    <span className="text-rose-200 font-bold">{faltaCargar.length}</span> instalaciones FTTH sin fibra cargada
+                  </p>
+                  <span className="ml-auto text-xs text-slate-500">FIBRA DROP no registrada · ordenadas por fecha</span>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-slate-400 uppercase tracking-wider border-b border-slate-700 bg-slate-900/20">
+                        <th className="text-left py-3 px-4 font-medium">Conexión</th>
+                        <th className="text-left py-3 px-4 font-medium">Tarifa</th>
+                        <th className="text-left py-3 px-4 font-medium">Sucursal</th>
+                        <th className="text-left py-3 px-4 font-medium">Fecha cierre</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {faltaCargar.map((r, i) => (
+                        <tr key={i} className="border-b border-slate-800 last:border-0 hover:bg-slate-700/20 transition-colors">
+                          <td className="py-2.5 px-4 font-mono text-slate-300">{r.conexion}</td>
+                          <td className="py-2.5 px-4 text-slate-400 max-w-[200px] truncate" title={r.tarifa ?? ""}>{r.tarifa ?? <span className="text-slate-700">—</span>}</td>
+                          <td className="py-2.5 px-4 text-slate-400">{SUCURSALES[r.cod_sucursal] ?? `Suc. ${r.cod_sucursal}`}</td>
+                          <td className="py-2.5 px-4 text-slate-400 tabular-nums">{r.fecha_cierre}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </>
+        )}
 
         {/* ── VISTA FUERA DE LO NORMAL ── */}
         {vista === "fuera-de-lo-normal" && (

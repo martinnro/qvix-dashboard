@@ -126,6 +126,7 @@ export default function MaterialesView({ onBack, tipo = "reclamos" }: { onBack: 
   const [justificados, setJustificados] = useState<Set<string>>(new Set());
   const [mostrarJustificados, setMostrarJustificados] = useState(false);
   const [expandedFalta, setExpandedFalta] = useState<string | null>(null);
+  const toggleFalta = (key: string) => setExpandedFalta(prev => prev === key ? null : key);
 
   // Cargar límites y justificados desde localStorage después de hidratación
   useEffect(() => {
@@ -680,17 +681,18 @@ export default function MaterialesView({ onBack, tipo = "reclamos" }: { onBack: 
                       </thead>
                       <tbody>
                         {filas.map((r, i) => {
-                          const esJust = justificados.has(r.conexion);
-                          const isOpen = expandedFalta === r.conexion;
+                          const key = String(r.conexion);
+                          const esJust = justificados.has(key);
+                          const isOpen = expandedFalta === key;
                           return (
-                            <Fragment key={i}>
+                            <Fragment key={key}>
                               <tr
-                                onClick={() => setExpandedFalta(isOpen ? null : r.conexion)}
-                                className={`border-b ${isOpen ? "border-slate-700" : "border-slate-800"} transition-colors cursor-pointer ${esJust ? "opacity-40" : "hover:bg-slate-700/20"}`}
+                                onClick={() => toggleFalta(key)}
+                                className={`border-b ${isOpen ? "border-indigo-800" : "border-slate-800"} transition-colors cursor-pointer ${esJust ? "opacity-40" : "hover:bg-slate-700/30"}`}
                               >
                                 <td className="py-2 px-3" onClick={e => e.stopPropagation()}>
                                   <button
-                                    onClick={() => toggleJustificado(r.conexion)}
+                                    onClick={() => toggleJustificado(key)}
                                     title={esJust ? "Quitar justificación" : "Marcar como justificado"}
                                     className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${esJust ? "bg-emerald-700 border-emerald-600 text-white" : "border-slate-600 text-slate-600 hover:border-emerald-500 hover:text-emerald-400"}`}
                                   >
@@ -699,7 +701,7 @@ export default function MaterialesView({ onBack, tipo = "reclamos" }: { onBack: 
                                 </td>
                                 <td className={`py-2.5 px-2 font-mono ${esJust ? "text-slate-500 line-through" : "text-slate-300"}`}>
                                   <span className="flex items-center gap-1">
-                                    <ChevronRight size={11} className={`text-slate-600 shrink-0 transition-transform ${isOpen ? "rotate-90" : ""}`} />
+                                    <ChevronRight size={11} className={`text-slate-500 shrink-0 transition-transform ${isOpen ? "rotate-90" : ""}`} />
                                     {r.conexion}
                                   </span>
                                 </td>
@@ -708,11 +710,11 @@ export default function MaterialesView({ onBack, tipo = "reclamos" }: { onBack: 
                                 <td className="py-2.5 px-4 text-slate-400 tabular-nums">{r.fecha_cierre}</td>
                               </tr>
                               {isOpen && (
-                                <tr className="border-b border-slate-800 bg-slate-900/60">
-                                  <td colSpan={5} className="px-10 py-2.5">
+                                <tr className="border-b border-slate-800 bg-indigo-950/40">
+                                  <td colSpan={5} className="px-10 py-3">
                                     {r.observaciones
-                                      ? <p className="text-slate-300 text-xs italic">"{r.observaciones}"</p>
-                                      : <p className="text-slate-600 text-xs">Sin observaciones en la ODS.</p>
+                                      ? <p className="text-slate-200 text-xs">📝 {r.observaciones}</p>
+                                      : <p className="text-slate-500 text-xs italic">Sin observaciones registradas en esta ODS.</p>
                                     }
                                   </td>
                                 </tr>

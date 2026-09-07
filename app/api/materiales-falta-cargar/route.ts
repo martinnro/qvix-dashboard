@@ -40,10 +40,11 @@ export async function GET(req: NextRequest) {
     const result = await pool.request().query(`
       SELECT TOP 1000
         ih.id_conexion                              AS conexion,
+        ih.id_incidencia,
         CONVERT(VARCHAR, vos.fecha_solucion, 5)     AS fecha_cierre,
         vos.cod_sucursal,
         t.descripcion                               AS tarifa,
-        vos.subtipo_incidencia_descripcion          AS subtipo
+        NULLIF(LTRIM(RTRIM(ih.observaciones)), '')  AS observaciones
       FROM v_ordenes_servicios vos WITH (NOLOCK)
       INNER JOIN incidencias_header ih WITH (NOLOCK)
         ON ih.id_incidencia = vos.id_incidencia

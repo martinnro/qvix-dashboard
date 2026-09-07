@@ -64,7 +64,7 @@ function PillButton({ active, onClick, children }: { active: boolean; onClick: (
 interface MaterialRow { material: string; total_unidades: number; cantidad_ordenes: number; }
 interface DetailRow { conexion: string; fecha_cierre: string; cod_sucursal: number; cantidad: number; tarifa?: string; tipo_deco?: string; }
 interface EstadRow { material: string; mes: string; total_unidades: number; total_material: number; }
-interface FaltaCargarRow { conexion: string; fecha_cierre: string; cod_sucursal: number; tarifa?: string; subtipo?: string; }
+interface FaltaCargarRow { conexion: string; id_incidencia: number; fecha_cierre: string; cod_sucursal: number; tarifa?: string; observaciones?: string; }
 
 interface AnomaliaRow {
   material: string;
@@ -125,6 +125,7 @@ export default function MaterialesView({ onBack, tipo = "reclamos" }: { onBack: 
   const [errorFalta, setErrorFalta] = useState<string | null>(null);
   const [justificados, setJustificados] = useState<Set<string>>(new Set());
   const [mostrarJustificados, setMostrarJustificados] = useState(false);
+  const [expandedFalta, setExpandedFalta] = useState<string | null>(null);
 
   // Cargar límites y justificados desde localStorage después de hidratación
   useEffect(() => {
@@ -680,22 +681,43 @@ export default function MaterialesView({ onBack, tipo = "reclamos" }: { onBack: 
                       <tbody>
                         {filas.map((r, i) => {
                           const esJust = justificados.has(r.conexion);
+                          const isOpen = expandedFalta === r.conexion;
                           return (
-                            <tr key={i} className={`border-b border-slate-800 last:border-0 transition-colors ${esJust ? "opacity-40" : "hover:bg-slate-700/20"}`}>
-                              <td className="py-2 px-3">
-                                <button
-                                  onClick={() => toggleJustificado(r.conexion)}
-                                  title={esJust ? "Quitar justificación" : "Marcar como justificado"}
-                                  className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${esJust ? "bg-emerald-700 border-emerald-600 text-white" : "border-slate-600 text-slate-600 hover:border-emerald-500 hover:text-emerald-400"}`}
-                                >
-                                  {esJust ? "✓" : ""}
-                                </button>
-                              </td>
-                              <td className={`py-2.5 px-2 font-mono ${esJust ? "text-slate-500 line-through" : "text-slate-300"}`}>{r.conexion}</td>
-                              <td className="py-2.5 px-4 text-slate-400 max-w-[200px] truncate" title={r.tarifa ?? ""}>{r.tarifa ?? <span className="text-slate-700">—</span>}</td>
-                              <td className="py-2.5 px-4 text-slate-400">{SUCURSALES[r.cod_sucursal] ?? `Suc. ${r.cod_sucursal}`}</td>
-                              <td className="py-2.5 px-4 text-slate-400 tabular-nums">{r.fecha_cierre}</td>
-                            </tr>
+                            <Fragment key={i}>
+                              <tr
+                                onClick={() => setExpandedFalta(isOpen ? null : r.conexion)}
+                                className={`border-b ${isOpen ? "border-slate-700" : "border-slate-800"} transition-colors cursor-pointer ${esJust ? "opacity-40" : "hover:bg-slate-700/20"}`}
+                              >
+                                <td className="py-2 px-3" onClick={e => e.stopPropagation()}>
+                                  <button
+                                    onClick={() => toggleJustificado(r.conexion)}
+                                    title={esJust ? "Quitar justificación" : "Marcar como justificado"}
+                                    className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${esJust ? "bg-emerald-700 border-emerald-600 text-white" : "border-slate-600 text-slate-600 hover:border-emerald-500 hover:text-emerald-400"}`}
+                                  >
+                                    {esJust ? "✓" : ""}
+                                  </button>
+                                </td>
+                                <td className={`py-2.5 px-2 font-mono ${esJust ? "text-slate-500 line-through" : "text-slate-300"}`}>
+                                  <span className="flex items-center gap-1">
+                                    <ChevronRight size={11} className={`text-slate-600 shrink-0 transition-transform ${isOpen ? "rotate-90" : ""}`} />
+                                    {r.conexion}
+                                  </span>
+                                </td>
+                                <td className="py-2.5 px-4 text-slate-400 max-w-[200px] truncate" title={r.tarifa ?? ""}>{r.tarifa ?? <span className="text-slate-700">—</span>}</td>
+                                <td className="py-2.5 px-4 text-slate-400">{SUCURSALES[r.cod_sucursal] ?? `Suc. ${r.cod_sucursal}`}</td>
+                                <td className="py-2.5 px-4 text-slate-400 tabular-nums">{r.fecha_cierre}</td>
+                              </tr>
+                              {isOpen && (
+                                <tr className="border-b border-slate-800 bg-slate-900/60">
+                                  <td colSpan={5} className="px-10 py-2.5">
+                                    {r.observaciones
+                                      ? <p className="text-slate-300 text-xs italic">"{r.observaciones}"</p>
+                                      : <p className="text-slate-600 text-xs">Sin observaciones en la ODS.</p>
+                                    }
+                                  </td>
+                                </tr>
+                              )}
+                            </Fragment>
                           );
                         })}
                       </tbody>

@@ -20,7 +20,7 @@ const MESES = [
 
 const YEARS = (() => {
   const years: string[] = [];
-  for (let y = 2025; y <= new Date().getFullYear(); y++) years.push(String(y));
+  for (let y = 2023; y <= new Date().getFullYear(); y++) years.push(String(y));
   return years;
 })();
 

@@ -56,7 +56,7 @@ export async function GET(req: NextRequest) {
         AND vos.estado_incidencia   IN (1, 2, 3)
         AND vos.fecha_solucion      IS NOT NULL
         AND vos.tipo_incidencia     = 1
-        AND vos.subtipo_inicidencia IN (16, 52, 53, 90)
+        AND vos.subtipo_inicidencia = 16
         AND t.descripcion           LIKE '%FTTH%'
         ${dateWhere}
         AND NOT EXISTS (

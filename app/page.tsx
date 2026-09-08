@@ -28,6 +28,7 @@ import FuentesStockView from "./components/FuentesStockView";
 import DispositivosView from "./components/DispositivosView";
 import InstalacionesView from "./components/InstalacionesView";
 import MacScannerView from "./components/MacScannerView";
+import BajasQvixView from "./components/BajasQvixView";
 import { buildOrgStats, buildSummaries, buildTotales } from "./lib/dataUtils";
 import { exportToPDF } from "./lib/exportPDF";
 import { exportToExcel } from "./lib/exportExcel";
@@ -60,6 +61,7 @@ function Home() {
   const [showMacScanner, setShowMacScanner] = useState(false);
   const [showAnalisisSenales, setShowAnalisisSenales] = useState(false);
   const [showInstalaciones, setShowInstalaciones]     = useState(false);
+  const [showBajasQvix, setShowBajasQvix]             = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [sessionUser, setSessionUser] = useState<{
     user: string;
@@ -126,7 +128,7 @@ function Home() {
   const selectedOrgIndex = singleOrg ? orgStats.findIndex((o) => o.organizacion === singleOrg) : -1;
 
   // ── Vista activa (mutuamente exclusivas) ───────────────────────────────────
-  const goHome = () => { setShowServiceView(false); setShowLicencias(false); setShowSucursales(false); setShowMapa(false); setShowReclamos(false); setShowCambioDrop(false); setShowInfraestructura(false); setShowFuentesStock(false); setShowDispositivos(false); setShowMacScanner(false); setShowAnalisisSenales(false); setShowInstalaciones(false); };
+  const goHome = () => { setShowServiceView(false); setShowLicencias(false); setShowSucursales(false); setShowMapa(false); setShowReclamos(false); setShowCambioDrop(false); setShowInfraestructura(false); setShowFuentesStock(false); setShowDispositivos(false); setShowMacScanner(false); setShowAnalisisSenales(false); setShowInstalaciones(false); setShowBajasQvix(false); };
   const goTo = (view: "licencias" | "sucursales") => {
     goHome();
     setShowLicencias(view === "licencias");
@@ -247,6 +249,9 @@ function Home() {
 
                   <div className="border-t border-slate-800 my-1" />
                   <p className="px-3 py-1.5 text-xs text-slate-500 uppercase tracking-wider">Acciones</p>
+                  <button onClick={() => { goHome(); setShowBajasQvix(true); setShowTVMenu(false); }} className={menuItem}>
+                    <Tv size={14} className="text-rose-400 flex-shrink-0" /> Bajas QVIX
+                  </button>
                   <button onClick={() => { setShowHistory(true); setShowTVMenu(false); }} className={menuItem}>
                     <History size={14} className="text-slate-400 flex-shrink-0" /> Historial de cambios
                   </button>
@@ -428,8 +433,9 @@ function Home() {
       {showMacScanner && <MacScannerView onClose={goHome} />}
       {showAnalisisSenales && <AnalisisSenalesView onClose={goHome} />}
       {showInstalaciones && <InstalacionesView onClose={goHome} sucursalesPermitidas={sessionUser?.sucursales ?? null} />}
+      {showBajasQvix && <BajasQvixView onClose={goHome} />}
 
-      <main className={`max-w-screen-xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8 ${showLicencias || showSucursales || showMapa || showReclamos || showCambioDrop || showInfraestructura || showFuentesStock || showDispositivos || showMacScanner || showAnalisisSenales || showInstalaciones ? "hidden" : ""}`}>
+      <main className={`max-w-screen-xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8 ${showLicencias || showSucursales || showMapa || showReclamos || showCambioDrop || showInfraestructura || showFuentesStock || showDispositivos || showMacScanner || showAnalisisSenales || showInstalaciones || showBajasQvix ? "hidden" : ""}`}>
 
         {/* ── Dashboard principal — solo en home ── */}
         {!showServiceView && sessionUser !== null && (puedeVer("tv") || puedeVer("inicio")) && (

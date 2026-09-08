@@ -69,7 +69,6 @@ export default function BajasQvixView({ onClose }: Props) {
     return filtered;
   }, [rows, search, filterSuc, filterGotv, sortKey, sortAsc]);
 
-  const gotvCount = rows.filter((r) => r.tiene_cuenta_gotv).length;
   const totalCount = rows.length;
 
   const toggleSort = (key: SortKey) => {
@@ -126,14 +125,6 @@ export default function BajasQvixView({ onClose }: Props) {
           <div className="text-center">
             <p className="text-3xl font-bold text-rose-400">{loading ? "…" : totalCount.toLocaleString()}</p>
             <p className="text-xs text-slate-500 mt-1">Conexiones</p>
-          </div>
-          <div className="text-center">
-            <p className="text-3xl font-bold text-amber-400">{loading ? "…" : gotvCount.toLocaleString()}</p>
-            <p className="text-xs text-slate-500 mt-1">Con cuenta GoTV</p>
-          </div>
-          <div className="text-center">
-            <p className="text-3xl font-bold text-slate-400">{loading ? "…" : (totalCount - gotvCount).toLocaleString()}</p>
-            <p className="text-xs text-slate-500 mt-1">Sin cuenta GoTV</p>
           </div>
         </div>
       </div>

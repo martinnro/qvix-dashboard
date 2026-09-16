@@ -718,13 +718,14 @@ export default function MapaView({ onClose, sucursalesPermitidas = null }: { onC
       </div>
 
       {/* Leyenda */}
-      <div className="flex items-center gap-3 flex-wrap">
+      <div className="flex items-center gap-2 sm:gap-3 flex-nowrap sm:flex-wrap overflow-x-auto sm:overflow-visible pb-1 sm:pb-0 -mx-4 px-4 sm:mx-0 sm:px-0">
         {estadosOpts.filter((e) => estados.includes(e.id)).map((e) => {
           const count = puntos.filter((p) => p.Estado_Servicio === e.id).length;
+          if (count === 0) return null;
           return (
-            <div key={e.id} className="flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5">
+            <div key={e.id} className="flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 flex-shrink-0">
               <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: getColorById(e.id) }} />
-              <span className="text-xs text-slate-400">{e.nombre}</span>
+              <span className="text-xs text-slate-400 whitespace-nowrap">{e.nombre}</span>
               <span className="text-xs font-bold text-white">{count.toLocaleString("es-AR")}</span>
             </div>
           );
@@ -735,10 +736,10 @@ export default function MapaView({ onClose, sucursalesPermitidas = null }: { onC
             <button
               key={titulo}
               onClick={() => toggleTitulo(titulo)}
-              className="flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 transition-colors"
+              className="flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 transition-colors flex-shrink-0"
             >
               <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: colorPorTitulo(titulo) }} />
-              <span className="text-xs text-slate-400">{titulo}</span>
+              <span className="text-xs text-slate-400 whitespace-nowrap">{titulo}</span>
               <span className="text-xs font-bold text-white">{count}</span>
             </button>
           );

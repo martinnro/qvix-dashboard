@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { MapContainer, TileLayer, CircleMarker, Marker, Popup, Polyline, useMap, useMapEvents } from "react-leaflet";
+import { MapContainer, TileLayer, CircleMarker, Marker, Popup, Polyline, Circle, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { getColorById, getNapColor, type MapStyle, type NapItem } from "./MapaUtils";
@@ -124,6 +124,30 @@ function FitBounds({ puntos }: { puntos: Punto[] }) {
   return null;
 }
 
+// Vuela hacia el NAP buscado (comando explícito del padre, no se dispara con el click en un marcador)
+function FlyToNap({ focusNap, naps }: { focusNap?: string | null; naps: NapItem[] }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!focusNap) return;
+    const nap = naps.find((n) => n.nap === focusNap);
+    if (!nap) return;
+    map.flyTo([nap.latitud, nap.longitud], Math.max(map.getZoom(), 17), { duration: 1 });
+  }, [focusNap, naps, map]);
+  return null;
+}
+
+export interface Ubicacion { lat: number; lng: number; accuracy: number }
+
+// Vuela hacia "mi ubicación" cada vez que el padre dispara un nuevo token (ej. click en "Mi ubicación")
+function FlyToUbicacion({ token, ubicacion }: { token?: number | null; ubicacion?: Ubicacion | null }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!token || !ubicacion) return;
+    map.flyTo([ubicacion.lat, ubicacion.lng], Math.max(map.getZoom(), 16), { duration: 1 });
+  }, [token, ubicacion, map]);
+  return null;
+}
+
 interface CtxMenuState { x: number; y: number; lat: number; lng: number }
 
 // Captura el click derecho sobre el mapa y avisa al padre dónde mostrar el menú contextual
@@ -152,7 +176,11 @@ interface Props {
   showNaps?: boolean;
   pinesCustom?: PinCustom[];
   showPinesCustom?: boolean;
+  napSeleccionado?: string | null;
   onNapSelect?: (nap: string | null) => void;
+  focusNap?: string | null;
+  miUbicacion?: Ubicacion | null;
+  ubicacionFocus?: number | null;
 }
 
 export default function MapaLeaflet({
@@ -162,7 +190,11 @@ export default function MapaLeaflet({
   showNaps = false,
   pinesCustom = [],
   showPinesCustom = false,
+  napSeleccionado = null,
   onNapSelect,
+  focusNap = null,
+  miUbicacion = null,
+  ubicacionFocus = null,
 }: Props) {
   const centro: [number, number] = puntos.length > 0
     ? [puntos[0].latitud, puntos[0].longitud]
@@ -170,9 +202,6 @@ export default function MapaLeaflet({
 
   const style = MAP_STYLES.find((s) => s.key === mapStyle) ?? MAP_STYLES[0];
   const labelsUrl = "https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png";
-
-  // NAP seleccionado — dibuja líneas a todas sus conexiones
-  const [napSel, setNapSel] = useState<string | null>(null);
 
   // Menú contextual (click derecho) — copiar coordenadas
   const [ctxMenu, setCtxMenu] = useState<CtxMenuState | null>(null);
@@ -210,13 +239,33 @@ export default function MapaLeaflet({
         )}
         <FitBounds puntos={puntos} />
         <ContextMenuCapture onOpen={setCtxMenu} onClose={() => setCtxMenu(null)} />
+        <FlyToNap focusNap={focusNap} naps={naps} />
+        <FlyToUbicacion token={ubicacionFocus} ubicacion={miUbicacion} />
+
+        {/* Mi ubicación */}
+        {miUbicacion && (
+          <>
+            <Circle
+              center={[miUbicacion.lat, miUbicacion.lng]}
+              radius={miUbicacion.accuracy}
+              pathOptions={{ color: "#3b82f6", weight: 1, fillColor: "#3b82f6", fillOpacity: 0.12 }}
+            />
+            <CircleMarker
+              center={[miUbicacion.lat, miUbicacion.lng]}
+              radius={8}
+              pathOptions={{ fillColor: "#3b82f6", fillOpacity: 1, color: "#fff", weight: 3 }}
+            >
+              <Popup>Tu ubicación</Popup>
+            </CircleMarker>
+          </>
+        )}
 
         {/* Líneas NAP → todas sus conexiones */}
-        {napSel && (() => {
-          const nap = naps.find((n) => n.nap === napSel);
+        {napSeleccionado && (() => {
+          const nap = naps.find((n) => n.nap === napSeleccionado);
           if (!nap) return null;
           return puntos
-            .filter((p) => p.nap === napSel)
+            .filter((p) => p.nap === napSeleccionado)
             .map((p) => {
               const metros = Math.round(distanciaM(nap.latitud, nap.longitud, p.latitud, p.longitud));
               return (
@@ -245,8 +294,7 @@ export default function MapaLeaflet({
             icon={makeNapIcon(n.cantidad)}
             eventHandlers={{
               click: () => {
-                const next = napSel === n.nap ? null : n.nap;
-                setNapSel(next);
+                const next = napSeleccionado === n.nap ? null : n.nap;
                 onNapSelect?.(next);
               },
             }}

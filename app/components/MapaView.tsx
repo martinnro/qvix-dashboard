@@ -1,9 +1,9 @@
 "use client";
 import { useEffect, useState, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
-import { RefreshCw, ChevronDown, Check, Wifi, MapPin, Plus, Trash2, Loader2, Download } from "lucide-react";
+import { RefreshCw, ChevronDown, Check, Wifi, MapPin, Plus, Trash2, Loader2, Download, LocateFixed } from "lucide-react";
 import { getColorById, type MapStyle, type NapItem } from "./MapaUtils";
-import type { PinCustom } from "./MapaLeaflet";
+import type { PinCustom, Ubicacion } from "./MapaLeaflet";
 
 const MapaLeaflet = dynamic(() => import("./MapaLeaflet"), { ssr: false });
 
@@ -75,7 +75,51 @@ export default function MapaView({ onClose, sucursalesPermitidas = null }: { onC
   const [napRangos, setNapRangos]   = useState<string[]>(["0", "1-5", "6-7", "8+"]);
   const [napDropRangos, setNapDropRangos] = useState<string[]>(["<50", "50-150", "150-400", ">400"]);
   const [napSelName, setNapSelName] = useState<string | null>(null);
+  const [napFocus, setNapFocus]     = useState<string | null>(null);
+  const [napSearch, setNapSearch]         = useState("");
+  const [napSearchOpen, setNapSearchOpen] = useState(false);
+  const napSearchRef = useRef<HTMLDivElement>(null);
   const napSelInfo = naps.find((n) => n.nap === napSelName) ?? null;
+  const napMatches = napSearch.trim().length > 0
+    ? naps.filter((n) => n.nap.toLowerCase().includes(napSearch.trim().toLowerCase())).slice(0, 8)
+    : [];
+
+  const enfocarNap = (nap: string) => {
+    setShowNaps(true);
+    setNapRangos(["0", "1-5", "6-7", "8+"]);
+    setNapDropRangos(["<50", "50-150", "150-400", ">400"]);
+    setNapSelName(nap);
+    setNapFocus(nap);
+    setNapSearch("");
+    setNapSearchOpen(false);
+  };
+
+  // Mi ubicación
+  const [miUbicacion, setMiUbicacion] = useState<Ubicacion | null>(null);
+  const [ubicacionFocus, setUbicacionFocus] = useState<number | null>(null);
+  const [geoLoading, setGeoLoading] = useState(false);
+  const [geoError, setGeoError] = useState<string | null>(null);
+
+  const buscarMiUbicacion = () => {
+    if (!navigator.geolocation) {
+      setGeoError("Tu navegador no soporta geolocalización");
+      return;
+    }
+    setGeoLoading(true);
+    setGeoError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setMiUbicacion({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy });
+        setUbicacionFocus(Date.now());
+        setGeoLoading(false);
+      },
+      (err) => {
+        setGeoError(err.code === err.PERMISSION_DENIED ? "Permiso de ubicación denegado" : "No se pudo obtener tu ubicación");
+        setGeoLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
 
   function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): number {
     const R = 6371000;
@@ -139,6 +183,7 @@ export default function MapaView({ onClose, sucursalesPermitidas = null }: { onC
         setShowPinesPanel(false);
         setShowAddPin(false);
       }
+      if (napSearchRef.current && !napSearchRef.current.contains(e.target as Node)) setNapSearchOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -400,6 +445,36 @@ export default function MapaView({ onClose, sucursalesPermitidas = null }: { onC
         >
           <Wifi size={14} /> NAPs {naps.length > 0 && <span className="text-xs opacity-70">({napsFiltrados.length}/{naps.length})</span>}
         </button>
+
+        {/* Buscador de NAP puntual */}
+        {naps.length > 0 && (
+          <div ref={napSearchRef} className="relative">
+            <input
+              type="text"
+              value={napSearch}
+              onChange={(e) => { setNapSearch(e.target.value); setNapSearchOpen(true); }}
+              onFocus={() => setNapSearchOpen(true)}
+              placeholder="Buscar NAP…"
+              className="bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-yellow-500 w-36"
+            />
+            {napSearchOpen && napSearch.trim().length > 0 && (
+              <div className="absolute left-0 top-full mt-2 w-64 bg-slate-900 border border-slate-700 rounded-xl shadow-2xl z-50 max-h-72 overflow-y-auto p-1.5">
+                {napMatches.length > 0 ? napMatches.map((n) => (
+                  <button
+                    key={n.nap}
+                    onClick={() => enfocarNap(n.nap)}
+                    className="flex items-center justify-between w-full px-3 py-2 rounded-lg text-sm text-slate-200 hover:bg-slate-800 transition-colors text-left"
+                  >
+                    <span className="truncate">{n.nap}</span>
+                    <span className="text-xs text-slate-500 flex-shrink-0 ml-2">{n.cantidad} cnx</span>
+                  </button>
+                )) : (
+                  <p className="px-3 py-2 text-xs text-slate-500">Sin resultados</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Filtro rangos NAP */}
         {showNaps && (
@@ -681,15 +756,38 @@ export default function MapaView({ onClose, sucursalesPermitidas = null }: { onC
           showNaps={showNaps}
           pinesCustom={pinesFiltrados}
           showPinesCustom={true}
+          napSeleccionado={napSelName}
           onNapSelect={setNapSelName}
+          focusNap={napFocus}
+          miUbicacion={miUbicacion}
+          ubicacionFocus={ubicacionFocus}
         />
+
+        {/* Control flotante — Mi ubicación */}
+        <div className="absolute top-4 right-4 z-[1000]">
+          <button
+            onClick={buscarMiUbicacion}
+            disabled={geoLoading}
+            title="Mostrar mi ubicación en el mapa"
+            className={`flex items-center justify-center w-9 h-9 rounded-lg border shadow-lg transition-colors disabled:opacity-50 ${
+              miUbicacion ? "bg-blue-500/20 border-blue-500/50 text-blue-400" : "bg-slate-900/95 border-slate-600 text-slate-300 hover:text-white hover:border-slate-400"
+            }`}
+          >
+            {geoLoading ? <Loader2 size={16} className="animate-spin" /> : <LocateFixed size={16} />}
+          </button>
+          {geoError && (
+            <div className="absolute right-0 top-full mt-2 w-56 bg-red-950/90 border border-red-800 rounded-lg px-3 py-2 text-xs text-red-300 shadow-xl">
+              {geoError}
+            </div>
+          )}
+        </div>
 
         {/* Panel info NAP seleccionado */}
         {napSelInfo && (
           <div className="absolute bottom-4 left-4 z-[1000] bg-slate-900/95 border border-slate-600 rounded-xl px-4 py-3 text-sm text-white shadow-xl min-w-[160px]">
             <div className="flex items-center justify-between gap-4 mb-1">
               <span className="font-bold text-base">{napSelInfo.nap}</span>
-              <button onClick={() => { setNapSelName(null); }} className="text-slate-400 hover:text-white text-xs">✕</button>
+              <button onClick={() => { setNapSelName(null); setNapFocus(null); }} className="text-slate-400 hover:text-white text-xs">✕</button>
             </div>
             {napSelInfo.fibra && <p className="text-slate-400 text-xs">Fibra: {napSelInfo.fibra}</p>}
             <p className="text-slate-300 text-xs">Conexiones: <span className="font-semibold text-white">{napSelInfo.cantidad}</span></p>

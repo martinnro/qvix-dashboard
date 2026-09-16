@@ -412,7 +412,7 @@ export default function MapaView({ onClose, sucursalesPermitidas = null }: { onC
 
         {/* Filtro antigüedad baja (solo cuando estado 7 está activo) */}
         {estados.includes(7) && (
-          <div className="flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5">
+          <div className="flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 max-w-full overflow-x-auto">
             <span className="text-xs text-slate-500 whitespace-nowrap">Antigüedad Baja</span>
             <div className="w-px h-3 bg-slate-700" />
             <div className="flex items-center gap-1">
@@ -478,7 +478,7 @@ export default function MapaView({ onClose, sucursalesPermitidas = null }: { onC
 
         {/* Filtro rangos NAP */}
         {showNaps && (
-          <div className="flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5">
+          <div className="flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 max-w-full overflow-x-auto">
             <span className="text-xs text-slate-500 whitespace-nowrap">Conexiones NAP</span>
             <div className="w-px h-3 bg-slate-700" />
             <div className="flex items-center gap-1">
@@ -507,7 +507,7 @@ export default function MapaView({ onClose, sucursalesPermitidas = null }: { onC
 
         {/* Filtro drop promedio NAP */}
         {showNaps && (
-          <div className="flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5">
+          <div className="flex items-center gap-2 bg-slate-800 border border-slate-700 rounded-xl px-3 py-1.5 max-w-full overflow-x-auto">
             <span className="text-xs text-slate-500 whitespace-nowrap">Distancia prom.</span>
             <div className="w-px h-3 bg-slate-700" />
             <div className="flex items-center gap-1">

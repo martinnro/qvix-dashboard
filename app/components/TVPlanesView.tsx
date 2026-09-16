@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
-import { ArrowLeft, Loader2, AlertCircle, Download, RefreshCw } from "lucide-react";
+import { ArrowLeft, Loader2, AlertCircle, Download, RefreshCw, ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 
 const SUCURSALES: Record<number, string> = {
   1: "Chumbicha",
@@ -21,13 +21,17 @@ interface DetalleRow {
   bonif_base: number;
   base_bonificado: number;
   tiene_hbo: number;
+  neto_hbo: number;
   hbo_bonificado: number;
   tiene_univ: number;
+  neto_univ: number;
   univ_bonificado: number;
   tiene_futbol: number;
+  neto_futbol: number;
   futbol_bonificado: number;
   tiene_app: number;
   neto_app: number;
+  total_neto: number;
 }
 interface PackStat { tiene: number; bonificado: number; paga: number }
 interface Data {
@@ -47,6 +51,53 @@ interface Data {
 
 function pct(n: number, total: number) {
   return total === 0 ? 0 : Math.round((n / total) * 100);
+}
+
+function pesos(n: number) {
+  return n.toLocaleString("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
+}
+
+// ── Orden de la tabla de detalle ────────────────────────────────────────────
+type SortKey =
+  | "id_conexion" | "sucursal" | "decos_iptv" | "decos_ott" | "plan_base"
+  | "base_bonificado" | "hbo" | "univ" | "futbol" | "app" | "total_neto";
+
+function sortValue(r: DetalleRow, key: SortKey): string | number {
+  switch (key) {
+    case "id_conexion":     return r.id_conexion;
+    case "sucursal":        return SUCURSALES[r.cod_sucursal] ?? String(r.cod_sucursal);
+    case "decos_iptv":      return r.decos_iptv;
+    case "decos_ott":       return r.decos_ott;
+    case "plan_base":       return r.plan_base ?? "";
+    case "base_bonificado": return r.base_bonificado;
+    // 0 = no tiene el pack, 1 = lo paga, 2 = bonificado
+    case "hbo":    return r.tiene_hbo    === 0 ? 0 : r.hbo_bonificado    === 1 ? 2 : 1;
+    case "univ":   return r.tiene_univ   === 0 ? 0 : r.univ_bonificado   === 1 ? 2 : 1;
+    case "futbol": return r.tiene_futbol === 0 ? 0 : r.futbol_bonificado === 1 ? 2 : 1;
+    // 0 = no tiene app, 1 = con cargo, 2 = sin cargo
+    case "app":    return r.tiene_app === 0 ? 0 : r.neto_app > 0 ? 1 : 2;
+    case "total_neto": return r.total_neto;
+  }
+}
+
+function Th({ label, sortKey, active, sortAsc, onSort, align = "left" }: {
+  label: string; sortKey: SortKey; active: SortKey;
+  sortAsc: boolean; onSort: (key: SortKey) => void; align?: "left" | "right" | "center";
+}) {
+  const isActive = active === sortKey;
+  const alignClass = align === "right" ? "text-right" : align === "center" ? "text-center" : "text-left";
+  const justifyClass = align === "right" ? "justify-end" : align === "center" ? "justify-center" : "justify-start";
+  return (
+    <th
+      onClick={() => onSort(sortKey)}
+      className={`${alignClass} py-2 px-3 uppercase tracking-wider cursor-pointer select-none hover:text-white transition-colors whitespace-nowrap`}
+    >
+      <span className={`flex items-center gap-1 ${justifyClass}`}>
+        {label}
+        {isActive ? (sortAsc ? <ChevronUp size={11} /> : <ChevronDown size={11} />) : <ChevronsUpDown size={11} className="opacity-30" />}
+      </span>
+    </th>
+  );
 }
 
 // ── Tile de KPI compacto (mismo patrón que Instalaciones) ──────────────────────
@@ -76,6 +127,40 @@ function RankRow({ label, cantidad, max, color, sublabel }: {
       </div>
       <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
         <div className="h-full rounded-full transition-all" style={{ width: `${pct(cantidad, max)}%`, backgroundColor: color }} />
+      </div>
+    </div>
+  );
+}
+
+// ── Split de plan base: bonificado / con cargo / sin plan — suma el total de conexiones TV ──
+function PlanBaseSplit({ total, bonificado, conCargo, sinPlan }: {
+  total: number; bonificado: number; conCargo: number; sinPlan: number;
+}) {
+  const segmentos = [
+    { label: "Bonificado",    value: bonificado, color: "#10b981" },
+    { label: "Con cargo",     value: conCargo,    color: "#f59e0b" },
+    { label: "Sin plan base", value: sinPlan,     color: "#475569" },
+  ];
+  return (
+    <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-1">
+        <h3 className="text-slate-300 font-medium text-sm">Plan base — bonificado vs. con cargo</h3>
+        <span className="text-xs text-slate-500">{total.toLocaleString("es-AR")} conexiones TV</span>
+      </div>
+      <div className="h-3 bg-slate-700 rounded-full overflow-hidden flex">
+        {segmentos.map((s) => s.value > 0 && (
+          <div key={s.label} style={{ width: `${pct(s.value, total)}%`, backgroundColor: s.color }} />
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-x-6 gap-y-1.5 mt-3">
+        {segmentos.map((s) => (
+          <div key={s.label} className="flex items-center gap-1.5 text-xs">
+            <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: s.color }} />
+            <span className="text-slate-300">{s.label}</span>
+            <span className="font-semibold text-white">{s.value.toLocaleString("es-AR")}</span>
+            <span className="text-slate-500">({pct(s.value, total)}%)</span>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -114,6 +199,13 @@ export default function TVPlanesView({ onClose, sucursalesPermitidas }: {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDetalle, setShowDetalle] = useState(false);
+  const [sortKey, setSortKey] = useState<SortKey>("id_conexion");
+  const [sortAsc, setSortAsc] = useState(true);
+
+  const toggleSort = (key: SortKey) => {
+    if (sortKey === key) setSortAsc((v) => !v);
+    else { setSortKey(key); setSortAsc(true); }
+  };
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -221,6 +313,14 @@ export default function TVPlanesView({ onClose, sucursalesPermitidas }: {
             />
           </div>
 
+          {/* Fila 1.5 — Split bonificado / con cargo / sin plan base, sobre el total de conexiones TV */}
+          <PlanBaseSplit
+            total={data.total}
+            bonificado={data.planBase.conBonif}
+            conCargo={data.planBase.conPlan - data.planBase.conBonif}
+            sinPlan={data.total - data.planBase.conPlan}
+          />
+
           {/* Fila 2 — Distribución de plan base */}
           {data.porPlanBase.length > 0 && (
             <div className="bg-slate-800 border border-slate-700 rounded-xl p-5 space-y-4">
@@ -288,38 +388,62 @@ export default function TVPlanesView({ onClose, sucursalesPermitidas }: {
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="text-slate-400 uppercase tracking-wider border-b border-slate-700">
-                        <th className="text-left py-2 px-3">ID Conexión</th>
-                        <th className="text-left py-2 px-3">Sucursal</th>
-                        <th className="text-right py-2 px-3">Decos IPTV</th>
-                        <th className="text-right py-2 px-3">Decos OTT</th>
-                        <th className="text-left py-2 px-3">Plan base</th>
-                        <th className="text-center py-2 px-3">Bonif. base</th>
-                        <th className="text-center py-2 px-3">HBO+</th>
-                        <th className="text-center py-2 px-3">Universal+</th>
-                        <th className="text-center py-2 px-3">Fútbol</th>
-                        <th className="text-center py-2 px-3">App</th>
+                        <Th label="ID Conexión"  sortKey="id_conexion"     active={sortKey} sortAsc={sortAsc} onSort={toggleSort} />
+                        <Th label="Sucursal"     sortKey="sucursal"        active={sortKey} sortAsc={sortAsc} onSort={toggleSort} />
+                        <Th label="Decos IPTV"   sortKey="decos_iptv"      active={sortKey} sortAsc={sortAsc} onSort={toggleSort} align="right" />
+                        <Th label="Decos OTT"    sortKey="decos_ott"       active={sortKey} sortAsc={sortAsc} onSort={toggleSort} align="right" />
+                        <Th label="Plan base"    sortKey="plan_base"       active={sortKey} sortAsc={sortAsc} onSort={toggleSort} />
+                        <Th label="Bonif. base"  sortKey="base_bonificado" active={sortKey} sortAsc={sortAsc} onSort={toggleSort} align="center" />
+                        <Th label="HBO+"         sortKey="hbo"             active={sortKey} sortAsc={sortAsc} onSort={toggleSort} align="center" />
+                        <Th label="Universal+"   sortKey="univ"            active={sortKey} sortAsc={sortAsc} onSort={toggleSort} align="center" />
+                        <Th label="Fútbol"       sortKey="futbol"          active={sortKey} sortAsc={sortAsc} onSort={toggleSort} align="center" />
+                        <Th label="App"          sortKey="app"             active={sortKey} sortAsc={sortAsc} onSort={toggleSort} align="center" />
+                        <Th label="Neto TV"      sortKey="total_neto"      active={sortKey} sortAsc={sortAsc} onSort={toggleSort} align="right" />
                       </tr>
                     </thead>
                     <tbody>
-                      {data.detalle.map((r) => (
+                      {[...data.detalle].sort((a, b) => {
+                        const av = sortValue(a, sortKey);
+                        const bv = sortValue(b, sortKey);
+                        if (av < bv) return sortAsc ? -1 : 1;
+                        if (av > bv) return sortAsc ? 1 : -1;
+                        return 0;
+                      }).map((r) => (
                         <tr key={r.id_conexion} className="border-b border-slate-800 hover:bg-slate-700/30 transition-colors">
                           <td className="py-2 px-3 text-slate-300">{r.id_conexion}</td>
                           <td className="py-2 px-3 text-slate-400">{SUCURSALES[r.cod_sucursal] ?? r.cod_sucursal}</td>
                           <td className="py-2 px-3 text-right text-slate-400">{r.decos_iptv}</td>
                           <td className="py-2 px-3 text-right text-slate-400">{r.decos_ott}</td>
-                          <td className="py-2 px-3 text-slate-300">{r.plan_base ?? <span className="text-slate-600">—</span>}</td>
+                          <td className="py-2 px-3 text-slate-300">
+                            {r.plan_base ? (
+                              <div className="flex flex-col">
+                                <span>{r.plan_base}</span>
+                                <span className="text-[10px] text-slate-500">{pesos(r.abono_base + r.bonif_base)}</span>
+                              </div>
+                            ) : <span className="text-slate-600">—</span>}
+                          </td>
                           <td className="py-2 px-3 text-center">
                             {r.base_bonificado === 1
                               ? <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-semibold">Sí</span>
                               : <span className="text-slate-600">—</span>}
                           </td>
-                          <PackCell tiene={r.tiene_hbo} bonificado={r.hbo_bonificado} />
-                          <PackCell tiene={r.tiene_univ} bonificado={r.univ_bonificado} />
-                          <PackCell tiene={r.tiene_futbol} bonificado={r.futbol_bonificado} />
+                          <PackCell tiene={r.tiene_hbo} bonificado={r.hbo_bonificado} neto={r.neto_hbo} />
+                          <PackCell tiene={r.tiene_univ} bonificado={r.univ_bonificado} neto={r.neto_univ} />
+                          <PackCell tiene={r.tiene_futbol} bonificado={r.futbol_bonificado} neto={r.neto_futbol} />
                           <td className="py-2 px-3 text-center">
                             {r.tiene_app === 1
-                              ? <span className="px-2 py-0.5 rounded-full bg-slate-600/30 text-slate-300 text-xs font-semibold">{r.neto_app > 0 ? "Con cargo" : "Sin cargo"}</span>
+                              ? (
+                                <div className="flex flex-col items-center gap-0.5">
+                                  <span className="px-2 py-0.5 rounded-full bg-slate-600/30 text-slate-300 text-xs font-semibold">
+                                    {r.neto_app > 0 ? "Con cargo" : "Sin cargo"}
+                                  </span>
+                                  <span className="text-[10px] text-slate-500">{pesos(r.neto_app)}</span>
+                                </div>
+                              )
                               : <span className="text-slate-600">—</span>}
+                          </td>
+                          <td className="py-2 px-3 text-right text-slate-200 font-medium">
+                            {pesos(r.total_neto)}
                           </td>
                         </tr>
                       ))}
@@ -340,13 +464,16 @@ export default function TVPlanesView({ onClose, sucursalesPermitidas }: {
   );
 }
 
-function PackCell({ tiene, bonificado }: { tiene: number; bonificado: number }) {
+function PackCell({ tiene, bonificado, neto }: { tiene: number; bonificado: number; neto: number }) {
   if (tiene !== 1) return <td className="py-2 px-3 text-center text-slate-600">—</td>;
   return (
     <td className="py-2 px-3 text-center">
-      {bonificado === 1
-        ? <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-semibold">Bonificado</span>
-        : <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-xs font-semibold">Paga</span>}
+      <div className="flex flex-col items-center gap-0.5">
+        {bonificado === 1
+          ? <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-semibold">Bonificado</span>
+          : <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-xs font-semibold">Paga</span>}
+        <span className="text-[10px] text-slate-500">{pesos(neto)}</span>
+      </div>
     </td>
   );
 }

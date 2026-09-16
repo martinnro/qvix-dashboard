@@ -42,6 +42,7 @@ interface TvRow {
   futbol_bonificado: number;
   tiene_app: number;
   neto_app: number;
+  total_neto: number;
 }
 
 function statPack(rows: TvRow[], tieneField: keyof TvRow, bonifField: keyof TvRow) {
@@ -73,8 +74,11 @@ export function buildQuery(estadosIn: string, sucursalClause: string): string {
     video AS (
       SELECT fcu.id_conexion,
         MAX(CASE WHEN fc.tipo_agrupador = 'TV' AND fc.operacion = '+' THEN fc.Descripcion END) AS plan_base,
-        SUM(CASE WHEN fc.tipo_agrupador = 'TV'                 THEN fcu.monto ELSE 0 END) AS abono_base,
-        SUM(CASE WHEN fc.tipo_agrupador IN ('BONITV','BONIDP') THEN fcu.monto ELSE 0 END) AS bonif_base,
+        SUM(CASE WHEN fc.tipo_agrupador = 'TV' THEN fcu.monto ELSE 0 END) AS abono_base,
+        -- BONITV/BONIDP es una bolsa compartida de descuentos: algunos conceptos (ej. "3 PANT. ANDROID")
+        -- en realidad son descuentos de la app, no del plan base, y se excluyen de aca.
+        SUM(CASE WHEN fc.tipo_agrupador IN ('BONITV','BONIDP') AND fc.Descripcion NOT LIKE '%ANDROID%'
+                 THEN fcu.monto ELSE 0 END) AS bonif_base,
         MAX(CASE WHEN fc.tipo_agrupador = 'HBO'  THEN 1 ELSE 0 END)                        AS tiene_hbo,
         SUM(CASE WHEN fc.tipo_agrupador = 'HBO'  THEN fcu.monto ELSE 0 END)                AS neto_hbo,
         MAX(CASE WHEN fc.tipo_agrupador = 'HBO'  AND fc.operacion = '+' THEN 1 ELSE 0 END) AS hbo_con_cargo,
@@ -85,7 +89,16 @@ export function buildQuery(estadosIn: string, sucursalClause: string): string {
         SUM(CASE WHEN fc.tipo_agrupador = 'FUTB' THEN fcu.monto ELSE 0 END)                AS neto_futbol,
         MAX(CASE WHEN fc.tipo_agrupador = 'FUTB' AND fc.operacion = '+' THEN 1 ELSE 0 END) AS futbol_con_cargo,
         MAX(CASE WHEN fc.tipo_agrupador = 'APP'  THEN 1 ELSE 0 END)                        AS tiene_app,
-        SUM(CASE WHEN fc.tipo_agrupador = 'APP'  THEN fcu.monto ELSE 0 END)                AS neto_app
+        -- suma tambien los descuentos "ANDROID" que quedaron tageados como BONITV/BONIDP
+        -- en vez de APP, para que el neto de la app no ignore su propio descuento
+        SUM(CASE
+              WHEN fc.tipo_agrupador = 'APP' THEN fcu.monto
+              WHEN fc.tipo_agrupador IN ('BONITV','BONIDP') AND fc.Descripcion LIKE '%ANDROID%' THEN fcu.monto
+              ELSE 0
+            END) AS neto_app,
+        -- neto real de TODO lo facturado en conceptos de video (incluye packs premium/cine,
+        -- adicionales de deco, ajustes IPC/ENACOM, etc. aunque no tengan su propia columna)
+        SUM(fcu.monto) AS total_neto
       FROM facturas_cuentas fcu
       JOIN facturas_conceptos fc ON fc.cod_concepto = fcu.cod_concepto
       WHERE fcu.estado = 0 AND fc.tipo_producto = 'V'
@@ -99,7 +112,7 @@ export function buildQuery(estadosIn: string, sucursalClause: string): string {
       vd.plan_base,
       ISNULL(vd.abono_base, 0) AS abono_base,
       ISNULL(vd.bonif_base, 0) AS bonif_base,
-      CASE WHEN ISNULL(vd.bonif_base, 0) < 0 THEN 1 ELSE 0 END AS base_bonificado,
+      CASE WHEN ISNULL(vd.abono_base, 0) > 0 AND ISNULL(vd.bonif_base, 0) < 0 THEN 1 ELSE 0 END AS base_bonificado,
 
       ISNULL(vd.tiene_hbo, 0) AS tiene_hbo,
       ISNULL(vd.neto_hbo, 0)  AS neto_hbo,
@@ -114,7 +127,8 @@ export function buildQuery(estadosIn: string, sucursalClause: string): string {
       CASE WHEN ISNULL(vd.futbol_con_cargo, 0) = 1 AND ISNULL(vd.neto_futbol, 0) <= 0 THEN 1 ELSE 0 END AS futbol_bonificado,
 
       ISNULL(vd.tiene_app, 0) AS tiene_app,
-      ISNULL(vd.neto_app, 0)  AS neto_app
+      ISNULL(vd.neto_app, 0)  AS neto_app,
+      ISNULL(vd.total_neto, 0) AS total_neto
     FROM filtro f
     LEFT JOIN decos dc ON dc.id_conexion = f.id_conexion
     LEFT JOIN video vd ON vd.id_conexion = f.id_conexion

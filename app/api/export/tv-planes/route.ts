@@ -54,15 +54,20 @@ export async function GET(req: NextRequest) {
       Plan_Base:         r.plan_base ?? "",
       Abono_Base:        r.abono_base,
       Bonif_Base:        r.bonif_base,
+      Neto_Base:         Number(r.abono_base) + Number(r.bonif_base),
       Base_Bonificado:   r.base_bonificado === 1 ? "Si" : "No",
       Tiene_HBO:         r.tiene_hbo === 1 ? "Si" : "No",
+      Neto_HBO:          r.neto_hbo,
       HBO_Bonificado:    r.hbo_bonificado === 1 ? "Si" : "No",
       Tiene_Universal:   r.tiene_univ === 1 ? "Si" : "No",
+      Neto_Universal:    r.neto_univ,
       Universal_Bonificado: r.univ_bonificado === 1 ? "Si" : "No",
       Tiene_Futbol:      r.tiene_futbol === 1 ? "Si" : "No",
+      Neto_Futbol:       r.neto_futbol,
       Futbol_Bonificado: r.futbol_bonificado === 1 ? "Si" : "No",
       Tiene_App:         r.tiene_app === 1 ? "Si" : "No",
       Neto_App:          r.neto_app,
+      Total_Neto_TV:     r.total_neto,
     }));
 
     const wb = XLSX.utils.book_new();

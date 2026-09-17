@@ -22,7 +22,7 @@ function buildEstadosIn(raw: string | null): string {
   return (parsed.length > 0 ? parsed : defaults).join(",");
 }
 
-interface TvRow {
+export interface TvRow {
   id_conexion: number;
   cod_sucursal: number;
   decos_iptv: number;
@@ -49,6 +49,13 @@ function statPack(rows: TvRow[], tieneField: keyof TvRow, bonifField: keyof TvRo
   const con = rows.filter((r) => Number(r[tieneField]) === 1);
   const bonificado = con.filter((r) => Number(r[bonifField]) === 1).length;
   return { tiene: con.length, bonificado, paga: con.length - bonificado };
+}
+
+export type PlanEstado = "bonificado" | "con_cargo" | "sin_plan_con_cargo" | "sin_plan_sin_cargo";
+
+export function claseEstado(r: TvRow): PlanEstado {
+  if (r.plan_base) return r.base_bonificado === 1 ? "bonificado" : "con_cargo";
+  return r.total_neto > 0 ? "sin_plan_con_cargo" : "sin_plan_sin_cargo";
 }
 
 export function buildQuery(estadosIn: string, sucursalClause: string): string {
@@ -154,6 +161,7 @@ export async function GET(req: NextRequest) {
       : `IN (${sucursalesBase.join(",")})`;
 
   const estadosIn = buildEstadosIn(req.nextUrl.searchParams.get("estados"));
+  const planEstadoParam = req.nextUrl.searchParams.get("planEstado") as PlanEstado | null;
 
   try {
     const pool = await getPool();
@@ -171,13 +179,41 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => b.cantidad - a.cantidad);
 
     const conPlanBase = rows.filter((r) => r.plan_base);
-    const porPlanMap = new Map<string, number>();
-    for (const r of conPlanBase) porPlanMap.set(r.plan_base as string, (porPlanMap.get(r.plan_base as string) ?? 0) + 1);
+    const porPlanMap = new Map<string, { cantidad: number; sumaPrecio: number; minPrecio: number; maxPrecio: number }>();
+    for (const r of conPlanBase) {
+      const plan = r.plan_base as string;
+      const precio = r.abono_base;
+      const actual = porPlanMap.get(plan);
+      if (actual) {
+        actual.cantidad += 1;
+        actual.sumaPrecio += precio;
+        actual.minPrecio = Math.min(actual.minPrecio, precio);
+        actual.maxPrecio = Math.max(actual.maxPrecio, precio);
+      } else {
+        porPlanMap.set(plan, { cantidad: 1, sumaPrecio: precio, minPrecio: precio, maxPrecio: precio });
+      }
+    }
+    // Cada plan tiene precios distintos entre conexiones (aumentos históricos, negociaciones, promos),
+    // por eso se muestra un promedio y un rango en vez de un precio único.
     const porPlanBase = [...porPlanMap.entries()]
-      .map(([plan, cantidad]) => ({ plan, cantidad }))
+      .map(([plan, v]) => ({
+        plan,
+        cantidad: v.cantidad,
+        precioProm: Math.round(v.sumaPrecio / v.cantidad),
+        precioMin: v.minPrecio,
+        precioMax: v.maxPrecio,
+      }))
       .sort((a, b) => b.cantidad - a.cantidad);
 
     const conBonifBase = conPlanBase.filter((r) => r.base_bonificado === 1).length;
+
+    const sinPlanBase = rows.filter((r) => !r.plan_base);
+    const sinPlanConCargo = sinPlanBase.filter((r) => r.total_neto > 0).length;
+    const sinPlanSinCargo = sinPlanBase.length - sinPlanConCargo;
+
+    // Bonificado/paga global: no importa si tiene plan base o no, mira el neto total de TODO lo facturado en video
+    const bonificadoGlobal = rows.filter((r) => r.total_neto <= 0).length;
+    const conCargoGlobal = total - bonificadoGlobal;
 
     const hbo = statPack(rows, "tiene_hbo", "hbo_bonificado");
     const univ = statPack(rows, "tiene_univ", "univ_bonificado");
@@ -187,7 +223,11 @@ export async function GET(req: NextRequest) {
     const appConCargo = appCon.filter((r) => r.neto_app > 0).length;
     const appSinCargo = appCon.length - appConCargo;
 
-    const detalle = rows
+    const rowsParaDetalle = planEstadoParam
+      ? rows.filter((r) => claseEstado(r) === planEstadoParam)
+      : rows;
+
+    const detalle = rowsParaDetalle
       .slice()
       .sort((a, b) => a.cod_sucursal - b.cod_sucursal || a.id_conexion - b.id_conexion)
       .slice(0, 500);
@@ -198,13 +238,20 @@ export async function GET(req: NextRequest) {
       decosOttTotal,
       porSucursal,
       porPlanBase,
-      planBase: { conPlan: conPlanBase.length, conBonif: conBonifBase },
+      planBase: {
+        conPlan: conPlanBase.length,
+        conBonif: conBonifBase,
+        sinPlanConCargo,
+        sinPlanSinCargo,
+        bonificadoGlobal,
+        conCargoGlobal,
+      },
       hbo,
       univ,
       futbol,
       app: { tiene: appCon.length, conCargo: appConCargo, sinCargo: appSinCargo },
       detalle,
-      detalleTotal: rows.length,
+      detalleTotal: rowsParaDetalle.length,
     });
   } catch (err: unknown) {
     console.error("[tv-planes]", err);

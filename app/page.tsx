@@ -31,7 +31,6 @@ import MacScannerView from "./components/MacScannerView";
 import BajasQvixView from "./components/BajasQvixView";
 import TVPlanesView from "./components/TVPlanesView";
 import CampaniasWhatsappView from "./components/CampaniasWhatsappView";
-import NebulaGestionView from "./components/NebulaGestionView";
 import { buildOrgStats, buildSummaries, buildTotales } from "./lib/dataUtils";
 import { exportToPDF } from "./lib/exportPDF";
 import { exportToExcel } from "./lib/exportExcel";
@@ -67,7 +66,6 @@ function Home() {
   const [showBajasQvix, setShowBajasQvix]             = useState(false);
   const [showTVPlanes, setShowTVPlanes]               = useState(false);
   const [showCampanias, setShowCampanias]             = useState(false);
-  const [showNebulaGestion, setShowNebulaGestion]     = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [sessionUser, setSessionUser] = useState<{
     user: string;
@@ -134,7 +132,7 @@ function Home() {
   const selectedOrgIndex = singleOrg ? orgStats.findIndex((o) => o.organizacion === singleOrg) : -1;
 
   // ── Vista activa (mutuamente exclusivas) ───────────────────────────────────
-  const goHome = () => { setShowServiceView(false); setShowLicencias(false); setShowSucursales(false); setShowMapa(false); setShowReclamos(false); setShowCambioDrop(false); setShowInfraestructura(false); setShowFuentesStock(false); setShowDispositivos(false); setShowMacScanner(false); setShowAnalisisSenales(false); setShowInstalaciones(false); setShowBajasQvix(false); setShowTVPlanes(false); setShowCampanias(false); setShowNebulaGestion(false); };
+  const goHome = () => { setShowServiceView(false); setShowLicencias(false); setShowSucursales(false); setShowMapa(false); setShowReclamos(false); setShowCambioDrop(false); setShowInfraestructura(false); setShowFuentesStock(false); setShowDispositivos(false); setShowMacScanner(false); setShowAnalisisSenales(false); setShowInstalaciones(false); setShowBajasQvix(false); setShowTVPlanes(false); setShowCampanias(false); };
   const goTo = (view: "licencias" | "sucursales") => {
     goHome();
     setShowLicencias(view === "licencias");
@@ -254,9 +252,6 @@ function Home() {
                   </button>
                   <button onClick={() => { goHome(); setShowTVPlanes(true); setShowTVMenu(false); }} className={menuItem}>
                     <span className="w-2 h-2 rounded-full flex-shrink-0 bg-amber-400" /> Planes y bonificaciones
-                  </button>
-                  <button onClick={() => { goHome(); setShowNebulaGestion(true); setShowTVMenu(false); }} className={menuItem}>
-                    <span className="w-2 h-2 rounded-full flex-shrink-0 bg-violet-400" /> Gestión de usuarios
                   </button>
 
                   <div className="border-t border-slate-800 my-1" />
@@ -454,9 +449,8 @@ function Home() {
       {showBajasQvix && <BajasQvixView onClose={goHome} />}
       {showTVPlanes && <TVPlanesView onClose={goHome} sucursalesPermitidas={sessionUser?.sucursales ?? null} />}
       {showCampanias && <CampaniasWhatsappView onClose={goHome} sucursalesPermitidas={sessionUser?.sucursales ?? null} />}
-      {showNebulaGestion && <NebulaGestionView onClose={goHome} />}
 
-      <main className={`max-w-screen-xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8 ${showLicencias || showSucursales || showMapa || showReclamos || showCambioDrop || showInfraestructura || showFuentesStock || showDispositivos || showMacScanner || showAnalisisSenales || showInstalaciones || showBajasQvix || showTVPlanes || showCampanias || showNebulaGestion ? "hidden" : ""}`}>
+      <main className={`max-w-screen-xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8 ${showLicencias || showSucursales || showMapa || showReclamos || showCambioDrop || showInfraestructura || showFuentesStock || showDispositivos || showMacScanner || showAnalisisSenales || showInstalaciones || showBajasQvix || showTVPlanes || showCampanias ? "hidden" : ""}`}>
 
         {/* ── Dashboard principal — solo en home ── */}
         {!showServiceView && sessionUser !== null && (puedeVer("tv") || puedeVer("inicio")) && (

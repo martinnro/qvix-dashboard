@@ -90,6 +90,8 @@ export const ORG_COLORS: Record<string, string> = {
   Fiambalá: "#ef4444",
   "El Rodeo": "#14b8a6",
   "La Puerta": "#a855f7",
+  "La Rioja": "#0ea5e9",
+  Chamical: "#06b6d4",
 };
 
 // Regresión lineal simple → proyecta el siguiente valor

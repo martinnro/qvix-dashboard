@@ -777,11 +777,12 @@ function ComercialPanel({ rows, onBack, onClose }: { rows: Row[]; onBack: () => 
                   const abierto = expandido.has(key);
                   const { bg, text } = diasColor(r.dias);
                   const tieneObs = !!r.observaciones?.trim();
+                  const esDañado = r.problema?.toUpperCase().includes("DAÑADO") ?? false;
                   return (
                     <React.Fragment key={key}>
                       <tr
                         onClick={() => tieneObs && toggleExpand(key)}
-                        className={`border-b border-slate-800 transition-colors ${tieneObs ? "cursor-pointer hover:bg-slate-700/40" : "hover:bg-slate-700/20"}`}
+                        className={`border-b border-slate-800 transition-colors ${esDañado ? "bg-amber-900/20" : ""} ${tieneObs ? "cursor-pointer hover:bg-amber-900/30" : esDañado ? "" : "hover:bg-slate-700/20"}`}
                       >
                         <td className="py-2 px-3 text-center">
                           {tieneObs && (
@@ -791,7 +792,9 @@ function ComercialPanel({ rows, onBack, onClose }: { rows: Row[]; onBack: () => 
                         <td className="py-2 px-3 font-mono text-slate-200">{r.conexion}</td>
                         <td className="py-2 px-3 text-slate-400">{SUCURSAL_LABEL[r.cod_sucursal] ?? `Suc.${r.cod_sucursal}`}</td>
                         <td className="py-2 px-3 text-slate-300 max-w-[140px] truncate">{r.usuario_carga ?? "—"}</td>
-                        <td className="py-2 px-3 text-slate-300 max-w-[140px] truncate">{r.problema ?? "—"}</td>
+                        <td className={`py-2 px-3 max-w-[140px] truncate font-medium ${esDañado ? "text-amber-400" : "text-slate-300"}`}>
+                          {r.problema ?? "—"}
+                        </td>
                         <td className="py-2 px-3 text-slate-400 max-w-[120px] truncate">{r.cuadrilla ?? <span className="text-slate-600">Sin asignar</span>}</td>
                         <td className="py-2 px-3">
                           <span className={`px-2 py-0.5 rounded-full ${r.estado_incidencia === 1 ? "bg-amber-500/20 text-amber-400" : "bg-emerald-500/20 text-emerald-400"}`}>

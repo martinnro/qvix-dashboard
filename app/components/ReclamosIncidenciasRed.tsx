@@ -1,8 +1,9 @@
 "use client";
-import { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   X, Loader2, ChevronLeft, Radio, AlertCircle,
   Clock, UserCheck, Layers, Network, Calendar, List, History, Package, RefreshCw,
+  Briefcase, ChevronDown,
 } from "lucide-react";
 import ReclamosHistorial from "./ReclamosHistorial";
 import MaterialesView from "./MaterialesView";
@@ -28,9 +29,15 @@ interface Row {
   dias: number;
   problema: string | null;
   cuadrilla: string | null;
+  usuario_id: number | null;
+  usuario_carga: string | null;
+  observaciones: string | null;
 }
 
-type Panel = "problema" | "cuadrilla" | "nap" | "antiguedad" | "detalle" | "historial" | "materiales" | "reincidencias";
+// id_usuario de soporte técnico VV (Ovejero Guillermo Luciano, Tapia Tiago Sebastian)
+const VV_SOPORTE_IDS = [275, 276];
+
+type Panel = "problema" | "cuadrilla" | "nap" | "antiguedad" | "detalle" | "historial" | "materiales" | "reincidencias" | "comercial";
 
 function pct(n: number, total: number) {
   return total === 0 ? 0 : Math.round((n / total) * 100);
@@ -536,6 +543,13 @@ export default function ReclamosIncidenciasRed({
   }
 
   /* ────────────────────────────────────────────────────────────
+     SUB-PANEL: COMERCIAL
+  ──────────────────────────────────────────────────────────── */
+  if (panel === "comercial") {
+    return <ComercialPanel rows={filtered} onBack={() => setPanel(null)} onClose={onClose} />;
+  }
+
+  /* ────────────────────────────────────────────────────────────
      OVERVIEW (panel === null)
   ──────────────────────────────────────────────────────────── */
   const porSucursal = sucursalesDisponibles.map((cod) => {
@@ -624,12 +638,13 @@ export default function ReclamosIncidenciasRed({
         {/* Tarjetas de acceso rápido */}
         <div>
           <h3 className="text-slate-400 font-medium text-xs uppercase tracking-wider mb-3">Ver detalle por</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <NavCard icon={Calendar} titulo="Antigüedad" subtitulo="Cuántos días llevan abiertos" color="#f43f5e" onClick={() => setPanel("antiguedad")} />
             <NavCard icon={Layers} titulo="Tipo de problema" subtitulo="Qué falla en cada reclamo" color="#f97316" onClick={() => setPanel("problema")} />
             <NavCard icon={UserCheck} titulo="Cuadrilla" subtitulo="Quién tiene asignado cada reclamo" color="#06b6d4" onClick={() => setPanel("cuadrilla")} />
             <NavCard icon={Network} titulo="NAPs" subtitulo="Nodos con más reclamos activos" color="#a855f7" onClick={() => setPanel("nap")} />
             <NavCard icon={RefreshCw} titulo="Reincidencias" subtitulo="Conexiones con reclamos repetidos" color="#f43f5e" onClick={() => setPanel("reincidencias")} />
+            <NavCard icon={Briefcase} titulo="Comercial" subtitulo="Reclamos cargados por el área comercial" color="#10b981" onClick={() => setPanel("comercial")} />
           </div>
         </div>
 
@@ -654,6 +669,127 @@ export default function ReclamosIncidenciasRed({
           </button>
         </div>
 
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════════
+   PANEL COMERCIAL — componente separado
+══════════════════════════════════════════════════════════════ */
+function ComercialPanel({ rows, onBack, onClose }: { rows: Row[]; onBack: () => void; onClose: () => void }) {
+  const [expandido, setExpandido] = useState<Set<string>>(new Set());
+
+  const comercialRows = rows.filter((r) => {
+    if (r.cod_sucursal === 4) return !VV_SOPORTE_IDS.includes(r.usuario_id ?? -1);
+    return true;
+  });
+
+  const toggleExpand = (key: string) =>
+    setExpandido((prev) => {
+      const s = new Set(prev);
+      s.has(key) ? s.delete(key) : s.add(key);
+      return s;
+    });
+
+  const SUCURSAL_LABEL: Record<number, string> = { 1: "Chumbicha", 4: "Valle Viejo", 5: "Tinogasta", 6: "Rodeo", 7: "La Puerta", 8: "Fiambalá" };
+
+  return (
+    <div className="min-h-screen bg-slate-900 text-white">
+      <div className="max-w-screen-xl mx-auto px-6 py-8 space-y-6">
+
+        {/* Header */}
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div>
+            <button
+              onClick={onBack}
+              className="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 hover:text-white border border-slate-600 hover:border-slate-500 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors mb-3"
+            >
+              <ChevronLeft size={15} /> Volver al resumen
+            </button>
+            <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
+              <Briefcase size={20} className="text-emerald-400" /> Reclamos — Área Comercial
+            </h2>
+            <p className="text-sm text-slate-400 mt-0.5">
+              {comercialRows.length} reclamos activos cargados por comercial
+              {rows.some(r => r.cod_sucursal === 4) && (
+                <span className="ml-2 text-slate-500">· VV excluye soporte técnico (Ovejero, Tapia)</span>
+              )}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 border border-slate-700 hover:border-slate-500 px-3 py-1.5 rounded-lg text-sm transition-colors"
+          >
+            <X size={15} /> Cerrar
+          </button>
+        </div>
+
+        {comercialRows.length === 0 ? (
+          <div className="text-slate-500 text-sm py-12 text-center">Sin reclamos comerciales activos</div>
+        ) : (
+          <div className="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-slate-400 uppercase tracking-wider border-b border-slate-700 bg-slate-900/40">
+                  <th className="w-6 py-3 px-3" />
+                  <th className="text-left py-3 px-3">Conexión</th>
+                  <th className="text-left py-3 px-3">Sucursal</th>
+                  <th className="text-left py-3 px-3">Cargado por</th>
+                  <th className="text-left py-3 px-3">Problema</th>
+                  <th className="text-left py-3 px-3">Cuadrilla</th>
+                  <th className="text-left py-3 px-3">Estado</th>
+                  <th className="text-left py-3 px-3">Fecha</th>
+                  <th className="text-right py-3 px-3">Días</th>
+                </tr>
+              </thead>
+              <tbody>
+                {comercialRows.map((r, i) => {
+                  const key = `${r.conexion}-${i}`;
+                  const abierto = expandido.has(key);
+                  const { bg, text } = diasColor(r.dias);
+                  const tieneObs = !!r.observaciones?.trim();
+                  return (
+                    <React.Fragment key={key}>
+                      <tr
+                        onClick={() => tieneObs && toggleExpand(key)}
+                        className={`border-b border-slate-800 transition-colors ${tieneObs ? "cursor-pointer hover:bg-slate-700/40" : "hover:bg-slate-700/20"}`}
+                      >
+                        <td className="py-2 px-3 text-center">
+                          {tieneObs && (
+                            <ChevronDown size={13} className={`text-slate-500 transition-transform ${abierto ? "rotate-180" : ""}`} />
+                          )}
+                        </td>
+                        <td className="py-2 px-3 font-mono text-slate-200">{r.conexion}</td>
+                        <td className="py-2 px-3 text-slate-400">{SUCURSAL_LABEL[r.cod_sucursal] ?? `Suc.${r.cod_sucursal}`}</td>
+                        <td className="py-2 px-3 text-slate-300 max-w-[140px] truncate">{r.usuario_carga ?? "—"}</td>
+                        <td className="py-2 px-3 text-slate-300 max-w-[140px] truncate">{r.problema ?? "—"}</td>
+                        <td className="py-2 px-3 text-slate-400 max-w-[120px] truncate">{r.cuadrilla ?? <span className="text-slate-600">Sin asignar</span>}</td>
+                        <td className="py-2 px-3">
+                          <span className={`px-2 py-0.5 rounded-full ${r.estado_incidencia === 1 ? "bg-amber-500/20 text-amber-400" : "bg-emerald-500/20 text-emerald-400"}`}>
+                            {r.estado_incidencia === 1 ? "Pendiente" : "Asignado"}
+                          </span>
+                        </td>
+                        <td className="py-2 px-3 text-slate-400">{r.fecha}</td>
+                        <td className="py-2 px-3 text-right">
+                          <span className={`px-2 py-0.5 rounded-full font-semibold ${bg} ${text}`}>{r.dias}d</span>
+                        </td>
+                      </tr>
+                      {abierto && tieneObs && (
+                        <tr className="border-b border-slate-800 bg-slate-900/30">
+                          <td colSpan={9} className="px-8 py-3">
+                            <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Observación</p>
+                            <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-wrap">{r.observaciones}</p>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

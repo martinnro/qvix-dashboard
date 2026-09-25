@@ -45,7 +45,10 @@ export async function GET(req: NextRequest) {
              ELSE NULL
         END                                                                     AS dias_hasta_asignacion,
         ps.problema_descripcion                                                  AS problema,
-        cu.descripcion                                                           AS cuadrilla
+        cu.descripcion                                                           AS cuadrilla,
+        ih.id_usuario                                                            AS usuario_id,
+        u.desc_usr                                                               AS usuario_carga,
+        ih.observaciones
       FROM incidencias_header ih WITH (NOLOCK)
       LEFT JOIN incidencias_detalle id     WITH (NOLOCK) ON id.id_incidencia  = ih.id_incidencia
       OUTER APPLY (
@@ -57,6 +60,7 @@ export async function GET(req: NextRequest) {
       LEFT JOIN problemas ps               WITH (NOLOCK) ON ps.id_problema    = id.id_problema
       LEFT JOIN cuadrillas cu              WITH (NOLOCK) ON cu.id_cuadrilla   = vos.id_cuadrilla
       LEFT JOIN conexiones_referencia cr   WITH (NOLOCK) ON cr.id_conexion    = ih.id_conexion
+      LEFT JOIN usuarios u                 WITH (NOLOCK) ON u.id_usuario       = ih.id_usuario
       WHERE ih.tipo_incidencia = 2
         AND ih.estado_incidencia IN (1, 2)
         AND id.cod_sucursal ${sucursalClause}

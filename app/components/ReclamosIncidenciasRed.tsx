@@ -777,15 +777,16 @@ function ComercialPanel({ rows, onBack, onClose }: { rows: Row[]; onBack: () => 
                   const abierto = expandido.has(key);
                   const { bg, text } = diasColor(r.dias);
                   const tieneObs = !!r.observaciones?.trim();
+                  const tieneDetalle = !!r.problema || tieneObs;
                   const esDañado = r.problema?.toUpperCase().includes("DAÑADO") ?? false;
                   return (
                     <React.Fragment key={key}>
                       <tr
-                        onClick={() => tieneObs && toggleExpand(key)}
-                        className={`border-b border-slate-800 transition-colors ${esDañado ? "bg-amber-900/20" : ""} ${tieneObs ? "cursor-pointer hover:bg-amber-900/30" : esDañado ? "" : "hover:bg-slate-700/20"}`}
+                        onClick={() => tieneDetalle && toggleExpand(key)}
+                        className={`border-b border-slate-800 transition-colors ${esDañado ? "bg-amber-900/20" : ""} ${tieneDetalle ? "cursor-pointer hover:bg-slate-700/40" : "hover:bg-slate-700/20"}`}
                       >
                         <td className="py-2 px-3 text-center">
-                          {tieneObs && (
+                          {tieneDetalle && (
                             <ChevronDown size={13} className={`text-slate-500 transition-transform ${abierto ? "rotate-180" : ""}`} />
                           )}
                         </td>
@@ -806,11 +807,21 @@ function ComercialPanel({ rows, onBack, onClose }: { rows: Row[]; onBack: () => 
                           <span className={`px-2 py-0.5 rounded-full font-semibold ${bg} ${text}`}>{r.dias}d</span>
                         </td>
                       </tr>
-                      {abierto && tieneObs && (
+                      {abierto && tieneDetalle && (
                         <tr className="border-b border-slate-800 bg-slate-900/30">
-                          <td colSpan={9} className="px-8 py-3">
-                            <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Observación</p>
-                            <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-wrap">{r.observaciones}</p>
+                          <td colSpan={9} className="px-8 py-4 space-y-3">
+                            {r.problema && (
+                              <div>
+                                <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Problema</p>
+                                <p className={`text-sm font-medium ${esDañado ? "text-amber-400" : "text-slate-200"}`}>{r.problema}</p>
+                              </div>
+                            )}
+                            {tieneObs && (
+                              <div>
+                                <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Observación</p>
+                                <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-wrap">{r.observaciones}</p>
+                              </div>
+                            )}
                           </td>
                         </tr>
                       )}

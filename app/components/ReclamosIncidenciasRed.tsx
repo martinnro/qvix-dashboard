@@ -679,11 +679,20 @@ export default function ReclamosIncidenciasRed({
 ══════════════════════════════════════════════════════════════ */
 function ComercialPanel({ rows, onBack, onClose }: { rows: Row[]; onBack: () => void; onClose: () => void }) {
   const [expandido, setExpandido] = useState<Set<string>>(new Set());
+  const [sucursalFiltro, setSucursalFiltro] = useState<number | null>(null);
 
-  const comercialRows = rows.filter((r) => {
+  const SUCURSAL_LABEL: Record<number, string> = { 1: "Chumbicha", 4: "Valle Viejo", 5: "Tinogasta", 6: "Rodeo", 7: "La Puerta", 8: "Fiambalá" };
+
+  const baseRows = rows.filter((r) => {
     if (r.cod_sucursal === 4) return !VV_SOPORTE_IDS.includes(r.usuario_id ?? -1);
     return true;
   });
+
+  const comercialRows = sucursalFiltro === null
+    ? baseRows
+    : baseRows.filter((r) => r.cod_sucursal === sucursalFiltro);
+
+  const sucursalesPresentes = [...new Set(baseRows.map((r) => r.cod_sucursal))].sort((a, b) => a - b);
 
   const toggleExpand = (key: string) =>
     setExpandido((prev) => {
@@ -691,8 +700,6 @@ function ComercialPanel({ rows, onBack, onClose }: { rows: Row[]; onBack: () => 
       s.has(key) ? s.delete(key) : s.add(key);
       return s;
     });
-
-  const SUCURSAL_LABEL: Record<number, string> = { 1: "Chumbicha", 4: "Valle Viejo", 5: "Tinogasta", 6: "Rodeo", 7: "La Puerta", 8: "Fiambalá" };
 
   return (
     <div className="min-h-screen bg-slate-900 text-white">
@@ -712,7 +719,7 @@ function ComercialPanel({ rows, onBack, onClose }: { rows: Row[]; onBack: () => 
             </h2>
             <p className="text-sm text-slate-400 mt-0.5">
               {comercialRows.length} reclamos activos cargados por comercial
-              {rows.some(r => r.cod_sucursal === 4) && (
+              {baseRows.some(r => r.cod_sucursal === 4) && (
                 <span className="ml-2 text-slate-500">· VV excluye soporte técnico (Ovejero, Tapia)</span>
               )}
             </p>
@@ -724,6 +731,27 @@ function ComercialPanel({ rows, onBack, onClose }: { rows: Row[]; onBack: () => 
             <X size={15} /> Cerrar
           </button>
         </div>
+
+        {/* Filtro sucursal */}
+        {sucursalesPresentes.length > 1 && (
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setSucursalFiltro(null)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${sucursalFiltro === null ? "bg-emerald-600 border-emerald-500 text-white" : "border-slate-600 text-slate-400 hover:border-slate-400 hover:text-slate-200"}`}
+            >
+              Todas
+            </button>
+            {sucursalesPresentes.map((suc) => (
+              <button
+                key={suc}
+                onClick={() => setSucursalFiltro(suc === sucursalFiltro ? null : suc)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${sucursalFiltro === suc ? "bg-emerald-600 border-emerald-500 text-white" : "border-slate-600 text-slate-400 hover:border-slate-400 hover:text-slate-200"}`}
+              >
+                {SUCURSAL_LABEL[suc] ?? `Suc.${suc}`}
+              </button>
+            ))}
+          </div>
+        )}
 
         {comercialRows.length === 0 ? (
           <div className="text-slate-500 text-sm py-12 text-center">Sin reclamos comerciales activos</div>

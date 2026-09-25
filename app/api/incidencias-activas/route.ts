@@ -45,6 +45,7 @@ export async function GET(req: NextRequest) {
              ELSE NULL
         END                                                                     AS dias_hasta_asignacion,
         ps.problema_descripcion                                                  AS problema,
+        id.problema_detalle                                                      AS problema_detalle,
         cu.descripcion                                                           AS cuadrilla,
         ih.id_usuario                                                            AS usuario_id,
         u.desc_usr                                                               AS usuario_carga,

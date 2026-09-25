@@ -28,6 +28,7 @@ interface Row {
   fecha: string;
   dias: number;
   problema: string | null;
+  problema_detalle: string | null;
   cuadrilla: string | null;
   usuario_id: number | null;
   usuario_carga: string | null;
@@ -777,7 +778,7 @@ function ComercialPanel({ rows, onBack, onClose }: { rows: Row[]; onBack: () => 
                   const abierto = expandido.has(key);
                   const { bg, text } = diasColor(r.dias);
                   const tieneObs = !!r.observaciones?.trim();
-                  const tieneDetalle = !!r.problema || tieneObs;
+                  const tieneDetalle = !!r.problema || !!r.problema_detalle?.trim() || tieneObs;
                   const esDañado = r.problema?.toUpperCase().includes("DAÑADO") ?? false;
                   return (
                     <React.Fragment key={key}>
@@ -814,6 +815,12 @@ function ComercialPanel({ rows, onBack, onClose }: { rows: Row[]; onBack: () => 
                               <div>
                                 <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Problema</p>
                                 <p className={`text-sm font-medium ${esDañado ? "text-amber-400" : "text-slate-200"}`}>{r.problema}</p>
+                              </div>
+                            )}
+                            {r.problema_detalle?.trim() && (
+                              <div>
+                                <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Detalle</p>
+                                <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-wrap">{r.problema_detalle}</p>
                               </div>
                             )}
                             {tieneObs && (

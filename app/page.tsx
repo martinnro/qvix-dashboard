@@ -428,6 +428,7 @@ function Home() {
           viewtvMovil={viewtvLast.movil}
           rows={rows}
           onClose={goHome}
+          usuarioNombre={sessionUser?.nombre ?? sessionUser?.user ?? "Desconocido"}
         />
       )}
       {showSucursales && (

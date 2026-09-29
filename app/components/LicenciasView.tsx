@@ -1,6 +1,6 @@
 "use client";
-import { useState, useEffect, useMemo } from "react";
-import { X, Monitor, Smartphone, Key, AlertTriangle, TrendingUp } from "lucide-react";
+import { useState, useEffect, useMemo, useCallback } from "react";
+import { X, Monitor, Smartphone, Key, AlertTriangle, TrendingUp, History } from "lucide-react";
 import type { DataRow } from "../lib/types";
 
 interface Props {
@@ -10,6 +10,15 @@ interface Props {
   viewtvMovil: number;
   rows: DataRow[];
   onClose: () => void;
+  usuarioNombre: string;
+}
+
+interface HistorialEntry {
+  id: number;
+  fecha_cambio: string;
+  licencias_ant: number;
+  licencias_new: number;
+  usuario: string;
 }
 
 interface Snapshot {
@@ -77,10 +86,12 @@ function calcProjection(snapshots: Snapshot[], field: "stb" | "movil", limit: nu
   return { growthPerMonth, daysToLimit, limitDate };
 }
 
-export default function LicenciasView({ gotvStb, gotvMovil, viewtvStb, viewtvMovil, rows, onClose }: Props) {
+export default function LicenciasView({ gotvStb, gotvMovil, viewtvStb, viewtvMovil, rows, onClose, usuarioNombre }: Props) {
   const [totalLicencias, setTotalLicencias] = useState(DEFAULT_LICENCIAS);
   const [inputValue, setInputValue] = useState(String(DEFAULT_LICENCIAS));
   const [editing, setEditing] = useState(false);
+  const [historial, setHistorial] = useState<HistorialEntry[]>([]);
+  const [loadingHist, setLoadingHist] = useState(false);
 
   const totalStb = gotvStb + viewtvStb;
   const totalMovil = gotvMovil + viewtvMovil;
@@ -93,10 +104,32 @@ export default function LicenciasView({ gotvStb, gotvMovil, viewtvStb, viewtvMov
     }
   }, []);
 
-  const applyLicencias = () => {
+  const fetchHistorial = useCallback(async () => {
+    setLoadingHist(true);
+    try {
+      const r = await fetch("/api/licencias-historial");
+      if (r.ok) setHistorial(await r.json());
+    } finally {
+      setLoadingHist(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchHistorial(); }, [fetchHistorial]);
+
+  const applyLicencias = async () => {
     const n = parseInt(inputValue.replace(/\D/g, ""), 10);
-    if (!isNaN(n) && n > 0) { setTotalLicencias(n); localStorage.setItem(STORAGE_KEY, String(n)); }
-    else setInputValue(String(totalLicencias));
+    if (!isNaN(n) && n > 0 && n !== totalLicencias) {
+      await fetch("/api/licencias-historial", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ licencias_ant: totalLicencias, licencias_new: n }),
+      });
+      setTotalLicencias(n);
+      localStorage.setItem(STORAGE_KEY, String(n));
+      fetchHistorial();
+    } else if (isNaN(n) || n <= 0) {
+      setInputValue(String(totalLicencias));
+    }
     setEditing(false);
   };
 
@@ -309,6 +342,52 @@ export default function LicenciasView({ gotvStb, gotvMovil, viewtvStb, viewtvMov
           <p className="text-xs text-slate-600">
             Basado en los datos de TV - Servicio (GOTV + ViewTV, todas las organizaciones). Con más meses cargados la proyección es más precisa.
           </p>
+        </div>
+
+        {/* Historial de cambios */}
+        <div className="bg-slate-800 border border-slate-700 rounded-2xl p-6 space-y-4">
+          <div className="flex items-center gap-2">
+            <History size={18} className="text-slate-400" />
+            <h3 className="text-slate-300 font-semibold text-sm uppercase tracking-wider">Historial de cambios de licencias</h3>
+          </div>
+
+          {loadingHist ? (
+            <p className="text-slate-500 text-sm py-4 text-center">Cargando...</p>
+          ) : historial.length === 0 ? (
+            <p className="text-slate-500 text-sm py-4 text-center">Sin cambios registrados aún.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-slate-300">
+                <thead>
+                  <tr className="border-b border-slate-700 text-xs text-slate-400 uppercase tracking-wider">
+                    <th className="px-4 py-2 text-left">Fecha y hora</th>
+                    <th className="px-4 py-2 text-right">Anterior</th>
+                    <th className="px-4 py-2 text-right">Nuevo</th>
+                    <th className="px-4 py-2 text-right">Diferencia</th>
+                    <th className="px-4 py-2 text-left">Usuario</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {historial.map((h) => {
+                    const delta = h.licencias_new - h.licencias_ant;
+                    const fecha = new Date(h.fecha_cambio);
+                    const fechaStr = `${fecha.toLocaleDateString("es-AR")} ${fecha.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`;
+                    return (
+                      <tr key={h.id} className="border-b border-slate-700/50 hover:bg-slate-700/30">
+                        <td className="px-4 py-2.5 font-mono text-xs text-slate-400">{fechaStr}</td>
+                        <td className="px-4 py-2.5 text-right font-mono text-slate-400">{h.licencias_ant.toLocaleString()}</td>
+                        <td className="px-4 py-2.5 text-right font-mono font-semibold text-slate-200">{h.licencias_new.toLocaleString()}</td>
+                        <td className={`px-4 py-2.5 text-right font-mono font-semibold ${delta > 0 ? "text-emerald-400" : "text-red-400"}`}>
+                          {delta > 0 ? "+" : ""}{delta.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2.5 text-slate-300">{h.usuario}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
       </div>

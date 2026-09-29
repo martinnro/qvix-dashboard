@@ -11,8 +11,8 @@ import OrgDetail from "./components/OrgDetail";
 import DataEntryModal from "./components/DataEntryModal";
 import DonutChart from "./components/DonutChart";
 import ProjectionTable from "./components/ProjectionTable";
-import GoalsPanel from "./components/GoalsPanel";
 import RankingTable from "./components/RankingTable";
+import AnalisisComparativo from "./components/AnalisisComparativo";
 import HistoryPanel from "./components/HistoryPanel";
 import ThemeToggle from "./components/ThemeToggle";
 import LicenciasView from "./components/LicenciasView";
@@ -69,6 +69,8 @@ function Home() {
   const [showCampanias, setShowCampanias]             = useState(false);
   const [showSolicitudes, setShowSolicitudes]         = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [analisisDesde, setAnalisisDesde] = useState("");
+  const [analisisHasta, setAnalisisHasta] = useState("");
   const [sessionUser, setSessionUser] = useState<{
     user: string;
     nombre: string;
@@ -436,6 +438,7 @@ function Home() {
           viewtvMovil={viewtvLast.movil}
           rows={rows}
           onClose={goHome}
+          usuarioNombre={sessionUser?.nombre ?? sessionUser?.user ?? "Desconocido"}
         />
       )}
       {showSucursales && (
@@ -584,9 +587,19 @@ function Home() {
                   {activeTab === "variacion" && <DiffTable orgStats={filteredOrgStats} />}
                   {activeTab === "proyeccion" && <ProjectionTable orgStats={filteredOrgStats} />}
                   {activeTab === "analisis" && (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                      <RankingTable orgStats={filteredOrgStats} />
-                      <GoalsPanel orgStats={filteredOrgStats} servicio={servicio} />
+                    <div className="space-y-5">
+                      <AnalisisComparativo
+                        rows={filteredRows}
+                        desde={analisisDesde}
+                        hasta={analisisHasta}
+                        onDesdeChange={setAnalisisDesde}
+                        onHastaChange={setAnalisisHasta}
+                      />
+                      <RankingTable
+                        rows={filteredRows}
+                        desde={analisisDesde}
+                        hasta={analisisHasta}
+                      />
                     </div>
                   )}
                   {activeTab === "distribucion" && (

@@ -11,7 +11,15 @@ const sessionOptions = {
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  if (pathname.startsWith("/login") || pathname.startsWith("/api/auth")) {
+  // /solicitud: formulario público de preventa (QR en vidriera, sin login).
+  // /api/solicitudes-conexion/public: el POST que ese formulario usa para guardar.
+  // El listado en /api/solicitudes-conexion (sin /public) sigue protegido.
+  if (
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/solicitud") ||
+    pathname.startsWith("/api/solicitudes-conexion/public")
+  ) {
     return NextResponse.next();
   }
 

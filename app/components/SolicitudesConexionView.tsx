@@ -165,7 +165,7 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
     const url = qrSucursal ? `${typeof window !== "undefined" ? window.location.origin : ""}/solicitud?sucursal=${qrSucursal}` : "";
     return (
       <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
-        <Header titulo="Generar QR de sucursal" subtitulo="Para imprimir y pegar en la vidriera — el cliente escanea y completa la solicitud él mismo" />
+        <Header titulo="Generar QR de sucursal" />
         <div className="max-w-md mx-auto bg-slate-800 border border-slate-700 rounded-xl p-6 space-y-4 text-center">
           <div>
             <label className="block text-xs text-slate-400 mb-1.5 text-left">Sucursal</label>

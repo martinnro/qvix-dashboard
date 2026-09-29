@@ -133,7 +133,7 @@ export default function AnalisisComparativo({ rows, desde, hasta, onDesdeChange,
               onChange={(e) => onDesdeChange(e.target.value)}
               className="bg-slate-700 border border-slate-600 text-slate-200 text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500"
             >
-              {fechas.map((f) => (
+              {fechas.filter((f) => f < hasta).map((f) => (
                 <option key={f} value={f}>{f}</option>
               ))}
             </select>
@@ -145,7 +145,7 @@ export default function AnalisisComparativo({ rows, desde, hasta, onDesdeChange,
               onChange={(e) => onHastaChange(e.target.value)}
               className="bg-slate-700 border border-slate-600 text-slate-200 text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500"
             >
-              {fechas.map((f) => (
+              {fechas.filter((f) => f > desde).map((f) => (
                 <option key={f} value={f}>{f}</option>
               ))}
             </select>

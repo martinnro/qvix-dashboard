@@ -11,8 +11,8 @@ import OrgDetail from "./components/OrgDetail";
 import DataEntryModal from "./components/DataEntryModal";
 import DonutChart from "./components/DonutChart";
 import ProjectionTable from "./components/ProjectionTable";
-import GoalsPanel from "./components/GoalsPanel";
 import RankingTable from "./components/RankingTable";
+import AnalisisComparativo from "./components/AnalisisComparativo";
 import HistoryPanel from "./components/HistoryPanel";
 import ThemeToggle from "./components/ThemeToggle";
 import LicenciasView from "./components/LicenciasView";
@@ -575,9 +575,9 @@ function Home() {
                   {activeTab === "variacion" && <DiffTable orgStats={filteredOrgStats} />}
                   {activeTab === "proyeccion" && <ProjectionTable orgStats={filteredOrgStats} />}
                   {activeTab === "analisis" && (
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    <div className="space-y-5">
+                      <AnalisisComparativo rows={filteredRows} />
                       <RankingTable orgStats={filteredOrgStats} />
-                      <GoalsPanel orgStats={filteredOrgStats} servicio={servicio} />
                     </div>
                   )}
                   {activeTab === "distribucion" && (

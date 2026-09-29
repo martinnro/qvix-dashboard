@@ -339,9 +339,9 @@ function Home() {
                     </button>
                   )}
                   {puedeVer("solicitudes") && (
-                    <button onClick={() => { goHome(); setShowSolicitudes(true); setShowReportesMenu(false); }} className={menuItem}>
+                    <button onClick={() => { goHome(); setShowSolicitudes(true); setShowReportesMenu(false); }} className={`${menuItem} whitespace-nowrap`}>
                       <span className="w-2 h-2 rounded-full flex-shrink-0 bg-cyan-500" />
-                      Solicitudes de Conexión
+                      Solicitudes
                     </button>
                   )}
 

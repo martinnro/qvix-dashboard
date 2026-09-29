@@ -5,6 +5,10 @@ import type { DataRow } from "../lib/types";
 
 interface Props {
   rows: DataRow[];
+  desde: string;
+  hasta: string;
+  onDesdeChange: (v: string) => void;
+  onHastaChange: (v: string) => void;
 }
 
 interface OrgResult {
@@ -57,20 +61,17 @@ function HighlightCard({
   );
 }
 
-export default function AnalisisComparativo({ rows }: Props) {
+export default function AnalisisComparativo({ rows, desde, hasta, onDesdeChange, onHastaChange }: Props) {
   const fechas = useMemo(
     () => [...new Set(rows.map((r) => r.fecha))].sort(),
     [rows]
   );
 
-  const [desde, setDesde] = useState<string>(() => fechas[0] ?? "");
-  const [hasta, setHasta] = useState<string>(() => fechas.at(-1) ?? "");
-
-  // Sincronizar cuando cambian las fechas disponibles (cambio de servicio)
+  // Inicializar fechas cuando hay datos disponibles
   useMemo(() => {
     if (fechas.length > 0) {
-      setDesde(fechas[0]);
-      setHasta(fechas.at(-1)!);
+      if (!desde) onDesdeChange(fechas[0]);
+      if (!hasta) onHastaChange(fechas.at(-1)!);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fechas[0], fechas.at(-1)]);
@@ -129,7 +130,7 @@ export default function AnalisisComparativo({ rows }: Props) {
             <label className="text-xs text-slate-400 uppercase tracking-wider">Desde</label>
             <select
               value={desde}
-              onChange={(e) => setDesde(e.target.value)}
+              onChange={(e) => onDesdeChange(e.target.value)}
               className="bg-slate-700 border border-slate-600 text-slate-200 text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500"
             >
               {fechas.map((f) => (
@@ -141,7 +142,7 @@ export default function AnalisisComparativo({ rows }: Props) {
             <label className="text-xs text-slate-400 uppercase tracking-wider">Hasta</label>
             <select
               value={hasta}
-              onChange={(e) => setHasta(e.target.value)}
+              onChange={(e) => onHastaChange(e.target.value)}
               className="bg-slate-700 border border-slate-600 text-slate-200 text-sm rounded-lg px-3 py-1.5 focus:outline-none focus:border-indigo-500"
             >
               {fechas.map((f) => (

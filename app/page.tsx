@@ -67,6 +67,8 @@ function Home() {
   const [showTVPlanes, setShowTVPlanes]               = useState(false);
   const [showCampanias, setShowCampanias]             = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [analisisDesde, setAnalisisDesde] = useState("");
+  const [analisisHasta, setAnalisisHasta] = useState("");
   const [sessionUser, setSessionUser] = useState<{
     user: string;
     nombre: string;
@@ -577,8 +579,18 @@ function Home() {
                   {activeTab === "proyeccion" && <ProjectionTable orgStats={filteredOrgStats} />}
                   {activeTab === "analisis" && (
                     <div className="space-y-5">
-                      <AnalisisComparativo rows={filteredRows} />
-                      <RankingTable orgStats={filteredOrgStats} />
+                      <AnalisisComparativo
+                        rows={filteredRows}
+                        desde={analisisDesde}
+                        hasta={analisisHasta}
+                        onDesdeChange={setAnalisisDesde}
+                        onHastaChange={setAnalisisHasta}
+                      />
+                      <RankingTable
+                        rows={filteredRows}
+                        desde={analisisDesde}
+                        hasta={analisisHasta}
+                      />
                     </div>
                   )}
                   {activeTab === "distribucion" && (

@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { Loader2, CheckCircle2, AlertCircle, Wifi, MapPin, Check, Plus } from "lucide-react";
 
@@ -27,7 +27,18 @@ const SUCURSAL_COORDS: Record<number, [number, number]> = {
 };
 
 const TIPOS_DOCUMENTO = ["DNI", "LC", "LE"] as const;
-const VELOCIDADES = ["100", "200", "300", "500"] as const;
+
+interface PlanConexion {
+  id: number;
+  nombre: string;
+  precio: number;
+  orden: number;
+  tipo: "internet" | "doble_play";
+}
+
+function pesos(n: number): string {
+  return n.toLocaleString("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
+}
 
 // Paleta tomada de ultranet.com.ar
 const MORADO = "#3D1263";
@@ -113,7 +124,22 @@ export default function SolicitudPublicaForm({
   const [error, setError] = useState<string | null>(null);
   const [enviado, setEnviado] = useState(false);
 
+  const [planes, setPlanes] = useState<PlanConexion[]>([]);
+  const [planesLoading, setPlanesLoading] = useState(true);
+
+  useEffect(() => {
+    fetch("/api/planes-conexion")
+      .then((r) => r.json())
+      .then((json) => setPlanes(json.planes ?? []))
+      .catch(() => setPlanes([]))
+      .finally(() => setPlanesLoading(false));
+  }, []);
+
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((f) => ({ ...f, [key]: value }));
+
+  // El toggle Internet+TV / Sólo Internet no es solo un rótulo: son dos catálogos de planes
+  // con precios distintos (Doble Play suele costar más que el mismo ancho de banda sin TV).
+  const planesFiltrados = planes.filter((p) => p.tipo === (form.go_tv ? "doble_play" : "internet"));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -123,7 +149,8 @@ export default function SolicitudPublicaForm({
     if (!form.titular_apellido_nombre.trim()) return setError("Falta tu nombre completo.");
     if (!form.titular_numero_documento.trim()) return setError("Falta tu número de documento.");
     if (!form.titular_telefono.trim()) return setError("Falta un teléfono para contactarte.");
-    const velocidadFinal = form.velocidad === "Otra" ? form.velocidadOtra.trim() : (form.velocidad ? `${form.velocidad}MB` : "");
+    const planSeleccionado = planesFiltrados.find((p) => p.nombre === form.velocidad);
+    const velocidadFinal = form.velocidad === "Otra" ? form.velocidadOtra.trim() : form.velocidad;
     if (!velocidadFinal && !form.go_tv) return setError("Elegí al menos un servicio: internet o GO TV.");
 
     setSending(true);
@@ -135,6 +162,7 @@ export default function SolicitudPublicaForm({
           cod_sucursal: form.cod_sucursal,
           doble_play: form.go_tv,
           velocidad: velocidadFinal || null,
+          precio: planSeleccionado?.precio ?? null,
           go_tv: form.go_tv,
           inm_lat: form.inm_lat,
           inm_lng: form.inm_lng,
@@ -230,13 +258,13 @@ export default function SolicitudPublicaForm({
 
           <div className="flex justify-center mb-5">
             <div className="inline-flex bg-slate-200 rounded-full p-1">
-              <button type="button" onClick={() => set("go_tv", true)}
+              <button type="button" onClick={() => setForm((f) => ({ ...f, go_tv: true, velocidad: "" }))}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs sm:text-sm font-bold transition-colors"
                 style={go_tv_style(form.go_tv, true)}
               >
                 <Wifi size={14} /> Internet + TV
               </button>
-              <button type="button" onClick={() => set("go_tv", false)}
+              <button type="button" onClick={() => setForm((f) => ({ ...f, go_tv: false, velocidad: "" }))}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs sm:text-sm font-bold transition-colors"
                 style={go_tv_style(form.go_tv, false)}
               >
@@ -245,37 +273,49 @@ export default function SolicitudPublicaForm({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {VELOCIDADES.map((v) => {
-              const activo = form.velocidad === v;
-              return (
-                <button key={v} type="button" onClick={() => set("velocidad", form.velocidad === v ? "" : v)}
-                  className={`relative rounded-2xl overflow-hidden text-left transition-transform hover:-translate-y-0.5 ${activo ? "ring-2" : ""}`}
-                  style={activo ? ({ "--tw-ring-color": CIAN } as React.CSSProperties) : undefined}
-                >
-                  {activo && (
-                    <span className="absolute top-1.5 right-1.5 z-10 w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: CIAN }}>
-                      <Check size={12} className="text-white" strokeWidth={3} />
-                    </span>
-                  )}
-                  <div className="px-3 pt-3 pb-2" style={{ backgroundColor: MORADO }}>
-                    <p className="text-white/60 text-[9px] font-bold tracking-wider uppercase">{form.go_tv ? "Doble Play" : "Internet"}</p>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-white text-3xl font-extrabold">{v}</span>
-                      <span className="text-white text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: CIAN }}>MB</span>
-                    </div>
-                  </div>
-                  <div className="bg-white px-3 py-2.5 space-y-1">
-                    <p className="text-slate-500 text-[10px] leading-snug">FTTH · {form.go_tv ? "Internet + TV" : "Solo Internet"}</p>
-                    {form.go_tv && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src="/gotv-logo.png" alt="GO TV" style={{ height: 16 }} />
+          {planesLoading ? (
+            <div className="flex items-center justify-center gap-2 text-slate-400 text-sm py-8">
+              <Loader2 size={16} className="animate-spin" /> Cargando planes…
+            </div>
+          ) : planesFiltrados.length > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {planesFiltrados.map((plan) => {
+                const activo = form.velocidad === plan.nombre;
+                const partes = plan.nombre.match(/^(\d+)\s*(.*)$/);
+                return (
+                  <button key={plan.id} type="button" onClick={() => set("velocidad", activo ? "" : plan.nombre)}
+                    className={`relative rounded-2xl overflow-hidden text-left transition-transform hover:-translate-y-0.5 ${activo ? "ring-2" : ""}`}
+                    style={activo ? ({ "--tw-ring-color": CIAN } as React.CSSProperties) : undefined}
+                  >
+                    {activo && (
+                      <span className="absolute top-1.5 right-1.5 z-10 w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: CIAN }}>
+                        <Check size={12} className="text-white" strokeWidth={3} />
+                      </span>
                     )}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+                    <div className="px-3 pt-3 pb-2" style={{ backgroundColor: MORADO }}>
+                      <p className="text-white/60 text-[9px] font-bold tracking-wider uppercase">{form.go_tv ? "Doble Play" : "Internet"}</p>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-white text-3xl font-extrabold">{partes ? partes[1] : plan.nombre}</span>
+                        {partes && partes[2] && (
+                          <span className="text-white text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: CIAN }}>{partes[2]}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="bg-white px-3 py-2.5 space-y-1">
+                      <p className="text-slate-500 text-[10px] leading-snug">FTTH · {form.go_tv ? "Internet + TV" : "Solo Internet"}</p>
+                      {form.go_tv && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src="/gotv-logo.png" alt="GO TV" style={{ height: 16 }} />
+                      )}
+                      {plan.precio > 0 && (
+                        <p className="text-sm font-extrabold" style={{ color: MORADO }}>{pesos(plan.precio)}</p>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {/* "Otra velocidad": franja completa debajo de los planes, con el mismo peso visual
               que una tarjeta — para que no pase desapercibida como un link chico */}

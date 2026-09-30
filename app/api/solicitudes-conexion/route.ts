@@ -43,6 +43,7 @@ export interface SolicitudRow {
   lugar_trabajo: string | null;
   ocupacion: string | null;
   ambito: string | null;
+  precio: number | null;
 }
 
 export async function GET(req: NextRequest) {

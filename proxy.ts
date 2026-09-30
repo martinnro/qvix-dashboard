@@ -14,11 +14,14 @@ export async function proxy(req: NextRequest) {
   // /solicitud: formulario público de preventa (QR en vidriera, sin login).
   // /api/solicitudes-conexion/public: el POST que ese formulario usa para guardar.
   // El listado en /api/solicitudes-conexion (sin /public) sigue protegido.
+  // /api/planes-conexion (solo GET): el mismo formulario público necesita leer los planes y
+  // precios sin sesión — crear/editar/eliminar (POST/PUT/DELETE) lo sigue exigiendo la propia ruta.
   if (
     pathname.startsWith("/login") ||
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/solicitud") ||
-    pathname.startsWith("/api/solicitudes-conexion/public")
+    pathname.startsWith("/api/solicitudes-conexion/public") ||
+    (pathname.startsWith("/api/planes-conexion") && req.method === "GET")
   ) {
     return NextResponse.next();
   }

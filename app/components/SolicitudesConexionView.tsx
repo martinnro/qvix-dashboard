@@ -1,7 +1,8 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import QRCode from "qrcode";
-import { ArrowLeft, X, Loader2, AlertCircle, Download, RefreshCw, PlusCircle, QrCode as QrCodeIcon } from "lucide-react";
+import { ArrowLeft, X, Loader2, AlertCircle, Download, RefreshCw, PlusCircle, QrCode as QrCodeIcon, DollarSign, Pencil, Trash2 } from "lucide-react";
+import ConfirmModal from "./ConfirmModal";
 
 const SUCURSALES: Record<number, string> = {
   1: "Chumbicha",
@@ -20,6 +21,7 @@ interface SolicitudRow {
   fecha_solicitud: string;
   velocidad: string | null;
   go_tv: boolean;
+  precio: number | null;
   titular_apellido_nombre: string;
   titular_telefono: string;
   titular_barrio: string | null;
@@ -40,6 +42,10 @@ function fmtFecha(iso: string): string {
   return new Date(iso).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
+function pesos(n: number): string {
+  return n.toLocaleString("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
+}
+
 // ── Tile de KPI ──────────────────────────────────────────────────────────────
 function StatTile({ label, value, sublabel, color }: { label: string; value: string | number; sublabel?: string; color: string }) {
   return (
@@ -51,7 +57,22 @@ function StatTile({ label, value, sublabel, color }: { label: string; value: str
   );
 }
 
-type PanelType = "qr" | null;
+type PanelType = "qr" | "planes" | null;
+
+type TipoPlan = "internet" | "doble_play";
+
+interface PlanConexion {
+  id: number;
+  nombre: string;
+  precio: number;
+  orden: number;
+  tipo: TipoPlan;
+}
+
+const TIPO_PLAN_LABEL: Record<TipoPlan, string> = {
+  doble_play: "Doble Play (Internet + TV)",
+  internet: "Solo Internet",
+};
 
 export default function SolicitudesConexionView({ onClose, sucursalesPermitidas }: {
   onClose: () => void; sucursalesPermitidas: number[] | null;
@@ -68,6 +89,83 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
 
   const [qrSucursal, setQrSucursal] = useState<number | null>(sucursalesDisponibles[0] ?? null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+
+  const [planes, setPlanes] = useState<PlanConexion[] | null>(null);
+  const [planesLoading, setPlanesLoading] = useState(false);
+  const [planesError, setPlanesError] = useState<string | null>(null);
+  const [editando, setEditando] = useState<PlanConexion | "nuevo" | null>(null);
+  const [formPlan, setFormPlan] = useState<{ nombre: string; precio: string; orden: string; tipo: TipoPlan }>({ nombre: "", precio: "", orden: "", tipo: "internet" });
+  const [guardandoPlan, setGuardandoPlan] = useState(false);
+  const [aBorrar, setABorrar] = useState<PlanConexion | null>(null);
+
+  const fetchPlanes = useCallback(async () => {
+    setPlanesLoading(true);
+    setPlanesError(null);
+    try {
+      const res = await fetch("/api/planes-conexion");
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      setPlanes(json.planes);
+    } catch (e: unknown) {
+      setPlanesError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPlanesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { if (panel === "planes") fetchPlanes(); }, [panel, fetchPlanes]);
+
+  const abrirEdicionPlan = (plan: PlanConexion | "nuevo", tipoDefault: TipoPlan = "internet") => {
+    setEditando(plan);
+    setFormPlan(
+      plan === "nuevo"
+        ? { nombre: "", precio: "", orden: String((planes?.filter((p) => p.tipo === tipoDefault).length ?? 0) + 1), tipo: tipoDefault }
+        : { nombre: plan.nombre, precio: String(plan.precio), orden: String(plan.orden), tipo: plan.tipo }
+    );
+  };
+
+  const guardarPlan = async () => {
+    if (!formPlan.nombre.trim()) return setPlanesError("Falta el nombre del plan");
+    const precioNum = Number(formPlan.precio);
+    if (!Number.isFinite(precioNum) || precioNum < 0) return setPlanesError("Precio inválido");
+
+    setGuardandoPlan(true);
+    setPlanesError(null);
+    try {
+      const body = { nombre: formPlan.nombre.trim(), precio: precioNum, orden: Number(formPlan.orden) || 0, tipo: formPlan.tipo };
+      const res = await fetch("/api/planes-conexion", {
+        method: editando === "nuevo" ? "POST" : "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editando === "nuevo" ? body : { ...body, id: (editando as PlanConexion).id }),
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      setEditando(null);
+      await fetchPlanes();
+    } catch (e: unknown) {
+      setPlanesError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setGuardandoPlan(false);
+    }
+  };
+
+  const borrarPlan = async () => {
+    if (!aBorrar) return;
+    try {
+      const res = await fetch("/api/planes-conexion", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: aBorrar.id }),
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      setABorrar(null);
+      await fetchPlanes();
+    } catch (e: unknown) {
+      setPlanesError(e instanceof Error ? e.message : String(e));
+      setABorrar(null);
+    }
+  };
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -192,6 +290,139 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
     );
   }
 
+  // ══════════════════════════ Pantalla: gestionar planes ═══════════════════
+  if (panel === "planes") {
+    return (
+      <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+        <Header titulo="Planes de conexión" subtitulo="Velocidades y precios que ve el cliente en el formulario" />
+
+        {planesError && (
+          <div className="flex items-center gap-2 bg-rose-950/40 border border-rose-900 text-rose-300 rounded-xl px-4 py-3 text-sm">
+            <AlertCircle size={16} /> {planesError}
+          </div>
+        )}
+
+        {planesLoading && !planes && (
+          <div className="flex items-center gap-2 text-slate-400 text-sm">
+            <Loader2 size={16} className="animate-spin" /> Cargando planes…
+          </div>
+        )}
+
+        {planes && (["doble_play", "internet"] as TipoPlan[]).map((tipo) => {
+          const planesTipo = planes.filter((p) => p.tipo === tipo);
+          return (
+            <div key={tipo} className="bg-slate-800 border border-slate-700 rounded-2xl p-5 space-y-3">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <h3 className="text-slate-200 font-semibold text-sm">{TIPO_PLAN_LABEL[tipo]}</h3>
+                <button onClick={() => abrirEdicionPlan("nuevo", tipo)} className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition-colors">
+                  <PlusCircle size={13} /> Agregar plan
+                </button>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-slate-400 uppercase tracking-wider text-xs border-b border-slate-700">
+                      <th className="py-2 px-3 font-medium text-left">Orden</th>
+                      <th className="py-2 px-3 font-medium text-left">Nombre</th>
+                      <th className="py-2 px-3 font-medium text-left">Precio</th>
+                      <th className="py-2 px-3 font-medium text-right">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {planesTipo.map((p) => (
+                      <tr key={p.id} className="border-b border-slate-800/60 hover:bg-slate-700/20">
+                        <td className="py-2.5 px-3 text-slate-400">{p.orden}</td>
+                        <td className="py-2.5 px-3 text-slate-200 font-medium">{p.nombre}</td>
+                        <td className="py-2.5 px-3 text-emerald-400 font-semibold">{p.precio > 0 ? pesos(p.precio) : <span className="text-slate-500 font-normal">Sin definir</span>}</td>
+                        <td className="py-2.5 px-3 text-right">
+                          <div className="flex justify-end gap-1.5">
+                            <button onClick={() => abrirEdicionPlan(p)} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors" title="Editar">
+                              <Pencil size={14} />
+                            </button>
+                            <button onClick={() => setABorrar(p)} className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-700 transition-colors" title="Eliminar">
+                              <Trash2 size={14} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {planesTipo.length === 0 && (
+                  <p className="text-center text-slate-500 text-sm py-6">Todavía no hay planes en esta categoría.</p>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        {editando && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+            <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-2xl">
+              <h3 className="text-white font-semibold">{editando === "nuevo" ? "Agregar plan" : "Editar plan"}</h3>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1.5">Tipo</label>
+                <div className="flex gap-2">
+                  {(["doble_play", "internet"] as TipoPlan[]).map((t) => (
+                    <button key={t} type="button" onClick={() => setFormPlan((f) => ({ ...f, tipo: t }))}
+                      className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${
+                        formPlan.tipo === t ? "bg-indigo-600 border-indigo-500 text-white" : "border-slate-600 text-slate-400 hover:border-indigo-500 hover:text-indigo-300"
+                      }`}
+                    >
+                      {TIPO_PLAN_LABEL[t]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1.5">Nombre (ej. 300MB)</label>
+                <input value={formPlan.nombre} onChange={(e) => setFormPlan((f) => ({ ...f, nombre: e.target.value }))}
+                  className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1.5">Precio</label>
+                <div className="relative">
+                  <DollarSign size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                  <input value={formPlan.precio} onChange={(e) => setFormPlan((f) => ({ ...f, precio: e.target.value }))}
+                    inputMode="decimal" placeholder="0"
+                    className="w-full bg-slate-800 border border-slate-600 rounded-lg pl-8 pr-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1.5">Orden (menor = más arriba)</label>
+                <input value={formPlan.orden} onChange={(e) => setFormPlan((f) => ({ ...f, orden: e.target.value }))}
+                  inputMode="numeric"
+                  className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <button onClick={() => setEditando(null)} className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
+                  Cancelar
+                </button>
+                <button onClick={guardarPlan} disabled={guardandoPlan}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white transition-colors"
+                >
+                  {guardandoPlan && <Loader2 size={14} className="animate-spin" />}
+                  Guardar
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {aBorrar && (
+          <ConfirmModal
+            message={`¿Eliminar el plan "${aBorrar.nombre}"? Ya no va a aparecer como opción en el formulario.`}
+            onConfirm={borrarPlan}
+            onCancel={() => setABorrar(null)}
+          />
+        )}
+      </div>
+    );
+  }
+
   // ══════════════════════════ Pantalla principal ════════════════════════════
   return (
     <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
@@ -205,6 +436,9 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
         </button>
         <button onClick={() => setPanel("qr")} className="flex items-center gap-1.5 bg-slate-800 border border-slate-700 hover:border-indigo-500 text-slate-300 hover:text-white text-sm font-medium px-3 py-2 rounded-lg transition-colors">
           <QrCodeIcon size={15} /> Generar QR
+        </button>
+        <button onClick={() => setPanel("planes")} className="flex items-center gap-1.5 bg-slate-800 border border-slate-700 hover:border-indigo-500 text-slate-300 hover:text-white text-sm font-medium px-3 py-2 rounded-lg transition-colors">
+          <DollarSign size={15} /> Gestionar planes
         </button>
       </div>
 
@@ -262,6 +496,7 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
                         {r.velocidad && <span className="text-emerald-400">{r.velocidad}</span>}
                         {r.velocidad && r.go_tv && " · "}
                         {r.go_tv && <span className="text-amber-400">GO TV</span>}
+                        {r.precio !== null && <span className="block text-[10px] text-slate-500">{pesos(r.precio)}</span>}
                       </td>
                       <td className="py-2 px-3 text-center whitespace-nowrap">
                         {r.inm_lat !== null && r.inm_lng !== null ? (

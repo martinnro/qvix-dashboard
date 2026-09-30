@@ -46,6 +46,7 @@ export async function GET(req: NextRequest) {
       Vendedor: r.vendedor_nombre ?? "",
       Sucursal: SUCURSALES[r.cod_sucursal] ?? r.cod_sucursal,
       Velocidad: r.velocidad ?? "",
+      Precio: r.precio ?? "",
       "GO TV": r.go_tv ? "Sí" : "",
       Titular: r.titular_apellido_nombre,
       Tipo_Doc: r.titular_tipo_documento,

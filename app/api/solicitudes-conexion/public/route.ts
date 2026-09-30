@@ -62,7 +62,8 @@ export async function ensureTable(pool: Pool) {
       titular_email            VARCHAR(150)  NULL,
       lugar_trabajo            VARCHAR(150)  NULL,
       ocupacion                VARCHAR(100)  NULL,
-      ambito                   VARCHAR(15)   NULL
+      ambito                   VARCHAR(15)   NULL,
+      precio                   DECIMAL(10,2) NULL
     )
   `);
 }
@@ -86,6 +87,7 @@ interface SolicitudInput {
   lugar_trabajo?: string;
   ocupacion?: string;
   ambito?: string;
+  precio?: number | null;
 }
 
 function s(v: unknown, max: number): string | null {
@@ -124,6 +126,9 @@ export async function POST(req: NextRequest) {
 
   const inm_lat = typeof body.inm_lat === "number" && Number.isFinite(body.inm_lat) && Math.abs(body.inm_lat) <= 90 ? body.inm_lat : null;
   const inm_lng = typeof body.inm_lng === "number" && Number.isFinite(body.inm_lng) && Math.abs(body.inm_lng) <= 180 ? body.inm_lng : null;
+  // Precio del plan elegido al momento de la solicitud — se guarda como "foto" de ese instante,
+  // para que no cambie retroactivamente si después se edita el precio del plan.
+  const precio = typeof body.precio === "number" && Number.isFinite(body.precio) && body.precio >= 0 ? body.precio : null;
 
   // Si hay una sesión de vendedor activa, la solicitud queda atribuida a esa persona;
   // si no, se asume que la completó el propio cliente desde el QR.
@@ -170,6 +175,7 @@ export async function POST(req: NextRequest) {
       .input("lugar_trabajo", sql.VarChar(150), s(body.lugar_trabajo, 150))
       .input("ocupacion", sql.VarChar(100), s(body.ocupacion, 100))
       .input("ambito", sql.VarChar(15), s(body.ambito, 15))
+      .input("precio", sql.Decimal(10, 2), precio)
       .query(`
         INSERT INTO ${TABLA} (
           origen, vendedor_usuario, vendedor_nombre, cod_sucursal,
@@ -178,7 +184,7 @@ export async function POST(req: NextRequest) {
           referencia,
           titular_apellido_nombre, titular_tipo_documento, titular_numero_documento,
           titular_barrio, titular_localidad, titular_provincia, titular_calle, titular_numero, titular_piso, titular_dpto,
-          titular_telefono, titular_email, lugar_trabajo, ocupacion, ambito
+          titular_telefono, titular_email, lugar_trabajo, ocupacion, ambito, precio
         ) VALUES (
           @origen, @vendedor_usuario, @vendedor_nombre, @cod_sucursal,
           @doble_play, @velocidad, @go_tv,
@@ -186,7 +192,7 @@ export async function POST(req: NextRequest) {
           @referencia,
           @titular_apellido_nombre, @titular_tipo_documento, @titular_numero_documento,
           @titular_barrio, @titular_localidad, @titular_provincia, @titular_calle, @titular_numero, @titular_piso, @titular_dpto,
-          @titular_telefono, @titular_email, @lugar_trabajo, @ocupacion, @ambito
+          @titular_telefono, @titular_email, @lugar_trabajo, @ocupacion, @ambito, @precio
         )
       `);
 

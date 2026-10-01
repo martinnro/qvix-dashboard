@@ -7,6 +7,15 @@
   100% { transform: scale(1); }
 }
 
+/* Burbujitas subiendo del hero en /solicitud (SolicitudPublicaForm) — efecto "sumergido en el
+   océano": cada una nace invisible, sube y se desvanece, y vuelve a arrancar desde abajo. */
+@keyframes float-globito {
+  0%   { transform: translate(0, 0); opacity: 0; }
+  8%   { opacity: 1; }
+  85%  { opacity: 0.4; }
+  100% { transform: translate(var(--drift, 8px), -160px); opacity: 0; }
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;

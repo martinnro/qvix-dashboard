@@ -111,18 +111,24 @@ function Field({ label, children, required }: { label: string; children: React.R
   );
 }
 
-// Circulitos decorativos del hero, igual que en ultranet.com.ar
+// Circulitos decorativos del hero, igual que en ultranet.com.ar — suben como burbujas
+// (sensación de estar sumergido) y se desvanecen antes de volver a arrancar desde abajo.
 function Decoracion() {
   const puntos = [
-    { top: "8%", left: "6%", size: 10 }, { top: "14%", left: "34%", size: 7 },
-    { top: "62%", left: "16%", size: 9 }, { top: "10%", left: "88%", size: 8 },
-    { top: "44%", left: "92%", size: 11 }, { top: "78%", left: "94%", size: 6 },
-    { top: "80%", left: "62%", size: 8 }, { top: "6%", left: "60%", size: 6 },
+    { top: "55%", left: "6%", size: 10, duracion: 8, delay: 0, drift: 10 }, { top: "70%", left: "34%", size: 7, duracion: 10, delay: 2 },
+    { top: "80%", left: "16%", size: 9, duracion: 9, delay: 4, drift: -8 }, { top: "60%", left: "88%", size: 8, duracion: 7, delay: 1, drift: -12 },
+    { top: "75%", left: "92%", size: 11, duracion: 11, delay: 3, drift: 14 }, { top: "90%", left: "94%", size: 6, duracion: 8.5, delay: 5, drift: -6 },
+    { top: "85%", left: "62%", size: 8, duracion: 9.5, delay: 1.8, drift: 8 }, { top: "65%", left: "60%", size: 6, duracion: 7.5, delay: 3.6, drift: -10 },
   ];
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
       {puntos.map((p, i) => (
-        <div key={i} className="absolute rounded-full bg-white/10" style={{ top: p.top, left: p.left, width: p.size * 2, height: p.size * 2 }} />
+        <div key={i} className="absolute rounded-full bg-white/10" style={{
+          top: p.top, left: p.left, width: p.size * 2, height: p.size * 2,
+          animation: `float-globito ${p.duracion}s ease-in infinite`,
+          animationDelay: `${p.delay}s`,
+          ["--drift" as string]: `${p.drift ?? 8}px`,
+        }} />
       ))}
     </div>
   );
@@ -233,6 +239,38 @@ export default function SolicitudPublicaForm({
     );
   }
 
+  // QR universal (sin ?sucursal=): hasta que no elija localidad no se muestra el resto del
+  // formulario — pensado para un QR expuesto en un evento con gente de distintas localidades.
+  if (sucursalInicial === null && !form.cod_sucursal) {
+    return (
+      <div className="min-h-screen flex items-center" style={{ background: `linear-gradient(135deg, ${MORADO}, ${MORADO_CLARO})` }}>
+        <div className="relative overflow-hidden px-4 py-14 text-center w-full">
+          <Decoracion />
+          <div className="relative">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/ultranet-logo.png" alt="Ultranet — Internet a Ultra Velocidad" className="mx-auto" style={{ width: 220 }} />
+            <p className="text-white/80 text-sm mt-7 mb-4">Por favor, seleccioná tu localidad para continuar</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-w-lg mx-auto">
+              {sucursalesDisponibles.map((cod) => (
+                <button key={cod} type="button" onClick={() => set("cod_sucursal", cod)}
+                  className="flex items-center rounded-full overflow-hidden text-left transition-transform hover:scale-[1.03]"
+                >
+                  <span className="flex items-center justify-center px-3 py-3" style={{ backgroundColor: CIAN }}>
+                    <MapPin size={16} className="text-white" />
+                  </span>
+                  <span className="flex-1 px-3 py-2 text-left" style={{ backgroundColor: "#1F0A38" }}>
+                    <span className="block text-white font-bold text-xs leading-tight">{SUCURSALES[cod]}</span>
+                    <span className="block text-white/50 text-[10px] italic">Catamarca</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#f7f5fb]">
       {/* Hero morado */}
@@ -242,31 +280,10 @@ export default function SolicitudPublicaForm({
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/ultranet-logo.png" alt="Ultranet — Internet a Ultra Velocidad" className="mx-auto" style={{ width: 220 }} />
 
-          {sucursalInicial === null ? (
-            <>
-              <p className="text-white/80 text-sm mt-7 mb-4">Por favor, seleccioná tu sucursal</p>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-w-lg mx-auto">
-                {sucursalesDisponibles.map((cod) => (
-                  <button key={cod} type="button" onClick={() => set("cod_sucursal", cod)}
-                    className={`flex items-center rounded-full overflow-hidden text-left transition-transform hover:scale-[1.03] ${form.cod_sucursal === cod ? "ring-2 ring-white" : ""}`}
-                  >
-                    <span className="flex items-center justify-center px-3 py-3" style={{ backgroundColor: CIAN }}>
-                      <MapPin size={16} className="text-white" />
-                    </span>
-                    <span className="flex-1 px-3 py-2 text-left" style={{ backgroundColor: "#1F0A38" }}>
-                      <span className="block text-white font-bold text-xs leading-tight">{SUCURSALES[cod]}</span>
-                      <span className="block text-white/50 text-[10px] italic">Catamarca</span>
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </>
-          ) : (
-            <div className="inline-flex items-center gap-2 bg-white/10 rounded-full px-4 py-2 mt-7">
-              <MapPin size={15} style={{ color: CIAN }} />
-              <span className="text-white text-sm font-semibold">{SUCURSALES[sucursalInicial]}, Catamarca</span>
-            </div>
-          )}
+          <div className="inline-flex items-center gap-2 bg-white/10 rounded-full px-4 py-2 mt-7">
+            <MapPin size={15} style={{ color: CIAN }} />
+            <span className="text-white text-sm font-semibold">{SUCURSALES[form.cod_sucursal as number]}, Catamarca</span>
+          </div>
         </div>
       </div>
 

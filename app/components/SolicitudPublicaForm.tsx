@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
-import { Loader2, CheckCircle2, AlertCircle, Wifi, MapPin, Check, Plus, Tv, Film, Box, Monitor, Smartphone, Star } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, Wifi, MapPin, Check, Plus, Film, Box, Monitor } from "lucide-react";
 
 const UbicacionMapPicker = dynamic(() => import("./UbicacionMapPicker"), { ssr: false });
 
@@ -28,7 +28,7 @@ const SUCURSAL_COORDS: Record<number, [number, number]> = {
 
 const TIPOS_DOCUMENTO = ["DNI", "LC", "LE"] as const;
 
-type IconoItem = "wifi" | "tv" | "film" | "box" | "monitor" | "smartphone" | "check" | "star";
+type IconoItem = "film" | "box" | "monitor";
 
 interface PlanItem {
   icono: IconoItem;
@@ -46,7 +46,7 @@ interface PlanConexion {
 }
 
 const ICONO_COMPONENTE: Record<IconoItem, React.ComponentType<{ size?: number; className?: string; style?: React.CSSProperties }>> = {
-  wifi: Wifi, tv: Tv, film: Film, box: Box, monitor: Monitor, smartphone: Smartphone, check: Check, star: Star,
+  film: Film, box: Box, monitor: Monitor,
 };
 
 function pesos(n: number): string {

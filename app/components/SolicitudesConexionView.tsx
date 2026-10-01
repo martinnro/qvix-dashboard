@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import QRCode from "qrcode";
-import { ArrowLeft, X, Loader2, AlertCircle, Download, RefreshCw, PlusCircle, QrCode as QrCodeIcon, DollarSign, Pencil, Trash2, Wifi, Tv, Film, Box, Monitor, Smartphone, CheckCircle2, Star } from "lucide-react";
+import { ArrowLeft, X, Loader2, AlertCircle, Download, RefreshCw, PlusCircle, QrCode as QrCodeIcon, DollarSign, Pencil, Trash2, Film, Box, Monitor } from "lucide-react";
 import ConfirmModal from "./ConfirmModal";
 
 const SUCURSALES: Record<number, string> = {
@@ -61,7 +61,7 @@ type PanelType = "qr" | "planes" | null;
 
 type TipoPlan = "internet" | "doble_play";
 
-const ICONOS_ITEM = ["wifi", "tv", "film", "box", "monitor", "smartphone", "check", "star"] as const;
+const ICONOS_ITEM = ["film", "box", "monitor"] as const;
 type IconoItem = (typeof ICONOS_ITEM)[number];
 
 interface PlanItem {
@@ -85,10 +85,16 @@ const TIPO_PLAN_LABEL: Record<TipoPlan, string> = {
 };
 
 const ICONO_COMPONENTE: Record<IconoItem, React.ComponentType<{ size?: number; className?: string }>> = {
-  wifi: Wifi, tv: Tv, film: Film, box: Box, monitor: Monitor, smartphone: Smartphone, check: CheckCircle2, star: Star,
+  film: Film, box: Box, monitor: Monitor,
 };
 const ICONO_LABEL: Record<IconoItem, string> = {
-  wifi: "Wifi", tv: "TV", film: "Premium/Películas", box: "Dispositivo", monitor: "Pantallas", smartphone: "Celular", check: "Check", star: "Destacado",
+  film: "Premium/Películas", box: "Dispositivo", monitor: "Pantallas",
+};
+// Al elegir un ícono se autocompletan título y texto — siempre se repiten los mismos 3 ítems.
+const ICONO_PRESET: Record<IconoItem, { titulo: string; texto: string }> = {
+  film: { titulo: "Pack Premium", texto: "HBO, Universal y Fútbol" },
+  box: { titulo: "1 Dispositivo", texto: "Smart TV Box" },
+  monitor: { titulo: "3 Pantallas", texto: "Go TV Android" },
 };
 
 export default function SolicitudesConexionView({ onClose, sucursalesPermitidas }: {
@@ -141,10 +147,11 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
     );
   };
 
-  const agregarItem = () => setFormPlan((f) => ({ ...f, items: [...f.items, { icono: "check", titulo: "", texto: "" }] }));
+  const agregarItem = () => setFormPlan((f) => ({ ...f, items: [...f.items, { icono: ICONOS_ITEM[0], ...ICONO_PRESET[ICONOS_ITEM[0]] }] }));
   const quitarItem = (i: number) => setFormPlan((f) => ({ ...f, items: f.items.filter((_, idx) => idx !== i) }));
   const actualizarItem = (i: number, patch: Partial<PlanItem>) =>
     setFormPlan((f) => ({ ...f, items: f.items.map((it, idx) => (idx === i ? { ...it, ...patch } : it)) }));
+  const elegirIconoItem = (i: number, icono: IconoItem) => actualizarItem(i, { icono, ...ICONO_PRESET[icono] });
 
   const guardarPlan = async () => {
     if (!formPlan.nombre.trim()) return setPlanesError("Falta el nombre del plan");
@@ -451,7 +458,7 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
                         <span className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-300 flex items-center justify-center">
                           <IconoPreview size={13} />
                         </span>
-                        <select value={item.icono} onChange={(e) => actualizarItem(i, { icono: e.target.value as IconoItem })}
+                        <select value={item.icono} onChange={(e) => elegirIconoItem(i, e.target.value as IconoItem)}
                           className="flex-1 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-500"
                         >
                           {ICONOS_ITEM.map((ic) => <option key={ic} value={ic}>{ICONO_LABEL[ic]}</option>)}

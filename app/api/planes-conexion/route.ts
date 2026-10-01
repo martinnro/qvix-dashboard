@@ -9,7 +9,7 @@ export type TipoPlan = (typeof TIPOS)[number];
 
 // Set fijo de íconos que puede elegir el panel — se mapean a componentes de lucide-react
 // tanto en el panel de administración como en el formulario público.
-export const ICONOS_ITEM = ["wifi", "tv", "film", "box", "monitor", "smartphone", "check", "star"] as const;
+export const ICONOS_ITEM = ["film", "box", "monitor"] as const;
 export type IconoItem = (typeof ICONOS_ITEM)[number];
 
 export interface PlanItem {
@@ -50,7 +50,7 @@ function parseIncluye(v: unknown): PlanItem[] {
   for (const raw of v) {
     if (!raw || typeof raw !== "object") continue;
     const r = raw as Record<string, unknown>;
-    const icono = (ICONOS_ITEM as readonly string[]).includes(r.icono as string) ? (r.icono as IconoItem) : "check";
+    const icono = (ICONOS_ITEM as readonly string[]).includes(r.icono as string) ? (r.icono as IconoItem) : ICONOS_ITEM[0];
     const titulo = typeof r.titulo === "string" ? r.titulo.trim().slice(0, 40) : "";
     const texto = typeof r.texto === "string" ? r.texto.trim().slice(0, 150) : "";
     if (!titulo) continue;

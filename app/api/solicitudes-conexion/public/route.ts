@@ -24,45 +24,49 @@ type Pool = Awaited<ReturnType<typeof getPool>>;
 // Formulario digital de "Solicitud de conexión" (preventa sin intercambio monetario), reemplaza
 // la planilla en papel. Lo puede completar un vendedor logueado (origen='vendedor', se guarda
 // quién fue) o cualquier persona desde el QR pegado en la sucursal (origen='qr', anónimo).
+//
+// Todos los campos de texto libre usan NVARCHAR (no VARCHAR): el driver mssql no transcodifica
+// VARCHAR al codepage de la columna, así que cualquier tilde o "ñ" quedaba guardada como basura
+// (ej. "Fútbol" -> "F�tbol"). NVARCHAR viaja como UTF-16 y evita el problema por completo.
 export async function ensureTable(pool: Pool) {
   await pool.request().query(`
     IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = '${TABLA}')
     CREATE TABLE ${TABLA} (
       id                       INT IDENTITY(1,1) PRIMARY KEY,
       origen                   VARCHAR(20)   NOT NULL,
-      vendedor_usuario         VARCHAR(100)  NULL,
-      vendedor_nombre          VARCHAR(150)  NULL,
+      vendedor_usuario         NVARCHAR(100) NULL,
+      vendedor_nombre          NVARCHAR(150) NULL,
       cod_sucursal             INT           NOT NULL,
       fecha_solicitud          DATETIME      NOT NULL DEFAULT GETDATE(),
       doble_play               BIT           NOT NULL DEFAULT 0,
-      velocidad                VARCHAR(30)   NULL,
+      velocidad                NVARCHAR(30)  NULL,
       go_tv                    BIT           NOT NULL DEFAULT 0,
-      inm_barrio               VARCHAR(150)  NULL,
-      inm_localidad            VARCHAR(100)  NULL,
-      inm_provincia            VARCHAR(100)  NULL,
-      inm_calle                VARCHAR(150)  NULL,
-      inm_numero               VARCHAR(20)   NULL,
-      inm_piso                 VARCHAR(10)   NULL,
-      inm_dpto                 VARCHAR(10)   NULL,
-      inm_telefono             VARCHAR(30)   NULL,
+      inm_barrio               NVARCHAR(150) NULL,
+      inm_localidad            NVARCHAR(100) NULL,
+      inm_provincia            NVARCHAR(100) NULL,
+      inm_calle                NVARCHAR(150) NULL,
+      inm_numero               NVARCHAR(20)  NULL,
+      inm_piso                 NVARCHAR(10)  NULL,
+      inm_dpto                 NVARCHAR(10)  NULL,
+      inm_telefono             NVARCHAR(30)  NULL,
       inm_lat                  FLOAT         NULL,
       inm_lng                  FLOAT         NULL,
-      referencia               VARCHAR(300)  NULL,
-      titular_apellido_nombre  VARCHAR(200)  NOT NULL,
-      titular_tipo_documento   VARCHAR(5)    NOT NULL,
-      titular_numero_documento VARCHAR(20)   NOT NULL,
-      titular_barrio           VARCHAR(150)  NULL,
-      titular_localidad        VARCHAR(100)  NULL,
-      titular_provincia        VARCHAR(100)  NULL,
-      titular_calle            VARCHAR(150)  NULL,
-      titular_numero           VARCHAR(20)   NULL,
-      titular_piso             VARCHAR(10)   NULL,
-      titular_dpto             VARCHAR(10)   NULL,
-      titular_telefono         VARCHAR(30)   NOT NULL,
-      titular_email            VARCHAR(150)  NULL,
-      lugar_trabajo            VARCHAR(150)  NULL,
-      ocupacion                VARCHAR(100)  NULL,
-      ambito                   VARCHAR(15)   NULL,
+      referencia               NVARCHAR(300) NULL,
+      titular_apellido_nombre  NVARCHAR(200) NOT NULL,
+      titular_tipo_documento   NVARCHAR(5)   NOT NULL,
+      titular_numero_documento NVARCHAR(20)  NOT NULL,
+      titular_barrio           NVARCHAR(150) NULL,
+      titular_localidad        NVARCHAR(100) NULL,
+      titular_provincia        NVARCHAR(100) NULL,
+      titular_calle            NVARCHAR(150) NULL,
+      titular_numero           NVARCHAR(20)  NULL,
+      titular_piso             NVARCHAR(10)  NULL,
+      titular_dpto             NVARCHAR(10)  NULL,
+      titular_telefono         NVARCHAR(30)  NOT NULL,
+      titular_email            NVARCHAR(150) NULL,
+      lugar_trabajo            NVARCHAR(150) NULL,
+      ocupacion                NVARCHAR(100) NULL,
+      ambito                   NVARCHAR(15)  NULL,
       precio                   DECIMAL(10,2) NULL
     )
   `);
@@ -143,38 +147,38 @@ export async function POST(req: NextRequest) {
 
     await pool.request()
       .input("origen", sql.VarChar(20), origen)
-      .input("vendedor_usuario", sql.VarChar(100), vendedor_usuario)
-      .input("vendedor_nombre", sql.VarChar(150), vendedor_nombre)
+      .input("vendedor_usuario", sql.NVarChar(100), vendedor_usuario)
+      .input("vendedor_nombre", sql.NVarChar(150), vendedor_nombre)
       .input("cod_sucursal", sql.Int, cod_sucursal)
       .input("doble_play", sql.Bit, doble_play)
-      .input("velocidad", sql.VarChar(30), velocidad)
+      .input("velocidad", sql.NVarChar(30), velocidad)
       .input("go_tv", sql.Bit, go_tv)
-      .input("inm_barrio", sql.VarChar(150), s(body.inm_barrio, 150))
-      .input("inm_localidad", sql.VarChar(100), s(body.inm_localidad, 100))
-      .input("inm_provincia", sql.VarChar(100), s(body.inm_provincia, 100))
-      .input("inm_calle", sql.VarChar(150), s(body.inm_calle, 150))
-      .input("inm_numero", sql.VarChar(20), s(body.inm_numero, 20))
-      .input("inm_piso", sql.VarChar(10), s(body.inm_piso, 10))
-      .input("inm_dpto", sql.VarChar(10), s(body.inm_dpto, 10))
-      .input("inm_telefono", sql.VarChar(30), s(body.inm_telefono, 30))
+      .input("inm_barrio", sql.NVarChar(150), s(body.inm_barrio, 150))
+      .input("inm_localidad", sql.NVarChar(100), s(body.inm_localidad, 100))
+      .input("inm_provincia", sql.NVarChar(100), s(body.inm_provincia, 100))
+      .input("inm_calle", sql.NVarChar(150), s(body.inm_calle, 150))
+      .input("inm_numero", sql.NVarChar(20), s(body.inm_numero, 20))
+      .input("inm_piso", sql.NVarChar(10), s(body.inm_piso, 10))
+      .input("inm_dpto", sql.NVarChar(10), s(body.inm_dpto, 10))
+      .input("inm_telefono", sql.NVarChar(30), s(body.inm_telefono, 30))
       .input("inm_lat", sql.Float, inm_lat)
       .input("inm_lng", sql.Float, inm_lng)
-      .input("referencia", sql.VarChar(300), s(body.referencia, 300))
-      .input("titular_apellido_nombre", sql.VarChar(200), titular_apellido_nombre)
-      .input("titular_tipo_documento", sql.VarChar(5), titular_tipo_documento)
-      .input("titular_numero_documento", sql.VarChar(20), titular_numero_documento)
-      .input("titular_barrio", sql.VarChar(150), s(body.titular_barrio, 150))
-      .input("titular_localidad", sql.VarChar(100), s(body.titular_localidad, 100))
-      .input("titular_provincia", sql.VarChar(100), s(body.titular_provincia, 100))
-      .input("titular_calle", sql.VarChar(150), s(body.titular_calle, 150))
-      .input("titular_numero", sql.VarChar(20), s(body.titular_numero, 20))
-      .input("titular_piso", sql.VarChar(10), s(body.titular_piso, 10))
-      .input("titular_dpto", sql.VarChar(10), s(body.titular_dpto, 10))
-      .input("titular_telefono", sql.VarChar(30), titular_telefono)
-      .input("titular_email", sql.VarChar(150), s(body.titular_email, 150))
-      .input("lugar_trabajo", sql.VarChar(150), s(body.lugar_trabajo, 150))
-      .input("ocupacion", sql.VarChar(100), s(body.ocupacion, 100))
-      .input("ambito", sql.VarChar(15), s(body.ambito, 15))
+      .input("referencia", sql.NVarChar(300), s(body.referencia, 300))
+      .input("titular_apellido_nombre", sql.NVarChar(200), titular_apellido_nombre)
+      .input("titular_tipo_documento", sql.NVarChar(5), titular_tipo_documento)
+      .input("titular_numero_documento", sql.NVarChar(20), titular_numero_documento)
+      .input("titular_barrio", sql.NVarChar(150), s(body.titular_barrio, 150))
+      .input("titular_localidad", sql.NVarChar(100), s(body.titular_localidad, 100))
+      .input("titular_provincia", sql.NVarChar(100), s(body.titular_provincia, 100))
+      .input("titular_calle", sql.NVarChar(150), s(body.titular_calle, 150))
+      .input("titular_numero", sql.NVarChar(20), s(body.titular_numero, 20))
+      .input("titular_piso", sql.NVarChar(10), s(body.titular_piso, 10))
+      .input("titular_dpto", sql.NVarChar(10), s(body.titular_dpto, 10))
+      .input("titular_telefono", sql.NVarChar(30), titular_telefono)
+      .input("titular_email", sql.NVarChar(150), s(body.titular_email, 150))
+      .input("lugar_trabajo", sql.NVarChar(150), s(body.lugar_trabajo, 150))
+      .input("ocupacion", sql.NVarChar(100), s(body.ocupacion, 100))
+      .input("ambito", sql.NVarChar(15), s(body.ambito, 15))
       .input("precio", sql.Decimal(10, 2), precio)
       .query(`
         INSERT INTO ${TABLA} (

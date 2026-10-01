@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import QRCode from "qrcode";
-import { ArrowLeft, X, Loader2, AlertCircle, Download, RefreshCw, PlusCircle, QrCode as QrCodeIcon, DollarSign, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, X, Loader2, AlertCircle, Download, RefreshCw, PlusCircle, QrCode as QrCodeIcon, DollarSign, Pencil, Trash2, Wifi, Tv, Film, Box, Monitor, Smartphone, CheckCircle2, Star } from "lucide-react";
 import ConfirmModal from "./ConfirmModal";
 
 const SUCURSALES: Record<number, string> = {
@@ -61,17 +61,34 @@ type PanelType = "qr" | "planes" | null;
 
 type TipoPlan = "internet" | "doble_play";
 
+const ICONOS_ITEM = ["wifi", "tv", "film", "box", "monitor", "smartphone", "check", "star"] as const;
+type IconoItem = (typeof ICONOS_ITEM)[number];
+
+interface PlanItem {
+  icono: IconoItem;
+  titulo: string;
+  texto: string;
+}
+
 interface PlanConexion {
   id: number;
   nombre: string;
   precio: number;
   orden: number;
   tipo: TipoPlan;
+  incluye: PlanItem[];
 }
 
 const TIPO_PLAN_LABEL: Record<TipoPlan, string> = {
   doble_play: "Doble Play (Internet + TV)",
   internet: "Solo Internet",
+};
+
+const ICONO_COMPONENTE: Record<IconoItem, React.ComponentType<{ size?: number; className?: string }>> = {
+  wifi: Wifi, tv: Tv, film: Film, box: Box, monitor: Monitor, smartphone: Smartphone, check: CheckCircle2, star: Star,
+};
+const ICONO_LABEL: Record<IconoItem, string> = {
+  wifi: "Wifi", tv: "TV", film: "Premium/Películas", box: "Dispositivo", monitor: "Pantallas", smartphone: "Celular", check: "Check", star: "Destacado",
 };
 
 export default function SolicitudesConexionView({ onClose, sucursalesPermitidas }: {
@@ -94,7 +111,7 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
   const [planesLoading, setPlanesLoading] = useState(false);
   const [planesError, setPlanesError] = useState<string | null>(null);
   const [editando, setEditando] = useState<PlanConexion | "nuevo" | null>(null);
-  const [formPlan, setFormPlan] = useState<{ nombre: string; precio: string; orden: string; tipo: TipoPlan }>({ nombre: "", precio: "", orden: "", tipo: "internet" });
+  const [formPlan, setFormPlan] = useState<{ nombre: string; precio: string; orden: string; tipo: TipoPlan; items: PlanItem[] }>({ nombre: "", precio: "", orden: "", tipo: "internet", items: [] });
   const [guardandoPlan, setGuardandoPlan] = useState(false);
   const [aBorrar, setABorrar] = useState<PlanConexion | null>(null);
 
@@ -119,10 +136,15 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
     setEditando(plan);
     setFormPlan(
       plan === "nuevo"
-        ? { nombre: "", precio: "", orden: String((planes?.filter((p) => p.tipo === tipoDefault).length ?? 0) + 1), tipo: tipoDefault }
-        : { nombre: plan.nombre, precio: String(plan.precio), orden: String(plan.orden), tipo: plan.tipo }
+        ? { nombre: "", precio: "", orden: String((planes?.filter((p) => p.tipo === tipoDefault).length ?? 0) + 1), tipo: tipoDefault, items: [] }
+        : { nombre: plan.nombre, precio: String(plan.precio), orden: String(plan.orden), tipo: plan.tipo, items: plan.incluye }
     );
   };
+
+  const agregarItem = () => setFormPlan((f) => ({ ...f, items: [...f.items, { icono: "check", titulo: "", texto: "" }] }));
+  const quitarItem = (i: number) => setFormPlan((f) => ({ ...f, items: f.items.filter((_, idx) => idx !== i) }));
+  const actualizarItem = (i: number, patch: Partial<PlanItem>) =>
+    setFormPlan((f) => ({ ...f, items: f.items.map((it, idx) => (idx === i ? { ...it, ...patch } : it)) }));
 
   const guardarPlan = async () => {
     if (!formPlan.nombre.trim()) return setPlanesError("Falta el nombre del plan");
@@ -132,7 +154,13 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
     setGuardandoPlan(true);
     setPlanesError(null);
     try {
-      const body = { nombre: formPlan.nombre.trim(), precio: precioNum, orden: Number(formPlan.orden) || 0, tipo: formPlan.tipo };
+      const body = {
+        nombre: formPlan.nombre.trim(),
+        precio: precioNum,
+        orden: Number(formPlan.orden) || 0,
+        tipo: formPlan.tipo,
+        incluye: formPlan.items.filter((it) => it.titulo.trim()),
+      };
       const res = await fetch("/api/planes-conexion", {
         method: editando === "nuevo" ? "POST" : "PUT",
         headers: { "Content-Type": "application/json" },
@@ -332,7 +360,14 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
                     {planesTipo.map((p) => (
                       <tr key={p.id} className="border-b border-slate-800/60 hover:bg-slate-700/20">
                         <td className="py-2.5 px-3 text-slate-400">{p.orden}</td>
-                        <td className="py-2.5 px-3 text-slate-200 font-medium">{p.nombre}</td>
+                        <td className="py-2.5 px-3 text-slate-200 font-medium">
+                          {p.nombre}
+                          {p.incluye.length > 0 && (
+                            <span className="block text-[11px] text-slate-500 font-normal mt-0.5 max-w-xs">
+                              {p.incluye.map((it) => it.titulo).join(" · ")}
+                            </span>
+                          )}
+                        </td>
                         <td className="py-2.5 px-3 text-emerald-400 font-semibold">{p.precio > 0 ? pesos(p.precio) : <span className="text-slate-500 font-normal">Sin definir</span>}</td>
                         <td className="py-2.5 px-3 text-right">
                           <div className="flex justify-end gap-1.5">
@@ -358,7 +393,7 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
 
         {editando && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
-            <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-sm space-y-4 shadow-2xl">
+            <div className="bg-slate-900 border border-slate-700 rounded-2xl p-6 w-full max-w-md space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
               <h3 className="text-white font-semibold">{editando === "nuevo" ? "Agregar plan" : "Editar plan"}</h3>
               <div>
                 <label className="block text-xs text-slate-400 mb-1.5">Tipo</label>
@@ -396,6 +431,47 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
                   inputMode="numeric"
                   className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
                 />
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs text-slate-400">Qué incluye (opcional)</label>
+                  <button type="button" onClick={agregarItem} className="flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 transition-colors">
+                    <PlusCircle size={13} /> Agregar ítem
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {formPlan.items.map((item, i) => {
+                    const IconoPreview = ICONO_COMPONENTE[item.icono];
+                    return (
+                    <div key={i} className="bg-slate-800 border border-slate-700 rounded-lg p-2.5 space-y-1.5 relative">
+                      <button type="button" onClick={() => quitarItem(i)} className="absolute top-2 right-2 text-slate-500 hover:text-rose-400 transition-colors">
+                        <X size={13} />
+                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <span className="flex-shrink-0 w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-300 flex items-center justify-center">
+                          <IconoPreview size={13} />
+                        </span>
+                        <select value={item.icono} onChange={(e) => actualizarItem(i, { icono: e.target.value as IconoItem })}
+                          className="flex-1 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-500"
+                        >
+                          {ICONOS_ITEM.map((ic) => <option key={ic} value={ic}>{ICONO_LABEL[ic]}</option>)}
+                        </select>
+                      </div>
+                      <input value={item.titulo} onChange={(e) => actualizarItem(i, { titulo: e.target.value })}
+                        placeholder="Título (ej. Pack Premium)" maxLength={40}
+                        className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500"
+                      />
+                      <input value={item.texto} onChange={(e) => actualizarItem(i, { texto: e.target.value })}
+                        placeholder="Texto (ej. HBO, Universal y Fútbol Premium)" maxLength={150}
+                        className="w-full bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500"
+                      />
+                    </div>
+                    );
+                  })}
+                  {formPlan.items.length === 0 && (
+                    <p className="text-xs text-slate-500">Sin ítems — el cliente va a ver la tarjeta sin el bloque &quot;Incluye&quot;.</p>
+                  )}
+                </div>
               </div>
               <div className="flex justify-end gap-2 pt-1">
                 <button onClick={() => setEditando(null)} className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">

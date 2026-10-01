@@ -7,12 +7,24 @@ const TABLA = "analytics_planes_conexion";
 const TIPOS = ["internet", "doble_play"] as const;
 export type TipoPlan = (typeof TIPOS)[number];
 
+// Set fijo de íconos que puede elegir el panel — se mapean a componentes de lucide-react
+// tanto en el panel de administración como en el formulario público.
+export const ICONOS_ITEM = ["wifi", "tv", "film", "box", "monitor", "smartphone", "check", "star"] as const;
+export type IconoItem = (typeof ICONOS_ITEM)[number];
+
+export interface PlanItem {
+  icono: IconoItem;
+  titulo: string;
+  texto: string;
+}
+
 export interface PlanConexion {
   id: number;
   nombre: string;
   precio: number;
   orden: number;
   tipo: TipoPlan;
+  incluye: PlanItem[];
 }
 
 function parseNombre(v: unknown): string | null {
@@ -30,14 +42,49 @@ function parseTipo(v: unknown): TipoPlan | null {
   return (TIPOS as readonly string[]).includes(v as string) ? (v as TipoPlan) : null;
 }
 
+// Valida y normaliza la lista de items "qué incluye" que manda el panel — se descarta
+// cualquier item sin título o con un ícono fuera del set permitido.
+function parseIncluye(v: unknown): PlanItem[] {
+  if (!Array.isArray(v)) return [];
+  const items: PlanItem[] = [];
+  for (const raw of v) {
+    if (!raw || typeof raw !== "object") continue;
+    const r = raw as Record<string, unknown>;
+    const icono = (ICONOS_ITEM as readonly string[]).includes(r.icono as string) ? (r.icono as IconoItem) : "check";
+    const titulo = typeof r.titulo === "string" ? r.titulo.trim().slice(0, 40) : "";
+    const texto = typeof r.texto === "string" ? r.texto.trim().slice(0, 150) : "";
+    if (!titulo) continue;
+    items.push({ icono, titulo, texto });
+  }
+  return items.slice(0, 8);
+}
+
+function parseIncluyeColumna(raw: string | null): PlanItem[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return parseIncluye(parsed);
+  } catch {
+    return [];
+  }
+}
+
 // Público: el formulario de /solicitud necesita leer los planes sin estar logueado.
 export async function GET() {
   try {
     const pool = await getPool();
     const result = await pool.request().query(`
-      SELECT id, nombre, precio, orden, tipo FROM ${TABLA} ORDER BY tipo ASC, orden ASC, precio ASC, id ASC
+      SELECT id, nombre, precio, orden, tipo, incluye FROM ${TABLA} ORDER BY tipo ASC, orden ASC, precio ASC, id ASC
     `);
-    return NextResponse.json({ planes: result.recordset as PlanConexion[] });
+    const planes = result.recordset.map((r) => ({
+      id: r.id,
+      nombre: r.nombre,
+      precio: r.precio,
+      orden: r.orden,
+      tipo: r.tipo,
+      incluye: parseIncluyeColumna(r.incluye),
+    })) as PlanConexion[];
+    return NextResponse.json({ planes });
   } catch (err: unknown) {
     console.error("[planes-conexion GET]", err);
     return NextResponse.json(
@@ -57,6 +104,7 @@ export async function POST(req: NextRequest) {
   const precio = parsePrecio(body.precio);
   const orden = Number.isFinite(Number(body.orden)) ? Number(body.orden) : 0;
   const tipo = parseTipo(body.tipo);
+  const incluye = parseIncluye(body.incluye);
 
   if (!nombre) return NextResponse.json({ error: "Falta el nombre del plan" }, { status: 400 });
   if (precio === null) return NextResponse.json({ error: "Precio inválido" }, { status: 400 });
@@ -65,16 +113,18 @@ export async function POST(req: NextRequest) {
   try {
     const pool = await getPool();
     const result = await pool.request()
-      .input("nombre", sql.VarChar(30), nombre)
+      .input("nombre", sql.NVarChar(30), nombre)
       .input("precio", sql.Decimal(10, 2), precio)
       .input("orden", sql.Int, orden)
       .input("tipo", sql.VarChar(20), tipo)
+      .input("incluye", sql.NVarChar(sql.MAX), JSON.stringify(incluye))
       .query(`
-        INSERT INTO ${TABLA} (nombre, precio, orden, tipo)
-        OUTPUT INSERTED.id, INSERTED.nombre, INSERTED.precio, INSERTED.orden, INSERTED.tipo
-        VALUES (@nombre, @precio, @orden, @tipo)
+        INSERT INTO ${TABLA} (nombre, precio, orden, tipo, incluye)
+        OUTPUT INSERTED.id, INSERTED.nombre, INSERTED.precio, INSERTED.orden, INSERTED.tipo, INSERTED.incluye
+        VALUES (@nombre, @precio, @orden, @tipo, @incluye)
       `);
-    return NextResponse.json({ plan: result.recordset[0] });
+    const row = result.recordset[0];
+    return NextResponse.json({ plan: { ...row, incluye: parseIncluyeColumna(row.incluye) } });
   } catch (err: unknown) {
     console.error("[planes-conexion POST]", err);
     return NextResponse.json(
@@ -94,6 +144,7 @@ export async function PUT(req: NextRequest) {
   const precio = parsePrecio(body.precio);
   const orden = Number.isFinite(Number(body.orden)) ? Number(body.orden) : 0;
   const tipo = parseTipo(body.tipo);
+  const incluye = parseIncluye(body.incluye);
 
   if (!Number.isFinite(id) || id <= 0) return NextResponse.json({ error: "Id inválido" }, { status: 400 });
   if (!nombre) return NextResponse.json({ error: "Falta el nombre del plan" }, { status: 400 });
@@ -104,11 +155,12 @@ export async function PUT(req: NextRequest) {
     const pool = await getPool();
     await pool.request()
       .input("id", sql.Int, id)
-      .input("nombre", sql.VarChar(30), nombre)
+      .input("nombre", sql.NVarChar(30), nombre)
       .input("precio", sql.Decimal(10, 2), precio)
       .input("orden", sql.Int, orden)
       .input("tipo", sql.VarChar(20), tipo)
-      .query(`UPDATE ${TABLA} SET nombre = @nombre, precio = @precio, orden = @orden, tipo = @tipo WHERE id = @id`);
+      .input("incluye", sql.NVarChar(sql.MAX), JSON.stringify(incluye))
+      .query(`UPDATE ${TABLA} SET nombre = @nombre, precio = @precio, orden = @orden, tipo = @tipo, incluye = @incluye WHERE id = @id`);
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
     console.error("[planes-conexion PUT]", err);

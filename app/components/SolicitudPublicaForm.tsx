@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
-import { Loader2, CheckCircle2, AlertCircle, Wifi, MapPin, Check, Plus } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, Wifi, MapPin, Check, Plus, Tv, Film, Box, Monitor, Smartphone, Star } from "lucide-react";
 
 const UbicacionMapPicker = dynamic(() => import("./UbicacionMapPicker"), { ssr: false });
 
@@ -28,13 +28,26 @@ const SUCURSAL_COORDS: Record<number, [number, number]> = {
 
 const TIPOS_DOCUMENTO = ["DNI", "LC", "LE"] as const;
 
+type IconoItem = "wifi" | "tv" | "film" | "box" | "monitor" | "smartphone" | "check" | "star";
+
+interface PlanItem {
+  icono: IconoItem;
+  titulo: string;
+  texto: string;
+}
+
 interface PlanConexion {
   id: number;
   nombre: string;
   precio: number;
   orden: number;
   tipo: "internet" | "doble_play";
+  incluye: PlanItem[];
 }
+
+const ICONO_COMPONENTE: Record<IconoItem, React.ComponentType<{ size?: number; className?: string; style?: React.CSSProperties }>> = {
+  wifi: Wifi, tv: Tv, film: Film, box: Box, monitor: Monitor, smartphone: Smartphone, check: Check, star: Star,
+};
 
 function pesos(n: number): string {
   return n.toLocaleString("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
@@ -44,6 +57,12 @@ function pesos(n: number): string {
 const MORADO = "#3D1263";
 const MORADO_CLARO = "#5B2A8A";
 const CIAN = "#22C3DC";
+// Paleta específica de la tarjeta de plan (tomada por muestreo del modelo de referencia) —
+// ahí no aparece el cian en ningún lado, es toda violeta/morado.
+const TARJETA_MORADO = "#3B0E67";
+const TARJETA_MORADO_CLARO = "#612BB1";
+const TARJETA_VIOLETA_BADGE_1 = "#7C22D0";
+const TARJETA_VIOLETA_BADGE_2 = "#822AE5";
 
 interface FormState {
   cod_sucursal: number | null;
@@ -251,7 +270,7 @@ export default function SolicitudPublicaForm({
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="max-w-2xl mx-auto px-4 pt-8 pb-14 space-y-6">
+      <form onSubmit={handleSubmit} className="max-w-3xl mx-auto px-4 pt-8 pb-14 space-y-6">
         {/* Servicios */}
         <div>
           <h2 className="text-2xl font-extrabold text-slate-900 text-center mb-4">Elegí tu plan</h2>
@@ -278,37 +297,77 @@ export default function SolicitudPublicaForm({
               <Loader2 size={16} className="animate-spin" /> Cargando planes…
             </div>
           ) : planesFiltrados.length > 0 && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {planesFiltrados.map((plan) => {
                 const activo = form.velocidad === plan.nombre;
                 const partes = plan.nombre.match(/^(\d+)\s*(.*)$/);
                 return (
                   <button key={plan.id} type="button" onClick={() => set("velocidad", activo ? "" : plan.nombre)}
-                    className={`relative rounded-2xl overflow-hidden text-left transition-transform hover:-translate-y-0.5 ${activo ? "ring-2" : ""}`}
-                    style={activo ? ({ "--tw-ring-color": CIAN } as React.CSSProperties) : undefined}
+                    className={`relative rounded-2xl overflow-hidden text-left flex flex-col bg-white transition-all duration-200 ease-out hover:-translate-y-0.5 active:scale-[0.97] active:duration-75 ${activo ? "-translate-y-0.5" : ""}`}
+                    style={{
+                      border: `2px solid ${activo ? TARJETA_MORADO_CLARO : "#e2e8f0"}`,
+                      boxShadow: activo ? `0 10px 25px -8px ${TARJETA_MORADO_CLARO}80` : "0 1px 2px rgba(0,0,0,0.05)",
+                    }}
                   >
-                    {activo && (
-                      <span className="absolute top-1.5 right-1.5 z-10 w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: CIAN }}>
-                        <Check size={12} className="text-white" strokeWidth={3} />
-                      </span>
-                    )}
-                    <div className="px-3 pt-3 pb-2" style={{ backgroundColor: MORADO }}>
-                      <p className="text-white/60 text-[9px] font-bold tracking-wider uppercase">{form.go_tv ? "Doble Play" : "Internet"}</p>
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-white text-3xl font-extrabold">{partes ? partes[1] : plan.nombre}</span>
+                    {/* Header recto, sin curva — más simple y sin riesgo de que el recorte tape algo. */}
+                    <div className="relative overflow-hidden px-5 pt-4 pb-5" style={{ background: `linear-gradient(135deg, ${TARJETA_MORADO}, ${TARJETA_MORADO_CLARO})` }}>
+                      <Wifi size={80} strokeWidth={1.5} className="absolute top-4 right-2 text-white/15 pointer-events-none" />
+                      <div className="relative flex items-start justify-between">
+                        <span className="inline-block px-3 py-1 rounded-full text-[11px] font-bold text-white tracking-wide uppercase"
+                          style={{ background: `linear-gradient(135deg, ${TARJETA_VIOLETA_BADGE_1}, ${TARJETA_VIOLETA_BADGE_2})` }}
+                        >
+                          {form.go_tv ? "Doble Play" : "Solo Internet"}
+                        </span>
+                        <span className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-200 ${activo ? "scale-110" : "scale-100"}`}
+                          style={{ border: `2px solid ${activo ? CIAN : "rgba(255,255,255,0.6)"}`, backgroundColor: activo ? CIAN : "transparent" }}
+                        >
+                          {activo && <Check size={14} className="text-white" strokeWidth={3} style={{ animation: "plan-check-pop 0.25s ease-out" }} />}
+                        </span>
+                      </div>
+                      <div className="relative flex items-baseline gap-2 mt-3">
+                        <span className="text-5xl font-extrabold leading-none text-white">{partes ? partes[1] : plan.nombre}</span>
                         {partes && partes[2] && (
-                          <span className="text-white text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ backgroundColor: CIAN }}>{partes[2]}</span>
+                          <span className="text-sm font-bold text-white px-2 py-1 rounded-md" style={{ backgroundColor: CIAN }}>{partes[2]}</span>
                         )}
                       </div>
                     </div>
-                    <div className="bg-white px-3 py-2.5 space-y-1">
-                      <p className="text-slate-500 text-[10px] leading-snug">FTTH · {form.go_tv ? "Internet + TV" : "Solo Internet"}</p>
-                      {form.go_tv && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src="/gotv-logo.png" alt="GO TV" style={{ height: 16 }} />
+
+                    <div className="px-5 pt-3 pb-4 flex-1 flex flex-col">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-slate-800 text-sm font-bold">FTTH Internet {plan.nombre}</p>
+                        {form.go_tv && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src="/gotv-logo.png" alt="GO TV" className="w-auto flex-shrink-0" style={{ height: 22 }} />
+                        )}
+                      </div>
+
+                      {plan.incluye.length > 0 && (
+                        <>
+                          <div className="border-t border-slate-100 my-3" />
+                          <div className="grid grid-cols-3 gap-2">
+                            {plan.incluye.map((item, i) => {
+                              const Icono = ICONO_COMPONENTE[item.icono];
+                              return (
+                                <div key={i} className="flex items-start gap-1.5 min-w-0">
+                                  <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#f1eef6" }}>
+                                    <Icono size={12} style={{ color: TARJETA_MORADO }} />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className="text-[11px] font-bold text-slate-800 leading-tight whitespace-nowrap">{item.titulo}</p>
+                                    {item.texto && <p className="text-[10px] text-slate-500 leading-snug">{item.texto}</p>}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </>
                       )}
+
                       {plan.precio > 0 && (
-                        <p className="text-sm font-extrabold" style={{ color: MORADO }}>{pesos(plan.precio)}</p>
+                        <div className="mt-auto">
+                          <div className="border-t border-slate-100 my-3" />
+                          <span className="text-2xl font-extrabold" style={{ color: TARJETA_MORADO }}>{pesos(plan.precio)}</span>
+                        </div>
                       )}
                     </div>
                   </button>

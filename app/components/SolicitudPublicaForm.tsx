@@ -303,14 +303,16 @@ export default function SolicitudPublicaForm({
                 const partes = plan.nombre.match(/^(\d+)\s*(.*)$/);
                 return (
                   <button key={plan.id} type="button" onClick={() => set("velocidad", activo ? "" : plan.nombre)}
-                    className={`relative rounded-2xl overflow-hidden text-left flex flex-col bg-white transition-all duration-200 ease-out hover:-translate-y-0.5 active:scale-[0.97] active:duration-75 ${activo ? "-translate-y-0.5" : ""}`}
+                    className={`relative w-full rounded-2xl overflow-hidden text-left flex flex-col bg-white transform-gpu transition-all duration-200 ease-out hover:-translate-y-0.5 active:scale-[0.97] active:duration-75 ${activo ? "-translate-y-0.5" : ""}`}
                     style={{
                       border: `2px solid ${activo ? TARJETA_MORADO_CLARO : "#e2e8f0"}`,
                       boxShadow: activo ? `0 10px 25px -8px ${TARJETA_MORADO_CLARO}80` : "0 1px 2px rgba(0,0,0,0.05)",
+                      WebkitTransform: "translateZ(0)",
+                      WebkitBackfaceVisibility: "hidden",
                     }}
                   >
                     {/* Header recto, sin curva — más simple y sin riesgo de que el recorte tape algo. */}
-                    <div className="relative overflow-hidden px-5 pt-4 pb-5" style={{ background: `linear-gradient(135deg, ${TARJETA_MORADO}, ${TARJETA_MORADO_CLARO})` }}>
+                    <div className="relative w-full overflow-hidden px-5 pt-4 pb-5" style={{ background: `linear-gradient(135deg, ${TARJETA_MORADO}, ${TARJETA_MORADO_CLARO})` }}>
                       <Wifi size={80} strokeWidth={1.5} className="absolute top-4 right-2 text-white/15 pointer-events-none" />
                       <div className="relative flex items-start justify-between">
                         <span className="inline-block px-3 py-1 rounded-full text-[11px] font-bold text-white tracking-wide uppercase"

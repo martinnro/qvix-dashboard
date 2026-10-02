@@ -11,6 +11,14 @@ const PLAN_ESTADO_LABELS: Record<PlanEstado, string> = {
   sin_plan_sin_cargo: "Sin plan — sin cargo",
 };
 
+// Independiente de PlanEstado: no mira el plan base sino el neto total facturado en video
+// (mismo criterio que la tarjeta "TV Sin Cargo" / bonificadoGlobal-conCargoGlobal del backend).
+type NetoGlobalEstado = "bonificado" | "con_cargo";
+const NETO_GLOBAL_LABELS: Record<NetoGlobalEstado, string> = {
+  bonificado: "TV sin cargo (global)",
+  con_cargo: "TV con cargo (global)",
+};
+
 const SUCURSALES: Record<number, string> = {
   1: "Chumbicha",
   4: "Valle Viejo",
@@ -128,8 +136,8 @@ function StatTile({ label, value, sublabel, color }: {
 }
 
 // ── Tarjeta chica con donut: bonificado vs. con cargo global, sin importar si tiene plan base ──
-function GlobalDonutTile({ total, bonificado, conCargo }: {
-  total: number; bonificado: number; conCargo: number;
+function GlobalDonutTile({ total, bonificado, conCargo, onSelect }: {
+  total: number; bonificado: number; conCargo: number; onSelect: (estado: NetoGlobalEstado) => void;
 }) {
   const data = [
     { name: "No paga nada", value: bonificado, color: "#10b981" },
@@ -137,7 +145,10 @@ function GlobalDonutTile({ total, bonificado, conCargo }: {
   ].filter((d) => d.value > 0);
 
   return (
-    <div className="bg-slate-800 border border-slate-700 rounded-xl p-4 flex items-center gap-3">
+    <div
+      onClick={() => onSelect("bonificado")}
+      className="bg-slate-800 border border-slate-700 hover:border-slate-500 rounded-xl p-4 flex items-center gap-3 cursor-pointer transition-colors"
+    >
       <div className="w-16 h-16 flex-shrink-0">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
@@ -158,8 +169,19 @@ function GlobalDonutTile({ total, bonificado, conCargo }: {
         <p className="text-xs text-slate-500 uppercase tracking-wider mb-1 truncate">TV Sin Cargo</p>
         <div className="text-xl font-bold text-emerald-400">{pct(bonificado, total)}%</div>
         <p className="text-[11px] text-slate-500 mt-0.5">
-          <span className="text-emerald-400">{bonificado.toLocaleString("es-AR")}</span> no paga ·{" "}
-          <span className="text-amber-400">{conCargo.toLocaleString("es-AR")}</span> paga
+          <button
+            onClick={(e) => { e.stopPropagation(); onSelect("bonificado"); }}
+            className="text-emerald-400 hover:underline"
+          >
+            {bonificado.toLocaleString("es-AR")} no paga
+          </button>
+          {" · "}
+          <button
+            onClick={(e) => { e.stopPropagation(); onSelect("con_cargo"); }}
+            className="text-amber-400 hover:underline"
+          >
+            {conCargo.toLocaleString("es-AR")} paga
+          </button>
         </p>
       </div>
     </div>
@@ -288,6 +310,7 @@ export default function TVPlanesView({ onClose, sucursalesPermitidas }: {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [filtroPlanEstado, setFiltroPlanEstado] = useState<PlanEstado | null>(null);
+  const [filtroNetoGlobal, setFiltroNetoGlobal] = useState<NetoGlobalEstado | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("id_conexion");
   const [sortAsc, setSortAsc] = useState(true);
 
@@ -298,6 +321,13 @@ export default function TVPlanesView({ onClose, sucursalesPermitidas }: {
 
   const abrirDetalle = (estado: PlanEstado | null) => {
     setFiltroPlanEstado(estado);
+    setFiltroNetoGlobal(null);
+    setPanel("detalle");
+  };
+
+  const abrirDetalleGlobal = (estado: NetoGlobalEstado) => {
+    setFiltroPlanEstado(null);
+    setFiltroNetoGlobal(estado);
     setPanel("detalle");
   };
 
@@ -309,6 +339,7 @@ export default function TVPlanesView({ onClose, sucursalesPermitidas }: {
     const params = new URLSearchParams();
     if (sucSel !== null) params.set("sucursal", String(sucSel));
     if (filtroPlanEstado) params.set("planEstado", filtroPlanEstado);
+    if (filtroNetoGlobal) params.set("netoGlobal", filtroNetoGlobal);
     try {
       const res = await fetch(`/api/tv-planes?${params}`);
       const json = await res.json();
@@ -319,7 +350,7 @@ export default function TVPlanesView({ onClose, sucursalesPermitidas }: {
     } finally {
       setLoading(false);
     }
-  }, [sucSel, filtroPlanEstado]);
+  }, [sucSel, filtroPlanEstado, filtroNetoGlobal]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -327,6 +358,7 @@ export default function TVPlanesView({ onClose, sucursalesPermitidas }: {
     const params = new URLSearchParams();
     if (sucSel !== null) params.set("sucursal", String(sucSel));
     if (filtroPlanEstado) params.set("planEstado", filtroPlanEstado);
+    if (filtroNetoGlobal) params.set("netoGlobal", filtroNetoGlobal);
     return `/api/export/tv-planes?${params}`;
   };
 
@@ -405,7 +437,11 @@ export default function TVPlanesView({ onClose, sucursalesPermitidas }: {
       <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-4">
         <Header
           titulo="Detalle de conexiones"
-          subtitulo={data ? `${data.detalleTotal.toLocaleString("es-AR")} conexiones${filtroPlanEstado ? ` — ${PLAN_ESTADO_LABELS[filtroPlanEstado]}` : ""}` : undefined}
+          subtitulo={data ? `${data.detalleTotal.toLocaleString("es-AR")} conexiones${
+            filtroPlanEstado ? ` — ${PLAN_ESTADO_LABELS[filtroPlanEstado]}`
+            : filtroNetoGlobal ? ` — ${NETO_GLOBAL_LABELS[filtroNetoGlobal]}`
+            : ""
+          }` : undefined}
         />
 
         {sucursalFiltro}
@@ -414,9 +450,9 @@ export default function TVPlanesView({ onClose, sucursalesPermitidas }: {
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs text-slate-500 uppercase tracking-wider">Filtrar por</span>
           <button
-            onClick={() => setFiltroPlanEstado(null)}
+            onClick={() => abrirDetalle(null)}
             className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-              filtroPlanEstado === null ? "bg-indigo-600 border-indigo-500 text-white" : "border-slate-600 text-slate-400 hover:border-indigo-500 hover:text-indigo-300"
+              filtroPlanEstado === null && !filtroNetoGlobal ? "bg-indigo-600 border-indigo-500 text-white" : "border-slate-600 text-slate-400 hover:border-indigo-500 hover:text-indigo-300"
             }`}
           >
             Todos
@@ -424,9 +460,20 @@ export default function TVPlanesView({ onClose, sucursalesPermitidas }: {
           {(Object.entries(PLAN_ESTADO_LABELS) as [PlanEstado, string][]).map(([key, label]) => (
             <button
               key={key}
-              onClick={() => setFiltroPlanEstado(key)}
+              onClick={() => abrirDetalle(key)}
               className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
                 filtroPlanEstado === key ? "bg-indigo-600 border-indigo-500 text-white" : "border-slate-600 text-slate-400 hover:border-indigo-500 hover:text-indigo-300"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+          {(Object.entries(NETO_GLOBAL_LABELS) as [NetoGlobalEstado, string][]).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => abrirDetalleGlobal(key)}
+              className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                filtroNetoGlobal === key ? "bg-indigo-600 border-indigo-500 text-white" : "border-slate-600 text-slate-400 hover:border-indigo-500 hover:text-indigo-300"
               }`}
             >
               {label}
@@ -564,6 +611,7 @@ export default function TVPlanesView({ onClose, sucursalesPermitidas }: {
               total={data.total}
               bonificado={data.planBase.bonificadoGlobal}
               conCargo={data.planBase.conCargoGlobal}
+              onSelect={abrirDetalleGlobal}
             />
           </div>
 

@@ -52,6 +52,7 @@ function statPack(rows: TvRow[], tieneField: keyof TvRow, bonifField: keyof TvRo
 }
 
 export type PlanEstado = "bonificado" | "con_cargo" | "sin_plan_con_cargo" | "sin_plan_sin_cargo";
+export type NetoGlobalEstado = "bonificado" | "con_cargo";
 
 export function claseEstado(r: TvRow): PlanEstado {
   if (r.plan_base) return r.base_bonificado === 1 ? "bonificado" : "con_cargo";
@@ -162,6 +163,7 @@ export async function GET(req: NextRequest) {
 
   const estadosIn = buildEstadosIn(req.nextUrl.searchParams.get("estados"));
   const planEstadoParam = req.nextUrl.searchParams.get("planEstado") as PlanEstado | null;
+  const netoGlobalParam = req.nextUrl.searchParams.get("netoGlobal") as NetoGlobalEstado | null;
 
   try {
     const pool = await getPool();
@@ -223,9 +225,13 @@ export async function GET(req: NextRequest) {
     const appConCargo = appCon.filter((r) => r.neto_app > 0).length;
     const appSinCargo = appCon.length - appConCargo;
 
+    // "TV sin cargo (global)" no mira el plan base sino el neto total de TODO lo facturado en
+    // video (mismo criterio que bonificadoGlobal/conCargoGlobal más arriba).
     const rowsParaDetalle = planEstadoParam
       ? rows.filter((r) => claseEstado(r) === planEstadoParam)
-      : rows;
+      : netoGlobalParam
+        ? rows.filter((r) => (netoGlobalParam === "bonificado" ? r.total_neto <= 0 : r.total_neto > 0))
+        : rows;
 
     const detalle = rowsParaDetalle
       .slice()

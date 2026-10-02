@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPool } from "@/app/lib/db";
 import { getSession } from "@/app/lib/session";
 import * as XLSX from "xlsx";
-import { buildQuery, claseEstado, type PlanEstado, type TvRow } from "@/app/api/tv-planes/route";
+import { buildQuery, claseEstado, type PlanEstado, type NetoGlobalEstado, type TvRow } from "@/app/api/tv-planes/route";
 
 const SUCURSALES: Record<number, string> = {
   1: "Chumbicha",
@@ -52,6 +52,7 @@ export async function GET(req: NextRequest) {
 
   const estadosIn = buildEstadosIn(req.nextUrl.searchParams.get("estados"));
   const planEstadoParam = req.nextUrl.searchParams.get("planEstado") as PlanEstado | null;
+  const netoGlobalParam = req.nextUrl.searchParams.get("netoGlobal") as NetoGlobalEstado | null;
 
   try {
     const pool = await getPool();
@@ -59,7 +60,9 @@ export async function GET(req: NextRequest) {
     const recordset = result.recordset as TvRow[];
     const filtrados = planEstadoParam
       ? recordset.filter((r) => claseEstado(r) === planEstadoParam)
-      : recordset;
+      : netoGlobalParam
+        ? recordset.filter((r) => (netoGlobalParam === "bonificado" ? r.total_neto <= 0 : r.total_neto > 0))
+        : recordset;
 
     const rows = filtrados.map((r) => ({
       ID_Conexion:    r.id_conexion,
@@ -85,7 +88,7 @@ export async function GET(req: NextRequest) {
 
     const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
     const nombreSucursal = sucursalN !== null ? (SUCURSALES[sucursalN] ?? sucursalN) : "Todas";
-    const sufijoEstado = planEstadoParam ? `-${planEstadoParam}` : "";
+    const sufijoEstado = planEstadoParam ? `-${planEstadoParam}` : netoGlobalParam ? `-global-${netoGlobalParam}` : "";
 
     return new NextResponse(buf, {
       headers: {

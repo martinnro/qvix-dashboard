@@ -221,9 +221,9 @@ export default function SolicitudPublicaForm({
   // formulario — pensado para un QR expuesto en un evento con gente de distintas localidades.
   if (sucursalInicial === null && !form.cod_sucursal) {
     return (
-      <div className="min-h-screen flex items-center" style={{ background: `linear-gradient(135deg, ${MORADO}, ${MORADO_CLARO})` }}>
-        <div className="relative overflow-hidden px-4 py-14 text-center w-full">
-          <BurbujasDecorativas />
+      <div className="relative overflow-hidden min-h-screen flex items-center" style={{ background: `linear-gradient(135deg, ${MORADO}, ${MORADO_CLARO})` }}>
+        <BurbujasDecorativas />
+        <div className="relative px-4 py-14 text-center w-full">
           <div className="relative">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/ultranet-logo.png" alt="Ultranet — Internet a Ultra Velocidad" className="mx-auto" style={{ width: 220 }} />

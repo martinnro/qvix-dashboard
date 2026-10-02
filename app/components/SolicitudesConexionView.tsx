@@ -110,6 +110,7 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [qrTipo, setQrTipo] = useState<"solicitud" | "enlaces">("solicitud");
   const [qrSucursal, setQrSucursal] = useState<number | "universal" | null>(sucursalesDisponibles[0] ?? null);
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 
@@ -222,14 +223,22 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
   useEffect(() => { if (panel === null) fetchData(); }, [panel, sucSel, fetchData]);
 
   useEffect(() => {
-    if (panel !== "qr" || !qrSucursal) return;
+    if (panel !== "qr") return;
+    if (qrTipo === "enlaces") {
+      const url = `${window.location.origin}/enlaces`;
+      QRCode.toDataURL(url, { width: 400, margin: 2, color: { dark: "#0f172a", light: "#ffffff" } })
+        .then(setQrDataUrl)
+        .catch(() => setQrDataUrl(null));
+      return;
+    }
+    if (!qrSucursal) return;
     const url = qrSucursal === "universal"
       ? `${window.location.origin}/solicitud`
       : `${window.location.origin}/solicitud?sucursal=${qrSucursal}`;
     QRCode.toDataURL(url, { width: 400, margin: 2, color: { dark: "#0f172a", light: "#ffffff" } })
       .then(setQrDataUrl)
       .catch(() => setQrDataUrl(null));
-  }, [panel, qrSucursal]);
+  }, [panel, qrTipo, qrSucursal]);
 
   const exportUrl = () => {
     const params = new URLSearchParams();
@@ -297,29 +306,49 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
 
   // ══════════════════════════ Pantalla: generar QR ═════════════════════════
   if (panel === "qr") {
-    const url = !qrSucursal ? "" : qrSucursal === "universal"
-      ? `${typeof window !== "undefined" ? window.location.origin : ""}/solicitud`
-      : `${typeof window !== "undefined" ? window.location.origin : ""}/solicitud?sucursal=${qrSucursal}`;
-    const nombreQr = qrSucursal === "universal" ? "Todas las localidades" : qrSucursal ? SUCURSALES[qrSucursal] : "";
+    const url = qrTipo === "enlaces"
+      ? `${typeof window !== "undefined" ? window.location.origin : ""}/enlaces`
+      : !qrSucursal ? "" : qrSucursal === "universal"
+        ? `${typeof window !== "undefined" ? window.location.origin : ""}/solicitud`
+        : `${typeof window !== "undefined" ? window.location.origin : ""}/solicitud?sucursal=${qrSucursal}`;
+    const nombreQr = qrTipo === "enlaces"
+      ? "Enlaces"
+      : qrSucursal === "universal" ? "Todas las localidades" : qrSucursal ? SUCURSALES[qrSucursal] : "";
     return (
       <div className="max-w-screen-xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
-        <Header titulo="Generar QR de sucursal" />
+        <Header titulo="Generar QR" />
         <div className="max-w-md mx-auto bg-slate-800 border border-slate-700 rounded-xl p-6 space-y-4 text-center">
-          <div>
-            <label className="block text-xs text-slate-400 mb-1.5 text-left">Sucursal</label>
-            <select value={qrSucursal ?? ""} onChange={(e) => setQrSucursal(e.target.value === "universal" ? "universal" : e.target.value ? Number(e.target.value) : null)}
-              className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
-            >
-              {sucursalesDisponibles.map((cod) => <option key={cod} value={cod}>{SUCURSALES[cod]}</option>)}
-              <option value="universal">Todas (QR universal — elige localidad en el form)</option>
-            </select>
+          <div className="flex justify-center">
+            <div className="inline-flex bg-slate-900 border border-slate-700 rounded-lg p-1">
+              <button type="button" onClick={() => setQrTipo("solicitud")}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${qrTipo === "solicitud" ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-white"}`}
+              >
+                Solicitud de conexión
+              </button>
+              <button type="button" onClick={() => setQrTipo("enlaces")}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${qrTipo === "enlaces" ? "bg-indigo-600 text-white" : "text-slate-400 hover:text-white"}`}
+              >
+                Enlaces (linktree)
+              </button>
+            </div>
           </div>
+          {qrTipo === "solicitud" && (
+            <div>
+              <label className="block text-xs text-slate-400 mb-1.5 text-left">Sucursal</label>
+              <select value={qrSucursal ?? ""} onChange={(e) => setQrSucursal(e.target.value === "universal" ? "universal" : e.target.value ? Number(e.target.value) : null)}
+                className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+              >
+                {sucursalesDisponibles.map((cod) => <option key={cod} value={cod}>{SUCURSALES[cod]}</option>)}
+                <option value="universal">Todas (QR universal — elige localidad en el form)</option>
+              </select>
+            </div>
+          )}
           {qrDataUrl && (
             <>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={qrDataUrl} alt={`QR ${nombreQr}`} className="mx-auto rounded-lg border border-slate-700" style={{ width: 260, height: 260 }} />
               <p className="text-xs text-slate-500 break-all">{url}</p>
-              <a href={qrDataUrl} download={`qr-solicitud-${nombreQr.replace(/\s+/g, "-").toLowerCase() || "sucursal"}.png`}
+              <a href={qrDataUrl} download={`qr-${nombreQr.replace(/\s+/g, "-").toLowerCase() || "ultranet"}.png`}
                 className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
               >
                 <Download size={15} /> Descargar QR

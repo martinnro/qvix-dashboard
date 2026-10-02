@@ -16,10 +16,12 @@ export async function proxy(req: NextRequest) {
   // El listado en /api/solicitudes-conexion (sin /public) sigue protegido.
   // /api/planes-conexion (solo GET): el mismo formulario público necesita leer los planes y
   // precios sin sesión — crear/editar/eliminar (POST/PUT/DELETE) lo sigue exigiendo la propia ruta.
+  // /enlaces: página pública tipo "linktree" (QR de evento), sin login.
   if (
     pathname.startsWith("/login") ||
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/solicitud") ||
+    pathname.startsWith("/enlaces") ||
     pathname.startsWith("/api/solicitudes-conexion/public") ||
     (pathname.startsWith("/api/planes-conexion") && req.method === "GET")
   ) {

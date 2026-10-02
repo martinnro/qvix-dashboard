@@ -652,7 +652,7 @@ export default function TVPlanesView({ onClose, sucursalesPermitidas }: {
               <PackCard
                 nombre="App GO TV"
                 stat={{ tiene: data.app.tiene, bonificado: data.app.sinCargo, paga: data.app.conCargo }}
-                labelVerde="sin cargo (incluida/bundle)"
+                labelVerde="sin cargo"
                 labelAmbar="con cargo"
               />
             </div>

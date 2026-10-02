@@ -3,12 +3,13 @@ import { useState, useEffect, useCallback } from "react";
 import { ArrowLeft, X, Loader2, AlertCircle, Download, RefreshCw, ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from "recharts";
 
-type PlanEstado = "bonificado" | "con_cargo" | "sin_plan_con_cargo" | "sin_plan_sin_cargo";
+type PlanEstado = "bonificado" | "con_cargo" | "sin_plan_con_cargo" | "sin_plan_sin_cargo" | "proximo_vencer";
 const PLAN_ESTADO_LABELS: Record<PlanEstado, string> = {
   bonificado: "Bonificado",
   con_cargo: "Con cargo",
   sin_plan_con_cargo: "Sin plan — con cargo",
   sin_plan_sin_cargo: "Sin plan — sin cargo",
+  proximo_vencer: "Próximo a vencer",
 };
 
 // Independiente de PlanEstado: no mira el plan base sino el neto total facturado en video
@@ -18,6 +19,19 @@ const NETO_GLOBAL_LABELS: Record<NetoGlobalEstado, string> = {
   bonificado: "TV sin cargo (global)",
   con_cargo: "TV con cargo (global)",
 };
+
+// Filtro de detalle por adicional (HBO/Universal/Fútbol/App) — "bonificado" para la App significa
+// sin cargo, igual que en PackCard/labelVerde, pero el valor que viaja al backend es el mismo.
+type PackTipo = "hbo" | "univ" | "futbol" | "app";
+type PackEstado = "bonificado" | "paga" | "proximo_vencer";
+const PACK_LABELS: Record<PackTipo, string> = {
+  hbo: "HBO+", univ: "Universal+", futbol: "Fútbol", app: "App GO TV",
+};
+function packEstadoLabel(pack: PackTipo, estado: PackEstado): string {
+  if (estado === "proximo_vencer") return "Próximo a vencer";
+  if (pack === "app") return estado === "bonificado" ? "Sin cargo" : "Con cargo";
+  return estado === "bonificado" ? "Bonificado" : "Paga";
+}
 
 const SUCURSALES: Record<number, string> = {
   1: "Chumbicha",
@@ -39,18 +53,35 @@ interface DetalleRow {
   abono_base: number;
   bonif_base: number;
   base_bonificado: number;
+  base_cant_cuotas: number | null;
+  base_cuotas_generadas: number | null;
   tiene_hbo: number;
   neto_hbo: number;
   hbo_bonificado: number;
+  hbo_cant_cuotas: number | null;
+  hbo_cuotas_generadas: number | null;
   tiene_univ: number;
   neto_univ: number;
   univ_bonificado: number;
+  univ_cant_cuotas: number | null;
+  univ_cuotas_generadas: number | null;
   tiene_futbol: number;
   neto_futbol: number;
   futbol_bonificado: number;
+  futbol_cant_cuotas: number | null;
+  futbol_cuotas_generadas: number | null;
   tiene_app: number;
   neto_app: number;
+  app_cant_cuotas: number | null;
+  app_cuotas_generadas: number | null;
   total_neto: number;
+}
+
+// Cuotas restantes de una bonificación: null si no hay cuotas cargadas (ej. descuento manual
+// sin plazo) o si ya no quedan (se vence/venció en la próxima factura).
+function cuotasRestantes(cantCuotas: number | null, generadas: number | null): number | null {
+  if (!cantCuotas || generadas === null) return null;
+  return Math.max(0, cantCuotas - generadas);
 }
 interface PackStat { tiene: number; bonificado: number; paga: number }
 interface Data {
@@ -69,6 +100,7 @@ interface Data {
   app: { tiene: number; conCargo: number; sinCargo: number };
   detalle: DetalleRow[];
   detalleTotal: number;
+  detallePorSucursal: Record<number, number>;
 }
 
 function pct(n: number, total: number) {
@@ -136,8 +168,8 @@ function StatTile({ label, value, sublabel, color }: {
 }
 
 // ── Tarjeta chica con donut: bonificado vs. con cargo global, sin importar si tiene plan base ──
-function GlobalDonutTile({ total, bonificado, conCargo, onSelect }: {
-  total: number; bonificado: number; conCargo: number; onSelect: (estado: NetoGlobalEstado) => void;
+function GlobalDonutTile({ total, bonificado, conCargo, onSelect, centrado = false }: {
+  total: number; bonificado: number; conCargo: number; onSelect: (estado: NetoGlobalEstado) => void; centrado?: boolean;
 }) {
   const data = [
     { name: "No paga nada", value: bonificado, color: "#10b981" },
@@ -147,7 +179,7 @@ function GlobalDonutTile({ total, bonificado, conCargo, onSelect }: {
   return (
     <div
       onClick={() => onSelect("bonificado")}
-      className="bg-slate-800 border border-slate-700 hover:border-slate-500 rounded-xl p-4 flex items-center gap-3 cursor-pointer transition-colors"
+      className={`bg-slate-800 border border-slate-700 hover:border-slate-500 rounded-xl p-4 flex items-center gap-3 cursor-pointer transition-colors ${centrado ? "justify-center text-center" : ""}`}
     >
       <div className="w-16 h-16 flex-shrink-0">
         <ResponsiveContainer width="100%" height="100%">
@@ -261,12 +293,15 @@ function PlanBaseSplit({ total, bonificado, conCargo, sinPlanConCargo, sinPlanSi
 }
 
 // ── Card de adicional (HBO / Universal / Fútbol) con split bonificado vs paga ──
-function PackCard({ nombre, stat, labelVerde = "bonificado", labelAmbar = "paga" }: {
-  nombre: string; stat: PackStat; labelVerde?: string; labelAmbar?: string;
+function PackCard({ nombre, stat, labelVerde = "bonificado", labelAmbar = "paga", onSelect }: {
+  nombre: string; stat: PackStat; labelVerde?: string; labelAmbar?: string; onSelect: (estado: PackEstado) => void;
 }) {
   const pctBonif = pct(stat.bonificado, stat.tiene);
   return (
-    <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
+    <div
+      onClick={() => onSelect("bonificado")}
+      className="bg-slate-800 border border-slate-700 hover:border-slate-500 rounded-xl p-4 cursor-pointer transition-colors"
+    >
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-medium text-slate-200">{nombre}</span>
         <span className="text-xs text-slate-500">{stat.tiene} conexiones</span>
@@ -276,15 +311,22 @@ function PackCard({ nombre, stat, labelVerde = "bonificado", labelAmbar = "paga"
         {pctBonif < 100 && <div style={{ width: `${100 - pctBonif}%`, backgroundColor: "#f59e0b" }} />}
       </div>
       <div className="flex justify-between mt-2 text-xs">
-        <span className="text-emerald-400">{stat.bonificado} {labelVerde} ({pctBonif}%)</span>
-        <span className="text-amber-400">{stat.paga} {labelAmbar}</span>
+        <button onClick={(e) => { e.stopPropagation(); onSelect("bonificado"); }} className="text-emerald-400 hover:underline">
+          {stat.bonificado} {labelVerde} ({pctBonif}%)
+        </button>
+        <button onClick={(e) => { e.stopPropagation(); onSelect("paga"); }} className="text-amber-400 hover:underline">
+          {stat.paga} {labelAmbar}
+        </button>
       </div>
     </div>
   );
 }
 
-function PackCell({ tiene, bonificado, neto }: { tiene: number; bonificado: number; neto: number }) {
+function PackCell({ tiene, bonificado, neto, cantCuotas, cuotasGeneradas }: {
+  tiene: number; bonificado: number; neto: number; cantCuotas: number | null; cuotasGeneradas: number | null;
+}) {
   if (tiene !== 1) return <td className="py-2 px-3 text-center text-slate-600">—</td>;
+  const restantes = bonificado === 1 ? cuotasRestantes(cantCuotas, cuotasGeneradas) : null;
   return (
     <td className="py-2 px-3 text-center">
       <div className="flex flex-col items-center gap-0.5">
@@ -292,6 +334,11 @@ function PackCell({ tiene, bonificado, neto }: { tiene: number; bonificado: numb
           ? <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-semibold">Bonificado</span>
           : <span className="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-400 text-xs font-semibold">Paga</span>}
         <span className="text-[10px] text-slate-500">{pesos(neto)}</span>
+        {restantes !== null && (
+          <span className={`text-[10px] ${restantes === 0 ? "text-rose-400" : "text-slate-500"}`}>
+            {restantes === 0 ? "vence próx. factura" : `vence en ${restantes} cuota${restantes === 1 ? "" : "s"}`}
+          </span>
+        )}
       </div>
     </td>
   );
@@ -311,6 +358,7 @@ export default function TVPlanesView({ onClose, sucursalesPermitidas }: {
   const [error, setError] = useState<string | null>(null);
   const [filtroPlanEstado, setFiltroPlanEstado] = useState<PlanEstado | null>(null);
   const [filtroNetoGlobal, setFiltroNetoGlobal] = useState<NetoGlobalEstado | null>(null);
+  const [filtroPack, setFiltroPack] = useState<{ pack: PackTipo; estado: PackEstado } | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("id_conexion");
   const [sortAsc, setSortAsc] = useState(true);
 
@@ -322,12 +370,21 @@ export default function TVPlanesView({ onClose, sucursalesPermitidas }: {
   const abrirDetalle = (estado: PlanEstado | null) => {
     setFiltroPlanEstado(estado);
     setFiltroNetoGlobal(null);
+    setFiltroPack(null);
     setPanel("detalle");
   };
 
   const abrirDetalleGlobal = (estado: NetoGlobalEstado) => {
     setFiltroPlanEstado(null);
     setFiltroNetoGlobal(estado);
+    setFiltroPack(null);
+    setPanel("detalle");
+  };
+
+  const abrirDetallePack = (pack: PackTipo, estado: PackEstado) => {
+    setFiltroPlanEstado(null);
+    setFiltroNetoGlobal(null);
+    setFiltroPack({ pack, estado });
     setPanel("detalle");
   };
 
@@ -340,6 +397,7 @@ export default function TVPlanesView({ onClose, sucursalesPermitidas }: {
     if (sucSel !== null) params.set("sucursal", String(sucSel));
     if (filtroPlanEstado) params.set("planEstado", filtroPlanEstado);
     if (filtroNetoGlobal) params.set("netoGlobal", filtroNetoGlobal);
+    if (filtroPack) { params.set("pack", filtroPack.pack); params.set("packEstado", filtroPack.estado); }
     try {
       const res = await fetch(`/api/tv-planes?${params}`);
       const json = await res.json();
@@ -350,7 +408,7 @@ export default function TVPlanesView({ onClose, sucursalesPermitidas }: {
     } finally {
       setLoading(false);
     }
-  }, [sucSel, filtroPlanEstado, filtroNetoGlobal]);
+  }, [sucSel, filtroPlanEstado, filtroNetoGlobal, filtroPack]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -359,6 +417,7 @@ export default function TVPlanesView({ onClose, sucursalesPermitidas }: {
     if (sucSel !== null) params.set("sucursal", String(sucSel));
     if (filtroPlanEstado) params.set("planEstado", filtroPlanEstado);
     if (filtroNetoGlobal) params.set("netoGlobal", filtroNetoGlobal);
+    if (filtroPack) { params.set("pack", filtroPack.pack); params.set("packEstado", filtroPack.estado); }
     return `/api/export/tv-planes?${params}`;
   };
 
@@ -401,7 +460,9 @@ export default function TVPlanesView({ onClose, sucursalesPermitidas }: {
     </div>
   );
 
-  const sucursalFiltro = sucursalesDisponibles.length > 1 && (
+  // `conteos` opcional: cuando se pasa (panel de detalle), cada chip muestra cuántas conexiones
+  // hay de esa sucursal dentro del filtro activo ("esa situación" — TV sin cargo, HBO bonificado, etc.)
+  const sucursalFiltro = (conteos?: Record<number, number>, total?: number) => sucursalesDisponibles.length > 1 && (
     <div className="flex flex-wrap gap-2">
       <button
         onClick={() => setSucSel(null)}
@@ -409,7 +470,7 @@ export default function TVPlanesView({ onClose, sucursalesPermitidas }: {
           sucSel === null ? "bg-indigo-600 border-indigo-500 text-white" : "border-slate-600 text-slate-400 hover:border-indigo-500 hover:text-indigo-300"
         }`}
       >
-        Todas
+        Todas{total !== undefined ? ` (${total.toLocaleString("es-AR")})` : ""}
       </button>
       {sucursalesDisponibles.map((cod) => (
         <button
@@ -419,7 +480,7 @@ export default function TVPlanesView({ onClose, sucursalesPermitidas }: {
             sucSel === cod ? "bg-indigo-600 border-indigo-500 text-white" : "border-slate-600 text-slate-400 hover:border-indigo-500 hover:text-indigo-300"
           }`}
         >
-          {SUCURSALES[cod]}
+          {SUCURSALES[cod]}{conteos ? ` (${(conteos[cod] ?? 0).toLocaleString("es-AR")})` : ""}
         </button>
       ))}
     </div>
@@ -440,45 +501,136 @@ export default function TVPlanesView({ onClose, sucursalesPermitidas }: {
           subtitulo={data ? `${data.detalleTotal.toLocaleString("es-AR")} conexiones${
             filtroPlanEstado ? ` — ${PLAN_ESTADO_LABELS[filtroPlanEstado]}`
             : filtroNetoGlobal ? ` — ${NETO_GLOBAL_LABELS[filtroNetoGlobal]}`
+            : filtroPack ? ` — ${PACK_LABELS[filtroPack.pack]}: ${packEstadoLabel(filtroPack.pack, filtroPack.estado).toLowerCase()}`
             : ""
           }` : undefined}
         />
 
-        {sucursalFiltro}
+        {sucursalFiltro(data?.detallePorSucursal, data?.detalleTotal)}
 
-        {/* Filtro por estado de plan base */}
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-slate-500 uppercase tracking-wider">Filtrar por</span>
-          <button
-            onClick={() => abrirDetalle(null)}
-            className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-              filtroPlanEstado === null && !filtroNetoGlobal ? "bg-indigo-600 border-indigo-500 text-white" : "border-slate-600 text-slate-400 hover:border-indigo-500 hover:text-indigo-300"
-            }`}
-          >
-            Todos
-          </button>
-          {(Object.entries(PLAN_ESTADO_LABELS) as [PlanEstado, string][]).map(([key, label]) => (
-            <button
-              key={key}
-              onClick={() => abrirDetalle(key)}
-              className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                filtroPlanEstado === key ? "bg-indigo-600 border-indigo-500 text-white" : "border-slate-600 text-slate-400 hover:border-indigo-500 hover:text-indigo-300"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-          {(Object.entries(NETO_GLOBAL_LABELS) as [NetoGlobalEstado, string][]).map(([key, label]) => (
-            <button
-              key={key}
-              onClick={() => abrirDetalleGlobal(key)}
-              className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                filtroNetoGlobal === key ? "bg-indigo-600 border-indigo-500 text-white" : "border-slate-600 text-slate-400 hover:border-indigo-500 hover:text-indigo-300"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+        {/* Selector de paquete: permite saltar de HBO+ a Universal+/Fútbol/App sin volver al resumen */}
+        {filtroPack && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-slate-500 uppercase tracking-wider">Paquete</span>
+            {(Object.keys(PACK_LABELS) as PackTipo[]).map((pack) => (
+              <button
+                key={pack}
+                onClick={() => abrirDetallePack(pack, filtroPack.estado)}
+                className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                  filtroPack.pack === pack ? "bg-indigo-600 border-indigo-500 text-white" : "border-slate-600 text-slate-400 hover:border-indigo-500 hover:text-indigo-300"
+                }`}
+              >
+                {PACK_LABELS[pack]}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Filtro por estado — simplificado a solo 2 opciones cuando se entra por "TV Sin Cargo (global)" o por un adicional */}
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-slate-500 uppercase tracking-wider">Filtrar por</span>
+            {filtroNetoGlobal ? (
+              (Object.entries(NETO_GLOBAL_LABELS) as [NetoGlobalEstado, string][]).map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => abrirDetalleGlobal(key)}
+                  className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                    filtroNetoGlobal === key ? "bg-indigo-600 border-indigo-500 text-white" : "border-slate-600 text-slate-400 hover:border-indigo-500 hover:text-indigo-300"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))
+            ) : filtroPack ? (
+              (["bonificado", "paga"] as PackEstado[]).map((estado) => {
+                // "Próximo a vencer" es siempre un subconjunto de "Bonificado" — al elegirlo,
+                // "Bonificado" se marca como activo también para que quede claro que sigue aplicando.
+                const activo = estado === "bonificado"
+                  ? filtroPack.estado === "bonificado" || filtroPack.estado === "proximo_vencer"
+                  : filtroPack.estado === estado;
+                return (
+                  <button
+                    key={estado}
+                    onClick={() => abrirDetallePack(filtroPack.pack, estado)}
+                    className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                      activo ? "bg-indigo-600 border-indigo-500 text-white" : "border-slate-600 text-slate-400 hover:border-indigo-500 hover:text-indigo-300"
+                    }`}
+                  >
+                    {packEstadoLabel(filtroPack.pack, estado)}
+                  </button>
+                );
+              })
+            ) : (
+              <>
+                <button
+                  onClick={() => abrirDetalle(null)}
+                  className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                    filtroPlanEstado === null && !filtroPack ? "bg-indigo-600 border-indigo-500 text-white" : "border-slate-600 text-slate-400 hover:border-indigo-500 hover:text-indigo-300"
+                  }`}
+                >
+                  Todos
+                </button>
+                {(Object.entries(PLAN_ESTADO_LABELS) as [PlanEstado, string][])
+                  .filter(([key]) => key !== "proximo_vencer")
+                  .map(([key, label]) => {
+                    // "Próximo a vencer" es siempre un subconjunto de "Bonificado" — al elegirlo,
+                    // "Bonificado" se marca como activo también.
+                    const activo = key === "bonificado"
+                      ? filtroPlanEstado === "bonificado" || filtroPlanEstado === "proximo_vencer"
+                      : filtroPlanEstado === key;
+                    return (
+                      <button
+                        key={key}
+                        onClick={() => abrirDetalle(key)}
+                        className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                          activo ? "bg-indigo-600 border-indigo-500 text-white" : "border-slate-600 text-slate-400 hover:border-indigo-500 hover:text-indigo-300"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                {(Object.entries(NETO_GLOBAL_LABELS) as [NetoGlobalEstado, string][]).map(([key, label]) => (
+                  <button
+                    key={key}
+                    onClick={() => abrirDetalleGlobal(key)}
+                    className="px-3 py-1 rounded-full text-xs font-medium border border-slate-600 text-slate-400 hover:border-indigo-500 hover:text-indigo-300 transition-colors"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </>
+            )}
+          </div>
+
+          {/* Vencimiento: un segundo filtro, aparte y con otro color, para no mezclarlo con el
+              estado bonificado/paga — no aplica en modo "TV Sin Cargo (global)" (es un neto
+              agregado, no tiene cuotas propias). */}
+          {!filtroNetoGlobal && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-slate-500 uppercase tracking-wider">Vencimiento</span>
+              {filtroPack ? (
+                <button
+                  onClick={() => abrirDetallePack(filtroPack.pack, "proximo_vencer")}
+                  className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                    filtroPack.estado === "proximo_vencer" ? "bg-amber-600 border-amber-500 text-white" : "border-amber-700/60 text-amber-500 hover:border-amber-500 hover:text-amber-400"
+                  }`}
+                >
+                  Próximo a vencer
+                </button>
+              ) : (
+                <button
+                  onClick={() => abrirDetalle("proximo_vencer")}
+                  className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                    filtroPlanEstado === "proximo_vencer" ? "bg-amber-600 border-amber-500 text-white" : "border-amber-700/60 text-amber-500 hover:border-amber-500 hover:text-amber-400"
+                  }`}
+                >
+                  Próximo a vencer
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {errorBox}
@@ -489,7 +641,28 @@ export default function TVPlanesView({ onClose, sucursalesPermitidas }: {
           </div>
         )}
 
-        {data && (
+        {data && (filtroNetoGlobal ? (
+          <GlobalDonutTile
+            total={data.total}
+            bonificado={data.planBase.bonificadoGlobal}
+            conCargo={data.planBase.conCargoGlobal}
+            onSelect={abrirDetalleGlobal}
+            centrado
+          />
+        ) : filtroPack ? (
+          <PackCard
+            nombre={PACK_LABELS[filtroPack.pack]}
+            stat={
+              filtroPack.pack === "hbo" ? data.hbo
+              : filtroPack.pack === "univ" ? data.univ
+              : filtroPack.pack === "futbol" ? data.futbol
+              : { tiene: data.app.tiene, bonificado: data.app.sinCargo, paga: data.app.conCargo }
+            }
+            labelVerde={filtroPack.pack === "app" ? "sin cargo" : "bonificado"}
+            labelAmbar={filtroPack.pack === "app" ? "con cargo" : "paga"}
+            onSelect={(estado) => abrirDetallePack(filtroPack.pack, estado)}
+          />
+        ) : (
           <PlanBaseSplit
             total={data.total}
             bonificado={data.planBase.conBonif}
@@ -498,7 +671,7 @@ export default function TVPlanesView({ onClose, sucursalesPermitidas }: {
             sinPlanSinCargo={data.planBase.sinPlanSinCargo}
             onSelect={abrirDetalle}
           />
-        )}
+        ))}
 
         {data && (
           <div className="bg-slate-800 border border-slate-700 rounded-2xl p-5">
@@ -542,12 +715,24 @@ export default function TVPlanesView({ onClose, sucursalesPermitidas }: {
                       </td>
                       <td className="py-2 px-3 text-center">
                         {r.base_bonificado === 1
-                          ? <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-semibold">Sí</span>
+                          ? (
+                            <div className="flex flex-col items-center gap-0.5">
+                              <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-xs font-semibold">Sí</span>
+                              {(() => {
+                                const restantes = cuotasRestantes(r.base_cant_cuotas, r.base_cuotas_generadas);
+                                return restantes !== null && (
+                                  <span className={`text-[10px] ${restantes === 0 ? "text-rose-400" : "text-slate-500"}`}>
+                                    {restantes === 0 ? "vence próx. factura" : `vence en ${restantes} cuota${restantes === 1 ? "" : "s"}`}
+                                  </span>
+                                );
+                              })()}
+                            </div>
+                          )
                           : <span className="text-slate-600">—</span>}
                       </td>
-                      <PackCell tiene={r.tiene_hbo} bonificado={r.hbo_bonificado} neto={r.neto_hbo} />
-                      <PackCell tiene={r.tiene_univ} bonificado={r.univ_bonificado} neto={r.neto_univ} />
-                      <PackCell tiene={r.tiene_futbol} bonificado={r.futbol_bonificado} neto={r.neto_futbol} />
+                      <PackCell tiene={r.tiene_hbo} bonificado={r.hbo_bonificado} neto={r.neto_hbo} cantCuotas={r.hbo_cant_cuotas} cuotasGeneradas={r.hbo_cuotas_generadas} />
+                      <PackCell tiene={r.tiene_univ} bonificado={r.univ_bonificado} neto={r.neto_univ} cantCuotas={r.univ_cant_cuotas} cuotasGeneradas={r.univ_cuotas_generadas} />
+                      <PackCell tiene={r.tiene_futbol} bonificado={r.futbol_bonificado} neto={r.neto_futbol} cantCuotas={r.futbol_cant_cuotas} cuotasGeneradas={r.futbol_cuotas_generadas} />
                       <td className="py-2 px-3 text-center">
                         {r.tiene_app === 1
                           ? (
@@ -556,6 +741,14 @@ export default function TVPlanesView({ onClose, sucursalesPermitidas }: {
                                 {r.neto_app > 0 ? "Con cargo" : "Sin cargo"}
                               </span>
                               <span className="text-[10px] text-slate-500">{pesos(r.neto_app)}</span>
+                              {(() => {
+                                const restantes = r.neto_app <= 0 ? cuotasRestantes(r.app_cant_cuotas, r.app_cuotas_generadas) : null;
+                                return restantes !== null && (
+                                  <span className={`text-[10px] ${restantes === 0 ? "text-rose-400" : "text-slate-500"}`}>
+                                    {restantes === 0 ? "vence próx. factura" : `vence en ${restantes} cuota${restantes === 1 ? "" : "s"}`}
+                                  </span>
+                                );
+                              })()}
                             </div>
                           )
                           : <span className="text-slate-600">—</span>}
@@ -590,7 +783,7 @@ export default function TVPlanesView({ onClose, sucursalesPermitidas }: {
         subtitulo={loading ? "Cargando..." : data ? `${data.total.toLocaleString("es-AR")} conexiones` : undefined}
       />
 
-      {sucursalFiltro}
+      {sucursalFiltro()}
 
       {errorBox}
 
@@ -646,14 +839,15 @@ export default function TVPlanesView({ onClose, sucursalesPermitidas }: {
           <div>
             <h3 className="text-slate-400 font-medium text-xs uppercase tracking-wider mb-3">Adicionales — penetración y bonificación</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              <PackCard nombre="HBO+" stat={data.hbo} />
-              <PackCard nombre="Universal+" stat={data.univ} />
-              <PackCard nombre="Fútbol" stat={data.futbol} />
+              <PackCard nombre="HBO+" stat={data.hbo} onSelect={(estado) => abrirDetallePack("hbo", estado)} />
+              <PackCard nombre="Universal+" stat={data.univ} onSelect={(estado) => abrirDetallePack("univ", estado)} />
+              <PackCard nombre="Fútbol" stat={data.futbol} onSelect={(estado) => abrirDetallePack("futbol", estado)} />
               <PackCard
                 nombre="App GO TV"
                 stat={{ tiene: data.app.tiene, bonificado: data.app.sinCargo, paga: data.app.conCargo }}
                 labelVerde="sin cargo"
                 labelAmbar="con cargo"
+                onSelect={(estado) => abrirDetallePack("app", estado)}
               />
             </div>
           </div>

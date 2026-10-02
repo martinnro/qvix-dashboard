@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getPool } from "@/app/lib/db";
 import { getSession } from "@/app/lib/session";
 import * as XLSX from "xlsx";
-import { buildQuery, claseEstado, type PlanEstado, type NetoGlobalEstado, type TvRow } from "@/app/api/tv-planes/route";
+import { buildQuery, matchesPlanEstado, matchesPack, type PlanEstado, type NetoGlobalEstado, type PackTipo, type PackEstado, type TvRow } from "@/app/api/tv-planes/route";
 
 const SUCURSALES: Record<number, string> = {
   1: "Chumbicha",
@@ -33,6 +33,12 @@ function estadoApp(tiene: number, neto: number): string {
   if (tiene !== 1) return "";
   return neto > 0 ? "Con cargo" : "Sin cargo";
 }
+// Cuotas restantes de una bonificación (igual criterio que la pantalla): vacío si no está
+// bonificado o no tiene cuotas cargadas, 0 si la próxima factura ya la vence.
+function cuotasRestantes(bonificado: boolean, cantCuotas: number | null, generadas: number | null): number | "" {
+  if (!bonificado || !cantCuotas || generadas === null) return "";
+  return Math.max(0, cantCuotas - generadas);
+}
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
@@ -53,16 +59,20 @@ export async function GET(req: NextRequest) {
   const estadosIn = buildEstadosIn(req.nextUrl.searchParams.get("estados"));
   const planEstadoParam = req.nextUrl.searchParams.get("planEstado") as PlanEstado | null;
   const netoGlobalParam = req.nextUrl.searchParams.get("netoGlobal") as NetoGlobalEstado | null;
+  const packParam = req.nextUrl.searchParams.get("pack") as PackTipo | null;
+  const packEstadoParam = req.nextUrl.searchParams.get("packEstado") as PackEstado | null;
 
   try {
     const pool = await getPool();
     const result = await pool.request().query(buildQuery(estadosIn, sucursalClause));
     const recordset = result.recordset as TvRow[];
     const filtrados = planEstadoParam
-      ? recordset.filter((r) => claseEstado(r) === planEstadoParam)
+      ? recordset.filter((r) => matchesPlanEstado(r, planEstadoParam))
       : netoGlobalParam
         ? recordset.filter((r) => (netoGlobalParam === "bonificado" ? r.total_neto <= 0 : r.total_neto > 0))
-        : recordset;
+        : packParam && packEstadoParam
+          ? recordset.filter((r) => matchesPack(r, packParam, packEstadoParam))
+          : recordset;
 
     const rows = filtrados.map((r) => ({
       ID_Conexion:    r.id_conexion,
@@ -72,14 +82,19 @@ export async function GET(req: NextRequest) {
       Plan_Base:      r.plan_base ?? "",
       Precio_Plan_Base: r.abono_base + r.bonif_base,
       Bonif_Base:     r.base_bonificado === 1 ? "Sí" : "",
+      Vence_Plan_Base_cuotas: cuotasRestantes(r.base_bonificado === 1, r.base_cant_cuotas, r.base_cuotas_generadas),
       "HBO+":         estadoPack(r.tiene_hbo, r.hbo_bonificado),
       Precio_HBO:     r.tiene_hbo === 1 ? r.neto_hbo : "",
+      Vence_HBO_cuotas: cuotasRestantes(r.hbo_bonificado === 1, r.hbo_cant_cuotas, r.hbo_cuotas_generadas),
       "Universal+":   estadoPack(r.tiene_univ, r.univ_bonificado),
       Precio_Universal: r.tiene_univ === 1 ? r.neto_univ : "",
+      Vence_Universal_cuotas: cuotasRestantes(r.univ_bonificado === 1, r.univ_cant_cuotas, r.univ_cuotas_generadas),
       Futbol:         estadoPack(r.tiene_futbol, r.futbol_bonificado),
       Precio_Futbol:  r.tiene_futbol === 1 ? r.neto_futbol : "",
+      Vence_Futbol_cuotas: cuotasRestantes(r.futbol_bonificado === 1, r.futbol_cant_cuotas, r.futbol_cuotas_generadas),
       App:            estadoApp(r.tiene_app, r.neto_app),
       Precio_App:     r.tiene_app === 1 ? r.neto_app : "",
+      Vence_App_cuotas: cuotasRestantes(r.tiene_app === 1 && r.neto_app <= 0, r.app_cant_cuotas, r.app_cuotas_generadas),
       Neto_TV:        r.total_neto,
     }));
 
@@ -88,7 +103,10 @@ export async function GET(req: NextRequest) {
 
     const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
     const nombreSucursal = sucursalN !== null ? (SUCURSALES[sucursalN] ?? sucursalN) : "Todas";
-    const sufijoEstado = planEstadoParam ? `-${planEstadoParam}` : netoGlobalParam ? `-global-${netoGlobalParam}` : "";
+    const sufijoEstado = planEstadoParam ? `-${planEstadoParam}`
+      : netoGlobalParam ? `-global-${netoGlobalParam}`
+      : packParam && packEstadoParam ? `-${packParam}-${packEstadoParam}`
+      : "";
 
     return new NextResponse(buf, {
       headers: {

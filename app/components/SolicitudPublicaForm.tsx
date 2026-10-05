@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
-import { Loader2, CheckCircle2, AlertCircle, Wifi, MapPin, Check, Plus, Film, Box, Monitor } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, Wifi, MapPin, Check, Plus, Film, Box, Monitor, Wrench, Tag } from "lucide-react";
 import BurbujasDecorativas from "./BurbujasDecorativas";
 
 const UbicacionMapPicker = dynamic(() => import("./UbicacionMapPicker"), { ssr: false });
@@ -29,7 +29,7 @@ const SUCURSAL_COORDS: Record<number, [number, number]> = {
 
 const TIPOS_DOCUMENTO = ["DNI", "LC", "LE"] as const;
 
-type IconoItem = "film" | "box" | "monitor";
+type IconoItem = "film" | "box" | "monitor" | "instalacion";
 
 interface PlanItem {
   icono: IconoItem;
@@ -41,13 +41,14 @@ interface PlanConexion {
   id: number;
   nombre: string;
   precio: number;
+  precio_lista: number | null;
   orden: number;
   tipo: "internet" | "doble_play";
   incluye: PlanItem[];
 }
 
 const ICONO_COMPONENTE: Record<IconoItem, React.ComponentType<{ size?: number; className?: string; style?: React.CSSProperties }>> = {
-  film: Film, box: Box, monitor: Monitor,
+  film: Film, box: Box, monitor: Monitor, instalacion: Wrench,
 };
 
 function pesos(n: number): string {
@@ -275,7 +276,7 @@ export default function SolicitudPublicaForm({
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="max-w-3xl mx-auto px-4 pt-8 pb-14 space-y-6">
+      <form onSubmit={handleSubmit} className="max-w-4xl mx-auto px-4 pt-8 pb-14 space-y-6">
         {/* Servicios */}
         <div>
           <h2 className="text-2xl font-extrabold text-slate-900 text-center mb-4">Elegí tu plan</h2>
@@ -306,6 +307,8 @@ export default function SolicitudPublicaForm({
               {planesFiltrados.map((plan) => {
                 const activo = form.velocidad === plan.nombre;
                 const partes = plan.nombre.match(/^(\d+)\s*(.*)$/);
+                const itemsGrid = plan.incluye.filter((it) => it.icono !== "instalacion");
+                const instalacion = plan.incluye.find((it) => it.icono === "instalacion");
                 return (
                   <button key={plan.id} type="button" onClick={() => set("velocidad", activo ? "" : plan.nombre)}
                     className={`relative w-full rounded-2xl overflow-hidden text-left flex flex-col bg-white transform-gpu transition-all duration-200 ease-out hover:-translate-y-0.5 active:scale-[0.97] active:duration-75 ${activo ? "-translate-y-0.5" : ""}`}
@@ -348,11 +351,11 @@ export default function SolicitudPublicaForm({
                         )}
                       </div>
 
-                      {plan.incluye.length > 0 && (
+                      {itemsGrid.length > 0 && (
                         <>
                           <div className="border-t border-slate-100 my-3" />
                           <div className="grid grid-cols-3 gap-2">
-                            {plan.incluye.map((item, i) => {
+                            {itemsGrid.map((item, i) => {
                               const Icono = ICONO_COMPONENTE[item.icono];
                               return (
                                 <div key={i} className="flex items-start gap-1.5 min-w-0">
@@ -361,7 +364,7 @@ export default function SolicitudPublicaForm({
                                   </div>
                                   <div className="min-w-0">
                                     <p className="text-[11px] font-bold text-slate-800 leading-tight whitespace-nowrap">{item.titulo}</p>
-                                    {item.texto && <p className="text-[10px] text-slate-500 leading-snug">{item.texto}</p>}
+                                    {item.texto && <p className="text-[10px] text-slate-500 leading-snug text-balance">{item.texto}</p>}
                                   </div>
                                 </div>
                               );
@@ -370,10 +373,42 @@ export default function SolicitudPublicaForm({
                         </>
                       )}
 
+                      {instalacion && (
+                        <div className="mt-3 rounded-2xl px-4 py-3 flex items-center gap-3" style={{ backgroundColor: "#ebf8ee" }}>
+                          <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#bfedc3" }}>
+                            <Wrench size={17} style={{ color: "#004100" }} />
+                          </div>
+                          <p className="text-sm font-bold leading-tight" style={{ color: "#002800" }}>{instalacion.titulo}</p>
+                          {instalacion.texto && (
+                            <>
+                              <div className="w-px self-stretch" style={{ backgroundColor: "#055608" }} />
+                              <p className="text-xs leading-snug" style={{ color: "#334155" }}>{instalacion.texto}</p>
+                            </>
+                          )}
+                        </div>
+                      )}
+
                       {plan.precio > 0 && (
                         <div className="mt-auto">
                           <div className="border-t border-slate-100 my-3" />
-                          <span className="text-2xl font-extrabold" style={{ color: TARJETA_MORADO }}>{pesos(plan.precio)}</span>
+                          <div className="flex items-end justify-between gap-3">
+                            <div>
+                              <span className="inline-block px-2.5 py-0.5 rounded-md text-[11px] font-bold text-white uppercase tracking-wide" style={{ backgroundColor: "#f6549b" }}>Promo</span>
+                              <div className="flex items-baseline gap-1.5 mt-1">
+                                <span className="text-3xl font-extrabold leading-none" style={{ color: TARJETA_MORADO }}>{pesos(plan.precio)}</span>
+                                <span className="text-sm text-slate-500">por mes</span>
+                              </div>
+                            </div>
+                            {plan.precio_lista !== null && plan.precio_lista > plan.precio && (
+                              <div className="flex flex-col items-end gap-1.5 pl-3 border-l border-slate-200">
+                                <span className="text-sm text-slate-400 line-through">{pesos(plan.precio_lista)}</span>
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap" style={{ backgroundColor: "#fde5ef", color: "#dd0054" }}>
+                                  <Tag size={14} style={{ color: "#e40056" }} />
+                                  Ahorrás {pesos(plan.precio_lista - plan.precio)}
+                                </span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       )}
                     </div>

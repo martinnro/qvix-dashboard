@@ -9,7 +9,7 @@ export type TipoPlan = (typeof TIPOS)[number];
 
 // Set fijo de íconos que puede elegir el panel — se mapean a componentes de lucide-react
 // tanto en el panel de administración como en el formulario público.
-export const ICONOS_ITEM = ["film", "box", "monitor"] as const;
+export const ICONOS_ITEM = ["film", "box", "monitor", "instalacion"] as const;
 export type IconoItem = (typeof ICONOS_ITEM)[number];
 
 export interface PlanItem {
@@ -22,6 +22,7 @@ export interface PlanConexion {
   id: number;
   nombre: string;
   precio: number;
+  precio_lista: number | null;
   orden: number;
   tipo: TipoPlan;
   incluye: PlanItem[];
@@ -36,6 +37,12 @@ function parseNombre(v: unknown): string | null {
 function parsePrecio(v: unknown): number | null {
   const n = Number(v);
   return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+// Precio de lista (tachado) es opcional: vacío o inválido se guarda como NULL.
+function parsePrecioLista(v: unknown): number | null {
+  if (v === null || v === undefined || v === "") return null;
+  return parsePrecio(v);
 }
 
 function parseTipo(v: unknown): TipoPlan | null {
@@ -74,12 +81,13 @@ export async function GET() {
   try {
     const pool = await getPool();
     const result = await pool.request().query(`
-      SELECT id, nombre, precio, orden, tipo, incluye FROM ${TABLA} ORDER BY tipo ASC, orden ASC, precio ASC, id ASC
+      SELECT id, nombre, precio, precio_lista, orden, tipo, incluye FROM ${TABLA} ORDER BY tipo ASC, orden ASC, precio ASC, id ASC
     `);
     const planes = result.recordset.map((r) => ({
       id: r.id,
       nombre: r.nombre,
       precio: r.precio,
+      precio_lista: r.precio_lista,
       orden: r.orden,
       tipo: r.tipo,
       incluye: parseIncluyeColumna(r.incluye),
@@ -102,6 +110,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const nombre = parseNombre(body.nombre);
   const precio = parsePrecio(body.precio);
+  const precioLista = parsePrecioLista(body.precio_lista);
   const orden = Number.isFinite(Number(body.orden)) ? Number(body.orden) : 0;
   const tipo = parseTipo(body.tipo);
   const incluye = parseIncluye(body.incluye);
@@ -115,13 +124,14 @@ export async function POST(req: NextRequest) {
     const result = await pool.request()
       .input("nombre", sql.NVarChar(30), nombre)
       .input("precio", sql.Decimal(10, 2), precio)
+      .input("precio_lista", sql.Decimal(10, 2), precioLista)
       .input("orden", sql.Int, orden)
       .input("tipo", sql.VarChar(20), tipo)
       .input("incluye", sql.NVarChar(sql.MAX), JSON.stringify(incluye))
       .query(`
-        INSERT INTO ${TABLA} (nombre, precio, orden, tipo, incluye)
-        OUTPUT INSERTED.id, INSERTED.nombre, INSERTED.precio, INSERTED.orden, INSERTED.tipo, INSERTED.incluye
-        VALUES (@nombre, @precio, @orden, @tipo, @incluye)
+        INSERT INTO ${TABLA} (nombre, precio, precio_lista, orden, tipo, incluye)
+        OUTPUT INSERTED.id, INSERTED.nombre, INSERTED.precio, INSERTED.precio_lista, INSERTED.orden, INSERTED.tipo, INSERTED.incluye
+        VALUES (@nombre, @precio, @precio_lista, @orden, @tipo, @incluye)
       `);
     const row = result.recordset[0];
     return NextResponse.json({ plan: { ...row, incluye: parseIncluyeColumna(row.incluye) } });
@@ -142,6 +152,7 @@ export async function PUT(req: NextRequest) {
   const id = Number(body.id);
   const nombre = parseNombre(body.nombre);
   const precio = parsePrecio(body.precio);
+  const precioLista = parsePrecioLista(body.precio_lista);
   const orden = Number.isFinite(Number(body.orden)) ? Number(body.orden) : 0;
   const tipo = parseTipo(body.tipo);
   const incluye = parseIncluye(body.incluye);
@@ -157,10 +168,11 @@ export async function PUT(req: NextRequest) {
       .input("id", sql.Int, id)
       .input("nombre", sql.NVarChar(30), nombre)
       .input("precio", sql.Decimal(10, 2), precio)
+      .input("precio_lista", sql.Decimal(10, 2), precioLista)
       .input("orden", sql.Int, orden)
       .input("tipo", sql.VarChar(20), tipo)
       .input("incluye", sql.NVarChar(sql.MAX), JSON.stringify(incluye))
-      .query(`UPDATE ${TABLA} SET nombre = @nombre, precio = @precio, orden = @orden, tipo = @tipo, incluye = @incluye WHERE id = @id`);
+      .query(`UPDATE ${TABLA} SET nombre = @nombre, precio = @precio, precio_lista = @precio_lista, orden = @orden, tipo = @tipo, incluye = @incluye WHERE id = @id`);
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
     console.error("[planes-conexion PUT]", err);

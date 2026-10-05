@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import QRCode from "qrcode";
-import { ArrowLeft, X, Loader2, AlertCircle, Download, RefreshCw, PlusCircle, QrCode as QrCodeIcon, DollarSign, Pencil, Trash2, Film, Box, Monitor } from "lucide-react";
+import { ArrowLeft, X, Loader2, AlertCircle, Download, RefreshCw, PlusCircle, QrCode as QrCodeIcon, DollarSign, Pencil, Trash2, Film, Box, Monitor, Wrench } from "lucide-react";
 import ConfirmModal from "./ConfirmModal";
 
 const SUCURSALES: Record<number, string> = {
@@ -61,7 +61,7 @@ type PanelType = "qr" | "planes" | null;
 
 type TipoPlan = "internet" | "doble_play";
 
-const ICONOS_ITEM = ["film", "box", "monitor"] as const;
+const ICONOS_ITEM = ["film", "box", "monitor", "instalacion"] as const;
 type IconoItem = (typeof ICONOS_ITEM)[number];
 
 interface PlanItem {
@@ -74,6 +74,7 @@ interface PlanConexion {
   id: number;
   nombre: string;
   precio: number;
+  precio_lista: number | null;
   orden: number;
   tipo: TipoPlan;
   incluye: PlanItem[];
@@ -85,16 +86,17 @@ const TIPO_PLAN_LABEL: Record<TipoPlan, string> = {
 };
 
 const ICONO_COMPONENTE: Record<IconoItem, React.ComponentType<{ size?: number; className?: string }>> = {
-  film: Film, box: Box, monitor: Monitor,
+  film: Film, box: Box, monitor: Monitor, instalacion: Wrench,
 };
 const ICONO_LABEL: Record<IconoItem, string> = {
-  film: "Premium/Películas", box: "Dispositivo", monitor: "Pantallas",
+  film: "Premium/Películas", box: "Dispositivo", monitor: "Pantallas", instalacion: "Instalación sin cargo (banda)",
 };
-// Al elegir un ícono se autocompletan título y texto — siempre se repiten los mismos 3 ítems.
+// Al elegir un ícono se autocompletan título y texto — siempre se repiten los mismos ítems.
 const ICONO_PRESET: Record<IconoItem, { titulo: string; texto: string }> = {
   film: { titulo: "Pack Premium", texto: "HBO, Universal y Fútbol" },
   box: { titulo: "1 Dispositivo", texto: "Smart TV Box" },
   monitor: { titulo: "3 Pantallas", texto: "Go TV Android" },
+  instalacion: { titulo: "Instalación sin cargo", texto: "Te conectamos sin costo adicional" },
 };
 
 export default function SolicitudesConexionView({ onClose, sucursalesPermitidas }: {
@@ -118,7 +120,7 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
   const [planesLoading, setPlanesLoading] = useState(false);
   const [planesError, setPlanesError] = useState<string | null>(null);
   const [editando, setEditando] = useState<PlanConexion | "nuevo" | null>(null);
-  const [formPlan, setFormPlan] = useState<{ nombre: string; precio: string; orden: string; tipo: TipoPlan; items: PlanItem[] }>({ nombre: "", precio: "", orden: "", tipo: "internet", items: [] });
+  const [formPlan, setFormPlan] = useState<{ nombre: string; precio: string; precioLista: string; orden: string; tipo: TipoPlan; items: PlanItem[] }>({ nombre: "", precio: "", precioLista: "", orden: "", tipo: "internet", items: [] });
   const [guardandoPlan, setGuardandoPlan] = useState(false);
   const [aBorrar, setABorrar] = useState<PlanConexion | null>(null);
 
@@ -143,8 +145,8 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
     setEditando(plan);
     setFormPlan(
       plan === "nuevo"
-        ? { nombre: "", precio: "", orden: String((planes?.filter((p) => p.tipo === tipoDefault).length ?? 0) + 1), tipo: tipoDefault, items: [] }
-        : { nombre: plan.nombre, precio: String(plan.precio), orden: String(plan.orden), tipo: plan.tipo, items: plan.incluye }
+        ? { nombre: "", precio: "", precioLista: "", orden: String((planes?.filter((p) => p.tipo === tipoDefault).length ?? 0) + 1), tipo: tipoDefault, items: [] }
+        : { nombre: plan.nombre, precio: String(plan.precio), precioLista: plan.precio_lista !== null ? String(plan.precio_lista) : "", orden: String(plan.orden), tipo: plan.tipo, items: plan.incluye }
     );
   };
 
@@ -165,6 +167,7 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
       const body = {
         nombre: formPlan.nombre.trim(),
         precio: precioNum,
+        precio_lista: formPlan.precioLista.trim() ? Number(formPlan.precioLista) : null,
         orden: Number(formPlan.orden) || 0,
         tipo: formPlan.tipo,
         incluye: formPlan.items.filter((it) => it.titulo.trim()),
@@ -410,7 +413,16 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
                             </span>
                           )}
                         </td>
-                        <td className="py-2.5 px-3 text-emerald-400 font-semibold">{p.precio > 0 ? pesos(p.precio) : <span className="text-slate-500 font-normal">Sin definir</span>}</td>
+                        <td className="py-2.5 px-3">
+                          {p.precio > 0 ? (
+                            <div className="flex items-end gap-2">
+                              <span className="text-emerald-400 font-semibold">{pesos(p.precio)}</span>
+                              {p.precio_lista !== null && p.precio_lista > p.precio && (
+                                <span className="text-xs text-slate-500 line-through">{pesos(p.precio_lista)}</span>
+                              )}
+                            </div>
+                          ) : <span className="text-slate-500">Sin definir</span>}
+                        </td>
                         <td className="py-2.5 px-3 text-right">
                           <div className="flex justify-end gap-1.5">
                             <button onClick={() => abrirEdicionPlan(p)} className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition-colors" title="Editar">
@@ -457,14 +469,26 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
                   className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
                 />
               </div>
-              <div>
-                <label className="block text-xs text-slate-400 mb-1.5">Precio</label>
-                <div className="relative">
-                  <DollarSign size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                  <input value={formPlan.precio} onChange={(e) => setFormPlan((f) => ({ ...f, precio: e.target.value }))}
-                    inputMode="decimal" placeholder="0"
-                    className="w-full bg-slate-800 border border-slate-600 rounded-lg pl-8 pr-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
-                  />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1.5">Precio de lista (tachado)</label>
+                  <div className="relative">
+                    <DollarSign size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                    <input value={formPlan.precioLista} onChange={(e) => setFormPlan((f) => ({ ...f, precioLista: e.target.value }))}
+                      inputMode="decimal" placeholder="Opcional"
+                      className="w-full bg-slate-800 border border-slate-600 rounded-lg pl-8 pr-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1.5">Precio promocional</label>
+                  <div className="relative">
+                    <DollarSign size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                    <input value={formPlan.precio} onChange={(e) => setFormPlan((f) => ({ ...f, precio: e.target.value }))}
+                      inputMode="decimal" placeholder="0"
+                      className="w-full bg-slate-800 border border-slate-600 rounded-lg pl-8 pr-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
                 </div>
               </div>
               <div>

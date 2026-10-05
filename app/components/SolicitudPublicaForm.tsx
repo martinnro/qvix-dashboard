@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
-import { Loader2, CheckCircle2, AlertCircle, Wifi, MapPin, Check, Plus, Film, Box, Monitor, Wrench, Tag, Info, ChevronDown, FileText, X } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, Wifi, MapPin, Check, Plus, Film, Box, Monitor, Wrench, Tag, Info, ChevronDown, ArrowDown, ArrowUp, FileText, X } from "lucide-react";
 import BurbujasDecorativas from "./BurbujasDecorativas";
 
 const UbicacionMapPicker = dynamic(() => import("./UbicacionMapPicker"), { ssr: false });
@@ -346,7 +346,16 @@ export default function SolicitudPublicaForm({
 
                     <div className="px-5 pt-3 pb-4 flex-1 flex flex-col">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="text-slate-800 text-sm font-bold">FTTH Internet {plan.nombre}</p>
+                        <div>
+                          <p className="text-slate-800 text-sm font-bold">FTTH Internet{form.go_tv ? " + TV" : ""}{partes ? "" : ` ${plan.nombre}`}</p>
+                          {partes && (
+                            <div className="flex items-center gap-2 mt-1 text-sm font-bold" style={{ color: TARJETA_MORADO }}>
+                              <span className="inline-flex items-center gap-0.5"><ArrowDown size={14} />{partes[1]} Mb</span>
+                              <span className="w-px h-4 bg-slate-200" />
+                              <span className="inline-flex items-center gap-0.5"><ArrowUp size={14} />{Math.round(Number(partes[1]) * 0.1)} Mb</span>
+                            </div>
+                          )}
+                        </div>
                         {form.go_tv && (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img src="/gotv-logo.png" alt="GO TV" className="w-auto flex-shrink-0" style={{ height: 22 }} />
@@ -403,7 +412,7 @@ export default function SolicitudPublicaForm({
                             </div>
                             {plan.precio_lista !== null && plan.precio_lista > plan.precio && (
                               <div className="flex flex-col items-end gap-1.5 pl-3 border-l border-slate-200">
-                                <span className="text-sm text-slate-400 line-through">{pesos(plan.precio_lista)}</span>
+                                <span className="text-xs text-slate-400">Precio de lista: <span className="text-sm line-through">{pesos(plan.precio_lista)}</span></span>
                                 <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap" style={{ backgroundColor: "#fde5ef", color: "#dd0054" }}>
                                   <Tag size={14} style={{ color: "#e40056" }} />
                                   Ahorrás {pesos(plan.precio_lista - plan.precio)}

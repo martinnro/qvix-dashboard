@@ -20,7 +20,7 @@ const SUCURSALES_VALIDAS = Object.keys(SUCURSALES).map(Number);
 // mapa arranque centrado ahí en vez de en la vista genérica de toda la provincia.
 const SUCURSAL_COORDS: Record<number, [number, number]> = {
   1: [-28.8532078, -66.2376266], // Chumbicha
-  4: [-28.4514788, -65.7911747], // Valle Viejo
+  4: [-28.458230, -65.716835], // Valle Viejo
   5: [-28.0655005, -67.5644496], // Tinogasta
   6: [-28.2124867, -65.8773962], // Rodeo
   7: [-28.1703819, -65.7914755], // La Puerta

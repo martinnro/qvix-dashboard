@@ -26,6 +26,7 @@ export interface PlanConexion {
   orden: number;
   tipo: TipoPlan;
   incluye: PlanItem[];
+  condiciones: string | null;
 }
 
 function parseNombre(v: unknown): string | null {
@@ -37,6 +38,13 @@ function parseNombre(v: unknown): string | null {
 function parsePrecio(v: unknown): number | null {
   const n = Number(v);
   return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+// Texto libre de condiciones, una condición por línea. Vacío se guarda como NULL.
+function parseCondiciones(v: unknown): string | null {
+  if (typeof v !== "string") return null;
+  const trimmed = v.trim().slice(0, 2000);
+  return trimmed || null;
 }
 
 // Precio de lista (tachado) es opcional: vacío o inválido se guarda como NULL.
@@ -81,7 +89,7 @@ export async function GET() {
   try {
     const pool = await getPool();
     const result = await pool.request().query(`
-      SELECT id, nombre, precio, precio_lista, orden, tipo, incluye FROM ${TABLA} ORDER BY tipo ASC, orden ASC, precio ASC, id ASC
+      SELECT id, nombre, precio, precio_lista, orden, tipo, incluye, condiciones FROM ${TABLA} ORDER BY tipo ASC, orden ASC, precio ASC, id ASC
     `);
     const planes = result.recordset.map((r) => ({
       id: r.id,
@@ -91,6 +99,7 @@ export async function GET() {
       orden: r.orden,
       tipo: r.tipo,
       incluye: parseIncluyeColumna(r.incluye),
+      condiciones: r.condiciones,
     })) as PlanConexion[];
     return NextResponse.json({ planes });
   } catch (err: unknown) {
@@ -111,6 +120,7 @@ export async function POST(req: NextRequest) {
   const nombre = parseNombre(body.nombre);
   const precio = parsePrecio(body.precio);
   const precioLista = parsePrecioLista(body.precio_lista);
+  const condiciones = parseCondiciones(body.condiciones);
   const orden = Number.isFinite(Number(body.orden)) ? Number(body.orden) : 0;
   const tipo = parseTipo(body.tipo);
   const incluye = parseIncluye(body.incluye);
@@ -128,10 +138,11 @@ export async function POST(req: NextRequest) {
       .input("orden", sql.Int, orden)
       .input("tipo", sql.VarChar(20), tipo)
       .input("incluye", sql.NVarChar(sql.MAX), JSON.stringify(incluye))
+      .input("condiciones", sql.NVarChar(sql.MAX), condiciones)
       .query(`
-        INSERT INTO ${TABLA} (nombre, precio, precio_lista, orden, tipo, incluye)
-        OUTPUT INSERTED.id, INSERTED.nombre, INSERTED.precio, INSERTED.precio_lista, INSERTED.orden, INSERTED.tipo, INSERTED.incluye
-        VALUES (@nombre, @precio, @precio_lista, @orden, @tipo, @incluye)
+        INSERT INTO ${TABLA} (nombre, precio, precio_lista, orden, tipo, incluye, condiciones)
+        OUTPUT INSERTED.id, INSERTED.nombre, INSERTED.precio, INSERTED.precio_lista, INSERTED.orden, INSERTED.tipo, INSERTED.incluye, INSERTED.condiciones
+        VALUES (@nombre, @precio, @precio_lista, @orden, @tipo, @incluye, @condiciones)
       `);
     const row = result.recordset[0];
     return NextResponse.json({ plan: { ...row, incluye: parseIncluyeColumna(row.incluye) } });
@@ -153,6 +164,7 @@ export async function PUT(req: NextRequest) {
   const nombre = parseNombre(body.nombre);
   const precio = parsePrecio(body.precio);
   const precioLista = parsePrecioLista(body.precio_lista);
+  const condiciones = parseCondiciones(body.condiciones);
   const orden = Number.isFinite(Number(body.orden)) ? Number(body.orden) : 0;
   const tipo = parseTipo(body.tipo);
   const incluye = parseIncluye(body.incluye);
@@ -172,7 +184,8 @@ export async function PUT(req: NextRequest) {
       .input("orden", sql.Int, orden)
       .input("tipo", sql.VarChar(20), tipo)
       .input("incluye", sql.NVarChar(sql.MAX), JSON.stringify(incluye))
-      .query(`UPDATE ${TABLA} SET nombre = @nombre, precio = @precio, precio_lista = @precio_lista, orden = @orden, tipo = @tipo, incluye = @incluye WHERE id = @id`);
+      .input("condiciones", sql.NVarChar(sql.MAX), condiciones)
+      .query(`UPDATE ${TABLA} SET nombre = @nombre, precio = @precio, precio_lista = @precio_lista, orden = @orden, tipo = @tipo, incluye = @incluye, condiciones = @condiciones WHERE id = @id`);
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
     console.error("[planes-conexion PUT]", err);

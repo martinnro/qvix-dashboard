@@ -78,6 +78,7 @@ interface PlanConexion {
   orden: number;
   tipo: TipoPlan;
   incluye: PlanItem[];
+  condiciones: string | null;
 }
 
 const TIPO_PLAN_LABEL: Record<TipoPlan, string> = {
@@ -120,7 +121,7 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
   const [planesLoading, setPlanesLoading] = useState(false);
   const [planesError, setPlanesError] = useState<string | null>(null);
   const [editando, setEditando] = useState<PlanConexion | "nuevo" | null>(null);
-  const [formPlan, setFormPlan] = useState<{ nombre: string; precio: string; precioLista: string; orden: string; tipo: TipoPlan; items: PlanItem[] }>({ nombre: "", precio: "", precioLista: "", orden: "", tipo: "internet", items: [] });
+  const [formPlan, setFormPlan] = useState<{ nombre: string; precio: string; precioLista: string; orden: string; tipo: TipoPlan; items: PlanItem[]; condiciones: string }>({ nombre: "", precio: "", precioLista: "", orden: "", tipo: "internet", items: [], condiciones: "" });
   const [guardandoPlan, setGuardandoPlan] = useState(false);
   const [aBorrar, setABorrar] = useState<PlanConexion | null>(null);
 
@@ -145,8 +146,8 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
     setEditando(plan);
     setFormPlan(
       plan === "nuevo"
-        ? { nombre: "", precio: "", precioLista: "", orden: String((planes?.filter((p) => p.tipo === tipoDefault).length ?? 0) + 1), tipo: tipoDefault, items: [] }
-        : { nombre: plan.nombre, precio: String(plan.precio), precioLista: plan.precio_lista !== null ? String(plan.precio_lista) : "", orden: String(plan.orden), tipo: plan.tipo, items: plan.incluye }
+        ? { nombre: "", precio: "", precioLista: "", orden: String((planes?.filter((p) => p.tipo === tipoDefault).length ?? 0) + 1), tipo: tipoDefault, items: [], condiciones: "" }
+        : { nombre: plan.nombre, precio: String(plan.precio), precioLista: plan.precio_lista !== null ? String(plan.precio_lista) : "", orden: String(plan.orden), tipo: plan.tipo, items: plan.incluye, condiciones: plan.condiciones ?? "" }
     );
   };
 
@@ -168,6 +169,7 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
         nombre: formPlan.nombre.trim(),
         precio: precioNum,
         precio_lista: formPlan.precioLista.trim() ? Number(formPlan.precioLista) : null,
+        condiciones: formPlan.condiciones,
         orden: Number(formPlan.orden) || 0,
         tipo: formPlan.tipo,
         incluye: formPlan.items.filter((it) => it.titulo.trim()),
@@ -538,6 +540,14 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
                     <p className="text-xs text-slate-500">Sin ítems — el cliente va a ver la tarjeta sin el bloque &quot;Incluye&quot;.</p>
                   )}
                 </div>
+              </div>
+              <div>
+                <label className="block text-xs text-slate-400 mb-1.5">Condiciones de la promoción (una por línea, opcional)</label>
+                <textarea value={formPlan.condiciones} onChange={(e) => setFormPlan((f) => ({ ...f, condiciones: e.target.value }))}
+                  rows={5} maxLength={2000}
+                  placeholder={"Oferta válida hasta el 31/10/2026 o hasta agotar stock.\nDescuento: 53% off por 12 meses."}
+                  className="w-full bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-indigo-500"
+                />
               </div>
               <div className="flex justify-end gap-2 pt-1">
                 <button onClick={() => setEditando(null)} className="px-4 py-2 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">

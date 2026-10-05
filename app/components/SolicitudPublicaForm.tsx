@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
-import { Loader2, CheckCircle2, AlertCircle, Wifi, MapPin, Check, Plus, Film, Box, Monitor, Wrench, Tag } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, Wifi, MapPin, Check, Plus, Film, Box, Monitor, Wrench, Tag, Info, ChevronDown, FileText, X } from "lucide-react";
 import BurbujasDecorativas from "./BurbujasDecorativas";
 
 const UbicacionMapPicker = dynamic(() => import("./UbicacionMapPicker"), { ssr: false });
@@ -45,6 +45,7 @@ interface PlanConexion {
   orden: number;
   tipo: "internet" | "doble_play";
   incluye: PlanItem[];
+  condiciones: string | null;
 }
 
 const ICONO_COMPONENTE: Record<IconoItem, React.ComponentType<{ size?: number; className?: string; style?: React.CSSProperties }>> = {
@@ -130,6 +131,7 @@ export default function SolicitudPublicaForm({
 
   const [planes, setPlanes] = useState<PlanConexion[]>([]);
   const [planesLoading, setPlanesLoading] = useState(true);
+  const [condicionesPlan, setCondicionesPlan] = useState<PlanConexion | null>(null);
 
   useEffect(() => {
     fetch("/api/planes-conexion")
@@ -409,6 +411,19 @@ export default function SolicitudPublicaForm({
                               </div>
                             )}
                           </div>
+                          {plan.condiciones && (
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              onClick={(e) => { e.stopPropagation(); e.preventDefault(); setCondicionesPlan(plan); }}
+                              onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); e.preventDefault(); setCondicionesPlan(plan); } }}
+                              className="mt-3 inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 cursor-pointer"
+                            >
+                              <Info size={14} />
+                              <span className="underline underline-offset-2">Ver condiciones de la promoción</span>
+                              <ChevronDown size={14} />
+                            </span>
+                          )}
                         </div>
                       )}
                     </div>
@@ -525,6 +540,44 @@ export default function SolicitudPublicaForm({
           Esta solicitud no implica el perfeccionamiento del contrato hasta que se realice la instalación del servicio en tu domicilio, sujeto a factibilidad técnica del área.
         </p>
       </form>
+
+      {condicionesPlan && condicionesPlan.condiciones && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50" onClick={() => setCondicionesPlan(null)}>
+          <div role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-lg bg-white rounded-2xl shadow-xl p-6 sm:p-7"
+          >
+            <button type="button" onClick={() => setCondicionesPlan(null)} aria-label="Cerrar"
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 transition-colors"
+            >
+              <X size={20} />
+            </button>
+            <div className="flex items-start gap-4">
+              <div className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#f1eef6" }}>
+                <FileText size={20} style={{ color: TARJETA_MORADO }} />
+              </div>
+              <div className="pr-6">
+                <h3 className="text-base font-extrabold text-slate-900">Condiciones de la promoción – Plan {condicionesPlan.nombre}</h3>
+                <ul className="mt-3 space-y-2 text-sm text-slate-700 leading-relaxed">
+                  {condicionesPlan.condiciones.split("\n").map((linea, i) => linea.trim() && (
+                    <li key={i} className="flex gap-2.5">
+                      <span className="mt-2 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: "#7c22d0" }} />
+                      <span>{linea.trim()}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+            <div className="flex justify-end mt-6">
+              <button type="button" onClick={() => setCondicionesPlan(null)}
+                className="px-5 py-2.5 rounded-xl text-sm font-bold text-white transition-opacity hover:opacity-90"
+                style={{ backgroundColor: "#7c22d0" }}
+              >
+                Entendido
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

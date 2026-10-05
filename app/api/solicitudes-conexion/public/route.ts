@@ -67,13 +67,15 @@ export async function ensureTable(pool: Pool) {
       lugar_trabajo            NVARCHAR(150) NULL,
       ocupacion                NVARCHAR(100) NULL,
       ambito                   NVARCHAR(15)  NULL,
-      precio                   DECIMAL(10,2) NULL
+      precio                   DECIMAL(10,2) NULL,
+      cliente_existente        BIT           NOT NULL DEFAULT 0
     )
   `);
 }
 
 interface SolicitudInput {
   cod_sucursal: number;
+  cliente_existente?: boolean;
   doble_play: boolean;
   velocidad: string | null;
   go_tv: boolean;
@@ -124,6 +126,8 @@ export async function POST(req: NextRequest) {
 
   const doble_play = body.doble_play === true;
   const go_tv = body.go_tv === true;
+  // Cliente que ya tiene internet y solo pide TV: no elige plan ni dirección, se marca aparte.
+  const clienteExistente = body.cliente_existente === true;
   const velocidad = s(body.velocidad, 30);
   if (!velocidad && !go_tv)
     return NextResponse.json({ error: "Elegí al menos un servicio (velocidad de internet o GO TV)" }, { status: 400 });
@@ -180,6 +184,7 @@ export async function POST(req: NextRequest) {
       .input("ocupacion", sql.NVarChar(100), s(body.ocupacion, 100))
       .input("ambito", sql.NVarChar(15), s(body.ambito, 15))
       .input("precio", sql.Decimal(10, 2), precio)
+      .input("cliente_existente", sql.Bit, clienteExistente)
       .query(`
         INSERT INTO ${TABLA} (
           origen, vendedor_usuario, vendedor_nombre, cod_sucursal,
@@ -188,7 +193,7 @@ export async function POST(req: NextRequest) {
           referencia,
           titular_apellido_nombre, titular_tipo_documento, titular_numero_documento,
           titular_barrio, titular_localidad, titular_provincia, titular_calle, titular_numero, titular_piso, titular_dpto,
-          titular_telefono, titular_email, lugar_trabajo, ocupacion, ambito, precio
+          titular_telefono, titular_email, lugar_trabajo, ocupacion, ambito, precio, cliente_existente
         ) VALUES (
           @origen, @vendedor_usuario, @vendedor_nombre, @cod_sucursal,
           @doble_play, @velocidad, @go_tv,
@@ -196,7 +201,7 @@ export async function POST(req: NextRequest) {
           @referencia,
           @titular_apellido_nombre, @titular_tipo_documento, @titular_numero_documento,
           @titular_barrio, @titular_localidad, @titular_provincia, @titular_calle, @titular_numero, @titular_piso, @titular_dpto,
-          @titular_telefono, @titular_email, @lugar_trabajo, @ocupacion, @ambito, @precio
+          @titular_telefono, @titular_email, @lugar_trabajo, @ocupacion, @ambito, @precio, @cliente_existente
         )
       `);
 

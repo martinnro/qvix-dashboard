@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
-import { Loader2, CheckCircle2, AlertCircle, Wifi, MapPin, Check, Plus, Film, Box, Monitor, Wrench, Tag, Info, ChevronDown, ArrowDown, ArrowUp, FileText, X } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, Wifi, MapPin, Check, Plus, Film, Box, Monitor, Wrench, Tag, Info, ChevronDown, ArrowDown, ArrowUp, FileText, X, Tv } from "lucide-react";
 import BurbujasDecorativas from "./BurbujasDecorativas";
 
 const UbicacionMapPicker = dynamic(() => import("./UbicacionMapPicker"), { ssr: false });
@@ -43,7 +43,7 @@ interface PlanConexion {
   precio: number;
   precio_lista: number | null;
   orden: number;
-  tipo: "internet" | "doble_play";
+  tipo: "internet" | "doble_play" | "tv";
   incluye: PlanItem[];
   condiciones: string | null;
 }
@@ -132,6 +132,7 @@ export default function SolicitudPublicaForm({
   const [planes, setPlanes] = useState<PlanConexion[]>([]);
   const [planesLoading, setPlanesLoading] = useState(true);
   const [condicionesPlan, setCondicionesPlan] = useState<PlanConexion | null>(null);
+  const [soloTv, setSoloTv] = useState(false);
 
   useEffect(() => {
     fetch("/api/planes-conexion")
@@ -145,7 +146,7 @@ export default function SolicitudPublicaForm({
 
   // El toggle Internet+TV / Sólo Internet no es solo un rótulo: son dos catálogos de planes
   // con precios distintos (Doble Play suele costar más que el mismo ancho de banda sin TV).
-  const planesFiltrados = planes.filter((p) => p.tipo === (form.go_tv ? "doble_play" : "internet"));
+  const planesFiltrados = planes.filter((p) => p.tipo === (soloTv ? "tv" : form.go_tv ? "doble_play" : "internet"));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -156,6 +157,7 @@ export default function SolicitudPublicaForm({
     if (!form.titular_numero_documento.trim()) return setError("Falta tu número de documento.");
     if (!form.titular_telefono.trim()) return setError("Falta un teléfono para contactarte.");
     const planSeleccionado = planesFiltrados.find((p) => p.nombre === form.velocidad);
+    if (soloTv && !planSeleccionado) return setError("Elegí el plan de TV.");
     const velocidadFinal = form.velocidad === "Otra" ? form.velocidadOtra.trim() : form.velocidad;
     if (!velocidadFinal && !form.go_tv) return setError("Elegí al menos un servicio: internet o GO TV.");
 
@@ -170,6 +172,7 @@ export default function SolicitudPublicaForm({
           velocidad: velocidadFinal || null,
           precio: planSeleccionado?.precio ?? null,
           go_tv: form.go_tv,
+          cliente_existente: soloTv,
           inm_lat: form.inm_lat,
           inm_lng: form.inm_lng,
           referencia: form.referencia,
@@ -281,34 +284,46 @@ export default function SolicitudPublicaForm({
       <form onSubmit={handleSubmit} className="max-w-4xl mx-auto px-4 pt-8 pb-14 space-y-6">
         {/* Servicios */}
         <div>
-          <h2 className="text-2xl font-extrabold text-slate-900 text-center mb-4">Elegí tu plan</h2>
+          <h2 className="text-2xl font-extrabold text-slate-900 text-center mb-4">{soloTv ? "Sumá la TV a tu internet" : "Elegí tu plan"}</h2>
 
           <div className="flex justify-center mb-5">
             <div className="inline-flex bg-slate-200 rounded-full p-1">
-              <button type="button" onClick={() => setForm((f) => ({ ...f, go_tv: true, velocidad: "" }))}
+              <button type="button" onClick={() => { setSoloTv(false); setForm((f) => ({ ...f, go_tv: true, velocidad: "" })); }}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs sm:text-sm font-bold transition-colors"
-                style={go_tv_style(form.go_tv, true)}
+                style={go_tv_style(form.go_tv && !soloTv, true)}
               >
                 <Wifi size={14} /> Internet + TV
               </button>
-              <button type="button" onClick={() => setForm((f) => ({ ...f, go_tv: false, velocidad: "" }))}
+              <button type="button" onClick={() => { setSoloTv(false); setForm((f) => ({ ...f, go_tv: false, velocidad: "" })); }}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs sm:text-sm font-bold transition-colors"
-                style={go_tv_style(form.go_tv, false)}
+                style={go_tv_style(!form.go_tv && !soloTv, true)}
               >
                 <Wifi size={14} /> Sólo Internet
+              </button>
+              <button type="button" onClick={() => { setSoloTv(true); setForm((f) => ({ ...f, go_tv: true, velocidad: "" })); }}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs sm:text-sm font-bold transition-colors"
+                style={go_tv_style(soloTv, true)}
+              >
+                <Tv size={14} /> TV (ya soy cliente)
               </button>
             </div>
           </div>
 
+          {soloTv && (
+            <p className="text-center text-sm text-slate-600 mb-4 px-4">
+              Si ya tenés internet con nosotros, elegí el plan de TV y te contactamos para sumarlo.
+            </p>
+          )}
           {planesLoading ? (
             <div className="flex items-center justify-center gap-2 text-slate-400 text-sm py-8">
               <Loader2 size={16} className="animate-spin" /> Cargando planes…
             </div>
           ) : planesFiltrados.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className={`grid gap-4 ${soloTv ? "grid-cols-1 sm:grid-cols-1 max-w-md mx-auto w-full" : "grid-cols-1 sm:grid-cols-2"}`}>
               {planesFiltrados.map((plan) => {
                 const activo = form.velocidad === plan.nombre;
-                const partes = plan.nombre.match(/^(\d+)\s*(.*)$/);
+                const esTv = plan.tipo === "tv";
+                const partes = esTv ? null : plan.nombre.match(/^(\d+)\s*(.*)$/);
                 const itemsGrid = plan.incluye.filter((it) => it.icono !== "instalacion");
                 const instalacion = plan.incluye.find((it) => it.icono === "instalacion");
                 return (
@@ -323,12 +338,14 @@ export default function SolicitudPublicaForm({
                   >
                     {/* Header recto, sin curva — más simple y sin riesgo de que el recorte tape algo. */}
                     <div className="relative w-full overflow-hidden px-5 pt-4 pb-5" style={{ background: `linear-gradient(135deg, ${TARJETA_MORADO}, ${TARJETA_MORADO_CLARO})` }}>
-                      <Wifi size={80} strokeWidth={1.5} className="absolute top-4 right-2 text-white/15 pointer-events-none" />
+                      {esTv
+                        ? <Tv size={80} strokeWidth={1.5} className="absolute top-4 right-2 text-white/15 pointer-events-none" />
+                        : <Wifi size={80} strokeWidth={1.5} className="absolute top-4 right-2 text-white/15 pointer-events-none" />}
                       <div className="relative flex items-start justify-between">
                         <span className="inline-block px-3 py-1 rounded-full text-[11px] font-bold text-white tracking-wide uppercase"
                           style={{ background: `linear-gradient(135deg, ${TARJETA_VIOLETA_BADGE_1}, ${TARJETA_VIOLETA_BADGE_2})` }}
                         >
-                          {form.go_tv ? "Doble Play" : "Solo Internet"}
+                          {esTv ? "TV" : form.go_tv ? "Doble Play" : "Solo Internet"}
                         </span>
                         <span className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-200 ${activo ? "scale-110" : "scale-100"}`}
                           style={{ border: `2px solid ${activo ? CIAN : "rgba(255,255,255,0.6)"}`, backgroundColor: activo ? CIAN : "transparent" }}
@@ -337,7 +354,7 @@ export default function SolicitudPublicaForm({
                         </span>
                       </div>
                       <div className="relative flex items-baseline gap-2 mt-3">
-                        <span className="text-5xl font-extrabold leading-none text-white">{partes ? partes[1] : plan.nombre}</span>
+                        <span className={`font-extrabold leading-none text-white ${esTv ? "text-xl" : "text-5xl"}`}>{partes ? partes[1] : plan.nombre}</span>
                         {partes && partes[2] && (
                           <span className="text-sm font-bold text-white px-2 py-1 rounded-md" style={{ backgroundColor: CIAN }}>{partes[2]}</span>
                         )}
@@ -347,7 +364,7 @@ export default function SolicitudPublicaForm({
                     <div className="px-5 pt-3 pb-4 flex-1 flex flex-col">
                       <div className="flex items-center justify-between gap-2">
                         <div>
-                          <p className="text-slate-800 text-sm font-bold">FTTH Internet{form.go_tv ? " + TV" : ""}{partes ? "" : ` ${plan.nombre}`}</p>
+                          <p className="text-slate-800 text-sm font-bold">{esTv ? plan.nombre : `FTTH Internet${form.go_tv ? " + TV" : ""}${partes ? "" : ` ${plan.nombre}`}`}</p>
                           {partes && (
                             <div className="flex items-center gap-2 mt-1 text-sm font-bold" style={{ color: TARJETA_MORADO }}>
                               <span className="inline-flex items-center gap-0.5"><ArrowDown size={14} />{partes[1]} Mb</span>
@@ -442,6 +459,7 @@ export default function SolicitudPublicaForm({
             </div>
           )}
 
+          {!soloTv && (<>
           {/* "Otra velocidad": franja completa debajo de los planes, con el mismo peso visual
               que una tarjeta — para que no pase desapercibida como un link chico */}
           <button type="button" onClick={() => set("velocidad", form.velocidad === "Otra" ? "" : "Otra")}
@@ -466,6 +484,7 @@ export default function SolicitudPublicaForm({
               <input value={form.velocidadOtra} onChange={(e) => set("velocidadOtra", e.target.value)} placeholder="Ej. 700MB" className={inputClass} style={inputStyle} autoFocus />
             </div>
           )}
+          </>)}
         </div>
 
         {/* Datos personales */}
@@ -488,13 +507,16 @@ export default function SolicitudPublicaForm({
             <Field label="Teléfono" required>
               <input value={form.titular_telefono} onChange={(e) => set("titular_telefono", e.target.value)} className={inputClass} style={inputStyle} inputMode="tel" placeholder="Ej. 3834123456" />
             </Field>
-            <Field label="Correo electrónico">
-              <input type="email" value={form.titular_email} onChange={(e) => set("titular_email", e.target.value)} className={inputClass} style={inputStyle} />
-            </Field>
+            {!soloTv && (
+              <Field label="Correo electrónico">
+                <input type="email" value={form.titular_email} onChange={(e) => set("titular_email", e.target.value)} className={inputClass} style={inputStyle} />
+              </Field>
+            )}
           </div>
         </div>
 
         {/* Domicilio */}
+        {!soloTv && (
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 space-y-4">
           <h2 className="text-slate-900 font-extrabold text-base">¿Dónde instalamos?</h2>
           <UbicacionMapPicker
@@ -530,6 +552,7 @@ export default function SolicitudPublicaForm({
             </Field>
           </div>
         </div>
+        )}
 
         {error && (
           <div className="flex items-center gap-2 bg-rose-50 border border-rose-200 text-rose-600 rounded-xl px-4 py-3 text-sm">

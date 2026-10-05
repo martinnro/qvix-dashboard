@@ -4,7 +4,7 @@ import { getPool } from "@/app/lib/db";
 import { getSession } from "@/app/lib/session";
 
 const TABLA = "analytics_planes_conexion";
-const TIPOS = ["internet", "doble_play"] as const;
+const TIPOS = ["internet", "doble_play", "tv"] as const;
 export type TipoPlan = (typeof TIPOS)[number];
 
 // Set fijo de íconos que puede elegir el panel — se mapean a componentes de lucide-react

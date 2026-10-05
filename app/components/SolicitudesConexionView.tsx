@@ -59,7 +59,7 @@ function StatTile({ label, value, sublabel, color }: { label: string; value: str
 
 type PanelType = "qr" | "planes" | null;
 
-type TipoPlan = "internet" | "doble_play";
+type TipoPlan = "internet" | "doble_play" | "tv";
 
 const ICONOS_ITEM = ["film", "box", "monitor", "instalacion"] as const;
 type IconoItem = (typeof ICONOS_ITEM)[number];
@@ -84,6 +84,7 @@ interface PlanConexion {
 const TIPO_PLAN_LABEL: Record<TipoPlan, string> = {
   doble_play: "Doble Play (Internet + TV)",
   internet: "Solo Internet",
+  tv: "Solo TV (ya es cliente)",
 };
 
 const ICONO_COMPONENTE: Record<IconoItem, React.ComponentType<{ size?: number; className?: string }>> = {
@@ -383,7 +384,7 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
           </div>
         )}
 
-        {planes && (["doble_play", "internet"] as TipoPlan[]).map((tipo) => {
+        {planes && (["doble_play", "internet", "tv"] as TipoPlan[]).map((tipo) => {
           const planesTipo = planes.filter((p) => p.tipo === tipo);
           return (
             <div key={tipo} className="bg-slate-800 border border-slate-700 rounded-2xl p-5 space-y-3">
@@ -454,7 +455,7 @@ export default function SolicitudesConexionView({ onClose, sucursalesPermitidas 
               <div>
                 <label className="block text-xs text-slate-400 mb-1.5">Tipo</label>
                 <div className="flex gap-2">
-                  {(["doble_play", "internet"] as TipoPlan[]).map((t) => (
+                  {(["doble_play", "internet", "tv"] as TipoPlan[]).map((t) => (
                     <button key={t} type="button" onClick={() => setFormPlan((f) => ({ ...f, tipo: t }))}
                       className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium border transition-colors ${
                         formPlan.tipo === t ? "bg-indigo-600 border-indigo-500 text-white" : "border-slate-600 text-slate-400 hover:border-indigo-500 hover:text-indigo-300"

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useMemo } from "react";
-import { ArrowLeft, Tv, ChevronUp, ChevronDown, CheckCircle2, Clock } from "lucide-react";
+import { ArrowLeft, Tv, ChevronUp, ChevronDown, CheckCircle2, Clock, Eye, X as XIcon, Loader2, Trash2 } from "lucide-react";
 
 interface BajaRow {
   conexion: number;
@@ -44,6 +44,8 @@ export default function BajasQvixView({ onClose }: Props) {
   const [filterSuc, setFilterSuc] = useState<number | "">("");
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [loteDetalle, setLoteDetalle] = useState<{ mes: string; rows: BajaRow[] } | null>(null);
+  const [loadingDetalle, setLoadingDetalle] = useState(false);
 
   const fetchData = () => {
     setLoading(true);
@@ -84,6 +86,30 @@ export default function BajasQvixView({ onClose }: Props) {
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) setSortAsc((v) => !v);
     else { setSortKey(key); setSortAsc(true); }
+  };
+
+  const verDetalleLote = async (mes: string) => {
+    setLoadingDetalle(true);
+    try {
+      const r = await fetch(`/api/tv-bajas-qvix/lote?mes=${encodeURIComponent(mes)}`);
+      const data = await r.json();
+      setLoteDetalle({ mes, rows: data });
+    } finally {
+      setLoadingDetalle(false);
+    }
+  };
+
+  const eliminarLote = async (mes: string) => {
+    if (!confirm(`¿Eliminar el lote ${mes}? Esto permite volver a guardarlo.`)) return;
+    const r = await fetch(`/api/tv-bajas-qvix/lote?mes=${encodeURIComponent(mes)}`, { method: "DELETE" });
+    const data = await r.json();
+    if (r.ok) {
+      setSaveMsg({ ok: true, text: `Lote ${mes} eliminado (${data.eliminados} registros). Ya podés volver a guardarlo.` });
+      setLoteDetalle(null);
+      fetchData();
+    } else {
+      setSaveMsg({ ok: false, text: data.error ?? "Error al eliminar" });
+    }
   };
 
   const cerrarLote = async () => {
@@ -151,17 +177,75 @@ export default function BajasQvixView({ onClose }: Props) {
       {/* Historial de lotes */}
       {lotes.length > 0 && (
         <div className="bg-slate-900 border border-slate-700 rounded-xl p-4">
-          <p className="text-xs text-slate-500 uppercase tracking-wider mb-3">Lotes cerrados</p>
+          <p className="text-xs text-slate-500 uppercase tracking-wider mb-3">Lotes guardados</p>
           <div className="flex flex-wrap gap-3">
-            {lotes.map((l) => (
+            {lotes.filter(l => l.lote_mes !== "1900-01").map((l) => (
               <div key={l.lote_mes} className="flex items-center gap-2 bg-slate-800 rounded-lg px-3 py-2">
                 <CheckCircle2 size={14} className="text-emerald-400 flex-shrink-0" />
                 <div>
                   <p className="text-sm font-semibold text-white">{l.lote_mes}</p>
                   <p className="text-xs text-slate-400">{l.total.toLocaleString()} conexiones · {l.fecha_cierre}</p>
+                  <p className="text-xs text-slate-600">{l.guardado_por}</p>
+                </div>
+                <div className="flex gap-1 ml-2">
+                  <button
+                    onClick={() => verDetalleLote(l.lote_mes)}
+                    className="p-1.5 rounded-md text-slate-400 hover:text-sky-400 hover:bg-slate-700 transition-colors"
+                    title="Ver conexiones del lote"
+                  >
+                    {loadingDetalle ? <Loader2 size={13} className="animate-spin" /> : <Eye size={13} />}
+                  </button>
+                  <button
+                    onClick={() => eliminarLote(l.lote_mes)}
+                    className="p-1.5 rounded-md text-slate-600 hover:text-red-400 hover:bg-slate-700 transition-colors"
+                    title="Eliminar lote (para volver a guardarlo)"
+                  >
+                    <Trash2 size={13} />
+                  </button>
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Modal detalle de lote */}
+      {loteDetalle && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-3xl max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700">
+              <div>
+                <p className="text-sm font-bold text-white">Lote {loteDetalle.mes}</p>
+                <p className="text-xs text-slate-400">{loteDetalle.rows.length} conexiones guardadas</p>
+              </div>
+              <button onClick={() => setLoteDetalle(null)} className="text-slate-500 hover:text-white transition-colors">
+                <XIcon size={18} />
+              </button>
+            </div>
+            <div className="overflow-y-auto flex-1">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-slate-900 border-b border-slate-800">
+                  <tr>
+                    <th className="px-3 py-2 text-left text-xs text-slate-400 font-semibold uppercase">Conexión</th>
+                    <th className="px-3 py-2 text-left text-xs text-slate-400 font-semibold uppercase">Nombre</th>
+                    <th className="px-3 py-2 text-left text-xs text-slate-400 font-semibold uppercase">Sucursal</th>
+                    <th className="px-3 py-2 text-left text-xs text-slate-400 font-semibold uppercase">Concepto TV</th>
+                    <th className="px-3 py-2 text-left text-xs text-slate-400 font-semibold uppercase">Fecha baja</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loteDetalle.rows.map((r) => (
+                    <tr key={r.conexion} className="border-b border-slate-800/60 hover:bg-slate-800/40">
+                      <td className="px-3 py-2 font-mono text-slate-300">{r.conexion}</td>
+                      <td className="px-3 py-2 text-white">{r.nombre}</td>
+                      <td className="px-3 py-2 text-slate-400">{SUCS[r.cod_sucursal] ?? r.cod_sucursal}</td>
+                      <td className="px-3 py-2 text-slate-400">{r.concepto_tv}</td>
+                      <td className="px-3 py-2 text-slate-400 font-mono">{r.fecha_baja}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

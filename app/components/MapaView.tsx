@@ -190,9 +190,9 @@ export default function MapaView({ onClose, sucursalesPermitidas = null }: { onC
   }, []);
 
   useEffect(() => {
-    fetch("/api/clientes-tv?estados=3,6")
+    fetch("/api/estados-servicio")
       .then((r) => r.json())
-      .then((d) => { if (d.estados_disponibles?.length) setEstadosOpts(d.estados_disponibles); })
+      .then((d) => { if (Array.isArray(d) && d.length) setEstadosOpts(d); })
       .catch(() => {});
   }, []);
 

@@ -12,7 +12,10 @@ interface AuthUser {
 function getUsers(): AuthUser[] {
   try {
     return JSON.parse(process.env.AUTH_USERS ?? "[]");
-  } catch {
+  } catch (err) {
+    // Si AUTH_USERS queda mal formado (comillas raras al pegar, truncado, etc.) nadie puede
+    // loguearse y sin este log no queda rastro de por qué — se ve en los logs de Vercel.
+    console.error("[auth/login] AUTH_USERS inválido:", err);
     return [];
   }
 }

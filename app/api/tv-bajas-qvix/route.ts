@@ -145,16 +145,6 @@ export async function POST(req: Request) {
   const guardadoPor = esc(session.user.user);
 
   try {
-    const check = await pool.request().query(`
-      SELECT COUNT(*) AS cnt FROM analytics_bajasqvix WHERE lote_mes = '${loteMes}'
-    `);
-    if (check.recordset[0].cnt > 0) {
-      return NextResponse.json(
-        { error: `Ya existe un lote para ${loteMes}. Eliminalo primero si querés reemplazarlo.` },
-        { status: 409 }
-      );
-    }
-
     // insertar de a 200 filas por request para evitar queries gigantes
     const chunkSize = 200;
     for (let i = 0; i < rows.length; i += chunkSize) {

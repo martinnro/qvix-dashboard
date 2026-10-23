@@ -689,6 +689,7 @@ interface AnalisisRow {
   usuario_id: number | null;
   usuario_carga: string | null;
   observaciones: string | null;
+  obs_cierre: string | null;
   fecha: string;
   dias: number;
   materiales: Array<{ material: string; cantidad: number }>;
@@ -853,7 +854,7 @@ function AnalisisPanel({ onBack, onClose }: { onBack: () => void; onClose: () =>
                       const { bg, text } = diasColor(r.dias);
                       const { label: estLabel, cls: estCls } = estadoInfo(r.estado_incidencia);
                       const esDañado = r.problema?.toUpperCase().includes("DAÑADO") ?? false;
-                      const tieneExtra = !!r.problema || !!r.problema_detalle?.trim() || !!r.observaciones?.trim() || r.materiales.length > 0;
+                      const tieneExtra = !!r.problema || !!r.problema_detalle?.trim() || !!r.observaciones?.trim() || !!r.obs_cierre?.trim() || r.materiales.length > 0;
                       return (
                         <React.Fragment key={r.id_incidencia}>
                           <tr
@@ -898,6 +899,12 @@ function AnalisisPanel({ onBack, onClose }: { onBack: () => void; onClose: () =>
                                     <div>
                                       <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Observación</p>
                                       <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-wrap">{r.observaciones}</p>
+                                    </div>
+                                  )}
+                                  {r.obs_cierre?.trim() && (
+                                    <div>
+                                      <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Observación de cierre</p>
+                                      <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-wrap">{r.obs_cierre}</p>
                                     </div>
                                   )}
                                   {r.materiales.length > 0 && (

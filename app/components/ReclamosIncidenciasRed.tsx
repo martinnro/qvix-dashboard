@@ -38,7 +38,7 @@ interface Row {
 // id_usuario de soporte técnico VV (Ovejero Guillermo Luciano, Tapia Tiago Sebastian)
 const VV_SOPORTE_IDS = [275, 276];
 
-type Panel = "problema" | "cuadrilla" | "nap" | "antiguedad" | "detalle" | "historial" | "materiales" | "reincidencias" | "comercial";
+type Panel = "problema" | "cuadrilla" | "nap" | "antiguedad" | "detalle" | "historial" | "materiales" | "reincidencias" | "analisis";
 
 function pct(n: number, total: number) {
   return total === 0 ? 0 : Math.round((n / total) * 100);
@@ -546,8 +546,8 @@ export default function ReclamosIncidenciasRed({
   /* ────────────────────────────────────────────────────────────
      SUB-PANEL: COMERCIAL
   ──────────────────────────────────────────────────────────── */
-  if (panel === "comercial") {
-    return <ComercialPanel rows={filtered} onBack={() => setPanel(null)} onClose={onClose} />;
+  if (panel === "analisis") {
+    return <AnalisisPanel onBack={() => setPanel(null)} onClose={onClose} />;
   }
 
   /* ────────────────────────────────────────────────────────────
@@ -645,7 +645,7 @@ export default function ReclamosIncidenciasRed({
             <NavCard icon={UserCheck} titulo="Cuadrilla" subtitulo="Quién tiene asignado cada reclamo" color="#06b6d4" onClick={() => setPanel("cuadrilla")} />
             <NavCard icon={Network} titulo="NAPs" subtitulo="Nodos con más reclamos activos" color="#a855f7" onClick={() => setPanel("nap")} />
             <NavCard icon={RefreshCw} titulo="Reincidencias" subtitulo="Conexiones con reclamos repetidos" color="#f43f5e" onClick={() => setPanel("reincidencias")} />
-            <NavCard icon={Briefcase} titulo="Comercial" subtitulo="Reclamos cargados por el área comercial" color="#10b981" onClick={() => setPanel("comercial")} />
+            <NavCard icon={Briefcase} titulo="Análisis de reclamos" subtitulo="Últimos 10 días — filtrar por estado y problema" color="#10b981" onClick={() => setPanel("analisis")} />
           </div>
         </div>
 
@@ -676,168 +676,254 @@ export default function ReclamosIncidenciasRed({
 }
 
 /* ══════════════════════════════════════════════════════════════
-   PANEL COMERCIAL — componente separado
+   PANEL ANÁLISIS DE RECLAMOS — últimos 10 días, todos los estados
 ══════════════════════════════════════════════════════════════ */
-function ComercialPanel({ rows, onBack, onClose }: { rows: Row[]; onBack: () => void; onClose: () => void }) {
-  const [expandido, setExpandido] = useState<Set<string>>(new Set());
-  const [sucursalFiltro, setSucursalFiltro] = useState<number | null>(null);
+interface AnalisisRow {
+  id_incidencia: number;
+  conexion: string;
+  cod_sucursal: number;
+  estado_incidencia: number;
+  problema: string | null;
+  problema_detalle: string | null;
+  cuadrilla: string | null;
+  usuario_id: number | null;
+  usuario_carga: string | null;
+  observaciones: string | null;
+  fecha: string;
+  dias: number;
+  materiales: Array<{ material: string; cantidad: number }>;
+}
 
-  const SUCURSAL_LABEL: Record<number, string> = { 1: "Chumbicha", 4: "Valle Viejo", 5: "Tinogasta", 6: "Rodeo", 7: "La Puerta", 8: "Fiambalá" };
+const ESTADO_LABEL: Record<number, { label: string; cls: string }> = {
+  1: { label: "Pendiente", cls: "bg-amber-500/20 text-amber-400" },
+  2: { label: "Asignado",  cls: "bg-cyan-500/20 text-cyan-400" },
+  3: { label: "Cerrado",   cls: "bg-slate-500/20 text-slate-400" },
+};
 
-  const baseRows = rows.filter((r) => {
-    if (r.cod_sucursal === 4) return !VV_SOPORTE_IDS.includes(r.usuario_id ?? -1);
+function estadoInfo(n: number) {
+  return ESTADO_LABEL[n] ?? { label: `Estado ${n}`, cls: "bg-slate-600/20 text-slate-400" };
+}
+
+function AnalisisPanel({ onBack, onClose }: { onBack: () => void; onClose: () => void }) {
+  const [rows, setRows]           = useState<AnalisisRow[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState<string | null>(null);
+  const [expandido, setExpandido] = useState<Set<number>>(new Set());
+  const [filtroSuc, setFiltroSuc] = useState<number | null>(null);
+  const [filtroEst, setFiltroEst] = useState<number | null>(null);  // null = todos
+  const [filtroProb, setFiltroProb] = useState<string>("");
+
+  const SUC_LABEL: Record<number, string> = { 1: "Chumbicha", 4: "Valle Viejo", 5: "Tinogasta", 6: "Rodeo", 7: "La Puerta", 8: "Fiambalá" };
+
+  useEffect(() => {
+    fetch("/api/reclamos-analisis")
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.error) throw new Error(d.error);
+        setRows(d);
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const sucursalesPresentes = useMemo(
+    () => [...new Set(rows.map((r) => r.cod_sucursal))].sort((a, b) => a - b),
+    [rows]
+  );
+  const problemasPresentes = useMemo(
+    () => [...new Set(rows.map((r) => r.problema ?? "Sin clasificar"))].sort(),
+    [rows]
+  );
+
+  const filtered = useMemo(() => rows.filter((r) => {
+    if (filtroSuc !== null && r.cod_sucursal !== filtroSuc) return false;
+    if (filtroEst !== null && r.estado_incidencia !== filtroEst) return false;
+    if (filtroProb && (r.problema ?? "Sin clasificar") !== filtroProb) return false;
     return true;
-  });
+  }), [rows, filtroSuc, filtroEst, filtroProb]);
 
-  const comercialRows = sucursalFiltro === null
-    ? baseRows
-    : baseRows.filter((r) => r.cod_sucursal === sucursalFiltro);
+  const toggleExpand = (id: number) =>
+    setExpandido((prev) => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
 
-  const sucursalesPresentes = [...new Set(baseRows.map((r) => r.cod_sucursal))].sort((a, b) => a - b);
-
-  const toggleExpand = (key: string) =>
-    setExpandido((prev) => {
-      const s = new Set(prev);
-      s.has(key) ? s.delete(key) : s.add(key);
-      return s;
-    });
+  const FilterBtn = ({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) => (
+    <button
+      onClick={onClick}
+      className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+        active ? "bg-emerald-600 border-emerald-500 text-white" : "border-slate-600 text-slate-400 hover:border-slate-400 hover:text-slate-200"
+      }`}
+    >
+      {children}
+    </button>
+  );
 
   return (
     <div className="min-h-screen bg-slate-900 text-white">
       <div className="max-w-screen-xl mx-auto px-6 py-8 space-y-6">
 
-        {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <button
-              onClick={onBack}
-              className="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 hover:text-white border border-slate-600 hover:border-slate-500 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors mb-3"
-            >
+            <button onClick={onBack} className="flex items-center gap-1.5 bg-slate-700 hover:bg-slate-600 text-slate-200 border border-slate-600 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors mb-3">
               <ChevronLeft size={15} /> Volver al resumen
             </button>
             <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
-              <Briefcase size={20} className="text-emerald-400" /> Reclamos — Área Comercial
+              <Briefcase size={20} className="text-emerald-400" /> Análisis de reclamos
             </h2>
             <p className="text-sm text-slate-400 mt-0.5">
-              {comercialRows.length} reclamos activos cargados por comercial
-              {baseRows.some(r => r.cod_sucursal === 4) && (
-                <span className="ml-2 text-slate-500">· VV excluye soporte técnico (Ovejero, Tapia)</span>
-              )}
+              Últimos 10 días · {loading ? "…" : `${filtered.length} reclamos`}
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 border border-slate-700 hover:border-slate-500 px-3 py-1.5 rounded-lg text-sm transition-colors"
-          >
+          <button onClick={onClose} className="flex items-center gap-1.5 text-slate-400 hover:text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg text-sm transition-colors">
             <X size={15} /> Cerrar
           </button>
         </div>
 
-        {/* Filtro sucursal */}
-        {sucursalesPresentes.length > 1 && (
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => setSucursalFiltro(null)}
-              className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${sucursalFiltro === null ? "bg-emerald-600 border-emerald-500 text-white" : "border-slate-600 text-slate-400 hover:border-slate-400 hover:text-slate-200"}`}
-            >
-              Todas
-            </button>
-            {sucursalesPresentes.map((suc) => (
-              <button
-                key={suc}
-                onClick={() => setSucursalFiltro(suc === sucursalFiltro ? null : suc)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${sucursalFiltro === suc ? "bg-emerald-600 border-emerald-500 text-white" : "border-slate-600 text-slate-400 hover:border-slate-400 hover:text-slate-200"}`}
-              >
-                {SUCURSAL_LABEL[suc] ?? `Suc.${suc}`}
-              </button>
-            ))}
+        {loading && (
+          <div className="flex items-center gap-2 text-slate-400 text-sm">
+            <Loader2 size={16} className="animate-spin" /> Cargando reclamos...
           </div>
         )}
+        {error && (
+          <div className="text-red-400 text-sm bg-red-950/30 border border-red-800 rounded-lg px-4 py-3">{error}</div>
+        )}
 
-        {comercialRows.length === 0 ? (
-          <div className="text-slate-500 text-sm py-12 text-center">Sin reclamos comerciales activos</div>
-        ) : (
-          <div className="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-slate-400 uppercase tracking-wider border-b border-slate-700 bg-slate-900/40">
-                  <th className="w-6 py-3 px-3" />
-                  <th className="text-left py-3 px-3">Conexión</th>
-                  <th className="text-left py-3 px-3">Sucursal</th>
-                  <th className="text-left py-3 px-3">Cargado por</th>
-                  <th className="text-left py-3 px-3">Problema</th>
-                  <th className="text-left py-3 px-3">Cuadrilla</th>
-                  <th className="text-left py-3 px-3">Estado</th>
-                  <th className="text-left py-3 px-3">Fecha</th>
-                  <th className="text-right py-3 px-3">Días</th>
-                </tr>
-              </thead>
-              <tbody>
-                {comercialRows.map((r, i) => {
-                  const key = `${r.conexion}-${i}`;
-                  const abierto = expandido.has(key);
-                  const { bg, text } = diasColor(r.dias);
-                  const tieneObs = !!r.observaciones?.trim();
-                  const tieneDetalle = !!r.problema || !!r.problema_detalle?.trim() || tieneObs;
-                  const esDañado = r.problema?.toUpperCase().includes("DAÑADO") ?? false;
-                  return (
-                    <React.Fragment key={key}>
-                      <tr
-                        onClick={() => tieneDetalle && toggleExpand(key)}
-                        className={`border-b border-slate-800 transition-colors ${esDañado ? "bg-amber-900/20" : ""} ${tieneDetalle ? "cursor-pointer hover:bg-slate-700/40" : "hover:bg-slate-700/20"}`}
-                      >
-                        <td className="py-2 px-3 text-center">
-                          {tieneDetalle && (
-                            <ChevronDown size={13} className={`text-slate-500 transition-transform ${abierto ? "rotate-180" : ""}`} />
+        {!loading && !error && (
+          <>
+            {/* Filtros */}
+            <div className="space-y-3">
+              {/* Sucursal */}
+              {sucursalesPresentes.length > 1 && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-slate-500 uppercase tracking-wider w-20">Sucursal</span>
+                  <FilterBtn active={filtroSuc === null} onClick={() => setFiltroSuc(null)}>Todas</FilterBtn>
+                  {sucursalesPresentes.map((s) => (
+                    <FilterBtn key={s} active={filtroSuc === s} onClick={() => setFiltroSuc(filtroSuc === s ? null : s)}>
+                      {SUC_LABEL[s] ?? `Suc.${s}`}
+                    </FilterBtn>
+                  ))}
+                </div>
+              )}
+
+              {/* Estado */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-slate-500 uppercase tracking-wider w-20">Estado</span>
+                <FilterBtn active={filtroEst === null} onClick={() => setFiltroEst(null)}>Todos</FilterBtn>
+                {[1, 2, 3].map((e) => (
+                  <FilterBtn key={e} active={filtroEst === e} onClick={() => setFiltroEst(filtroEst === e ? null : e)}>
+                    {estadoInfo(e).label}
+                  </FilterBtn>
+                ))}
+              </div>
+
+              {/* Problema */}
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-slate-500 uppercase tracking-wider w-20">Problema</span>
+                <select
+                  value={filtroProb}
+                  onChange={(e) => setFiltroProb(e.target.value)}
+                  className="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-slate-500 max-w-xs"
+                >
+                  <option value="">Todos</option>
+                  {problemasPresentes.map((p) => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* Tabla */}
+            {filtered.length === 0 ? (
+              <div className="text-slate-500 text-sm py-12 text-center">Sin reclamos con los filtros seleccionados</div>
+            ) : (
+              <div className="bg-slate-800 border border-slate-700 rounded-2xl overflow-hidden">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-slate-400 uppercase tracking-wider border-b border-slate-700 bg-slate-900/40">
+                      <th className="w-6 py-3 px-3" />
+                      <th className="text-left py-3 px-3">Conexión</th>
+                      <th className="text-left py-3 px-3">Sucursal</th>
+                      <th className="text-left py-3 px-3">Estado</th>
+                      <th className="text-left py-3 px-3">Problema</th>
+                      <th className="text-left py-3 px-3">Cuadrilla</th>
+                      <th className="text-left py-3 px-3">Cargado por</th>
+                      <th className="text-left py-3 px-3">Fecha</th>
+                      <th className="text-right py-3 px-3">Días</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((r) => {
+                      const abierto = expandido.has(r.id_incidencia);
+                      const { bg, text } = diasColor(r.dias);
+                      const { label: estLabel, cls: estCls } = estadoInfo(r.estado_incidencia);
+                      const esDañado = r.problema?.toUpperCase().includes("DAÑADO") ?? false;
+                      const tieneExtra = !!r.problema || !!r.problema_detalle?.trim() || !!r.observaciones?.trim() || r.materiales.length > 0;
+                      return (
+                        <React.Fragment key={r.id_incidencia}>
+                          <tr
+                            onClick={() => tieneExtra && toggleExpand(r.id_incidencia)}
+                            className={`border-b border-slate-800 transition-colors ${esDañado ? "bg-amber-900/20" : ""} ${tieneExtra ? "cursor-pointer hover:bg-slate-700/40" : "hover:bg-slate-700/20"}`}
+                          >
+                            <td className="py-2 px-3 text-center">
+                              {tieneExtra && <ChevronDown size={13} className={`text-slate-500 transition-transform ${abierto ? "rotate-180" : ""}`} />}
+                            </td>
+                            <td className="py-2 px-3 font-mono text-slate-200">{r.conexion}</td>
+                            <td className="py-2 px-3 text-slate-400">{SUC_LABEL[r.cod_sucursal] ?? `Suc.${r.cod_sucursal}`}</td>
+                            <td className="py-2 px-3">
+                              <span className={`px-2 py-0.5 rounded-full ${estCls}`}>{estLabel}</span>
+                            </td>
+                            <td className={`py-2 px-3 max-w-[140px] truncate font-medium ${esDañado ? "text-amber-400" : "text-slate-300"}`}>
+                              {r.problema ?? "—"}
+                            </td>
+                            <td className="py-2 px-3 text-slate-400 max-w-[120px] truncate">{r.cuadrilla ?? <span className="text-slate-600">Sin asignar</span>}</td>
+                            <td className="py-2 px-3 text-slate-400 max-w-[120px] truncate">{r.usuario_carga ?? "—"}</td>
+                            <td className="py-2 px-3 text-slate-400">{r.fecha}</td>
+                            <td className="py-2 px-3 text-right">
+                              <span className={`px-2 py-0.5 rounded-full font-semibold ${bg} ${text}`}>{r.dias}d</span>
+                            </td>
+                          </tr>
+                          {abierto && tieneExtra && (
+                            <tr className="border-b border-slate-800 bg-slate-900/30">
+                              <td colSpan={9} className="px-8 py-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  {r.problema && (
+                                    <div>
+                                      <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Problema</p>
+                                      <p className={`text-sm font-medium ${esDañado ? "text-amber-400" : "text-slate-200"}`}>{r.problema}</p>
+                                    </div>
+                                  )}
+                                  {r.problema_detalle?.trim() && (
+                                    <div>
+                                      <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Detalle del cliente</p>
+                                      <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-wrap">{r.problema_detalle}</p>
+                                    </div>
+                                  )}
+                                  {r.observaciones?.trim() && (
+                                    <div>
+                                      <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Observación</p>
+                                      <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-wrap">{r.observaciones}</p>
+                                    </div>
+                                  )}
+                                  {r.materiales.length > 0 && (
+                                    <div>
+                                      <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Materiales utilizados</p>
+                                      <div className="flex flex-wrap gap-2">
+                                        {r.materiales.map((m) => (
+                                          <span key={m.material} className="px-2 py-1 rounded-lg bg-slate-700 text-slate-200 text-xs">
+                                            {m.material} <span className="text-slate-400 ml-1">×{m.cantidad}</span>
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
                           )}
-                        </td>
-                        <td className="py-2 px-3 font-mono text-slate-200">{r.conexion}</td>
-                        <td className="py-2 px-3 text-slate-400">{SUCURSAL_LABEL[r.cod_sucursal] ?? `Suc.${r.cod_sucursal}`}</td>
-                        <td className="py-2 px-3 text-slate-300 max-w-[140px] truncate">{r.usuario_carga ?? "—"}</td>
-                        <td className={`py-2 px-3 max-w-[140px] truncate font-medium ${esDañado ? "text-amber-400" : "text-slate-300"}`}>
-                          {r.problema ?? "—"}
-                        </td>
-                        <td className="py-2 px-3 text-slate-400 max-w-[120px] truncate">{r.cuadrilla ?? <span className="text-slate-600">Sin asignar</span>}</td>
-                        <td className="py-2 px-3">
-                          <span className={`px-2 py-0.5 rounded-full ${r.estado_incidencia === 1 ? "bg-amber-500/20 text-amber-400" : "bg-emerald-500/20 text-emerald-400"}`}>
-                            {r.estado_incidencia === 1 ? "Pendiente" : "Asignado"}
-                          </span>
-                        </td>
-                        <td className="py-2 px-3 text-slate-400">{r.fecha}</td>
-                        <td className="py-2 px-3 text-right">
-                          <span className={`px-2 py-0.5 rounded-full font-semibold ${bg} ${text}`}>{r.dias}d</span>
-                        </td>
-                      </tr>
-                      {abierto && tieneDetalle && (
-                        <tr className="border-b border-slate-800 bg-slate-900/30">
-                          <td colSpan={9} className="px-8 py-4 space-y-3">
-                            {r.problema && (
-                              <div>
-                                <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Problema</p>
-                                <p className={`text-sm font-medium ${esDañado ? "text-amber-400" : "text-slate-200"}`}>{r.problema}</p>
-                              </div>
-                            )}
-                            {r.problema_detalle?.trim() && (
-                              <div>
-                                <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Detalle</p>
-                                <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-wrap">{r.problema_detalle}</p>
-                              </div>
-                            )}
-                            {tieneObs && (
-                              <div>
-                                <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Observación</p>
-                                <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-wrap">{r.observaciones}</p>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

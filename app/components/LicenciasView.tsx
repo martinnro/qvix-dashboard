@@ -70,8 +70,9 @@ function ProgressBar({ value, max }: { value: number; max: number }) {
 function calcProjection(snapshots: Snapshot[], field: "stb" | "movil", limit: number) {
   if (snapshots.length < 2) return null;
   const sorted = [...snapshots].sort((a, b) => a.fecha.localeCompare(b.fecha));
-  const first = sorted[0];
-  const last = sorted[sorted.length - 1];
+  const recent = sorted.slice(-3);
+  const first = recent[0];
+  const last = recent[recent.length - 1];
   const [fy, fm, fd] = first.fecha.split("-").map(Number);
   const [ly, lm, ld] = last.fecha.split("-").map(Number);
   const daysDiff = Math.max(1, (new Date(ly, lm - 1, ld).getTime() - new Date(fy, fm - 1, fd).getTime()) / 86400000);
@@ -133,14 +134,27 @@ export default function LicenciasView({ gotvStb, gotvMovil, viewtvStb, viewtvMov
     setEditing(false);
   };
 
-  // Agrupar rows por mes (YYYY-MM), sumando GOTV + ViewTV + todas las orgs
+  // Agrupar rows por fecha exacta (YYYY-MM-DD), sumando GOTV + ViewTV + todas las orgs
+  const snapshotHistory = useMemo<Snapshot[]>(() => {
+    const byFecha: Record<string, { stb: number; movil: number }> = {};
+    for (const r of rows) {
+      if (!byFecha[r.fecha]) byFecha[r.fecha] = { stb: 0, movil: 0 };
+      byFecha[r.fecha].stb += r.stb;
+      byFecha[r.fecha].movil += r.movil;
+    }
+    return Object.entries(byFecha)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([fecha, totals]) => ({ fecha, ...totals }));
+  }, [rows]);
+
+  // Para el header de la sección usamos los meses únicos (solo para mostrar rango)
   const monthlyHistory = useMemo<Snapshot[]>(() => {
     const byMonth: Record<string, { stb: number; movil: number }> = {};
     for (const r of rows) {
-      const month = r.fecha.slice(0, 7); // YYYY-MM
+      const month = r.fecha.slice(0, 7);
       if (!byMonth[month]) byMonth[month] = { stb: 0, movil: 0 };
-      byMonth[month].stb += r.stb;
-      byMonth[month].movil += r.movil;
+      byMonth[month].stb = Math.max(byMonth[month].stb, r.stb);
+      byMonth[month].movil = Math.max(byMonth[month].movil, r.movil);
     }
     return Object.entries(byMonth)
       .sort(([a], [b]) => a.localeCompare(b))
@@ -154,8 +168,8 @@ export default function LicenciasView({ gotvStb, gotvMovil, viewtvStb, viewtvMov
   const stbColors = getUsageColor(stbPct);
   const movilColors = getUsageColor(movilPct);
 
-  const stbProjection = useMemo(() => calcProjection(monthlyHistory, "stb", totalLicencias), [monthlyHistory, totalLicencias]);
-  const movilProjection = useMemo(() => calcProjection(monthlyHistory, "movil", totalLicencias), [monthlyHistory, totalLicencias]);
+  const stbProjection = useMemo(() => calcProjection(snapshotHistory, "stb", totalLicencias), [snapshotHistory, totalLicencias]);
+  const movilProjection = useMemo(() => calcProjection(snapshotHistory, "movil", totalLicencias), [snapshotHistory, totalLicencias]);
 
   function ProjectionCard({ label, icon, color, proj, pct, current }: {
     label: string; icon: React.ReactNode; color: string;
@@ -200,7 +214,7 @@ export default function LicenciasView({ gotvStb, gotvMovil, viewtvStb, viewtvMov
 
             <div className="border-t border-slate-700/60 pt-3 flex items-center justify-between text-xs text-slate-500">
               <span>Actualmente: <span className={`font-semibold ${color}`}>{current.toLocaleString()}</span> / {totalLicencias.toLocaleString()} ({pct.toFixed(1)}%)</span>
-              <span>{monthlyHistory.length} {monthlyHistory.length === 1 ? "mes cargado" : "meses cargados"}</span>
+              <span>Últimos 3 de {snapshotHistory.length} {snapshotHistory.length === 1 ? "registro" : "registros"}</span>
             </div>
           </>
         )}
@@ -340,7 +354,7 @@ export default function LicenciasView({ gotvStb, gotvMovil, viewtvStb, viewtvMov
           )}
 
           <p className="text-xs text-slate-600">
-            Basado en los datos de TV - Servicio (GOTV + ViewTV, todas las organizaciones). Con más meses cargados la proyección es más precisa.
+            Basado en los últimos 3 registros cargados en TV - Servicio (GOTV + ViewTV, todas las organizaciones).
           </p>
         </div>
 

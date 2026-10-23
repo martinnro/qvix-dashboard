@@ -73,6 +73,7 @@ export async function GET() {
         INNER JOIN DISPOSITIVOS d WITH (NOLOCK) ON d.id_dispositivo = im.id_dispositivo
         WHERE im.id_incidencia IN (${allIds.join(",")})
         GROUP BY im.id_incidencia, d.nombre_dispositivo
+        HAVING SUM(im.cantidad) > 0
         ORDER BY im.id_incidencia, SUM(im.cantidad) DESC
       `);
       for (const m of matResult.recordset) {

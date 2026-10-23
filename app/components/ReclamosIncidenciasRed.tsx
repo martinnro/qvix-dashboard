@@ -682,6 +682,7 @@ interface AnalisisRow {
   id_incidencia: number;
   conexion: string;
   cod_sucursal: number;
+  id_problema: number | null;
   estado_incidencia: number;
   problema: string | null;
   problema_detalle: string | null;
@@ -693,6 +694,9 @@ interface AnalisisRow {
   solucion: string | null;
   fecha: string;
   dias: number;
+  dias_resolucion: number;
+  reclamos_mes: number;
+  reincidencia_mismo_problema: number;
   materiales: Array<{ material: string; cantidad: number }>;
 }
 
@@ -852,7 +856,7 @@ function AnalisisPanel({ onBack, onClose }: { onBack: () => void; onClose: () =>
                   <tbody>
                     {filtered.map((r) => {
                       const abierto = expandido.has(r.id_incidencia);
-                      const { bg, text } = diasColor(r.dias);
+                      const { bg, text } = diasColor(r.dias_resolucion);
                       const { label: estLabel, cls: estCls } = estadoInfo(r.estado_incidencia);
                       const esDañado = r.problema?.toUpperCase().includes("DAÑADO") ?? false;
                       const tieneExtra = !!r.problema || !!r.problema_detalle?.trim() || !!r.observaciones?.trim() || !!r.obs_cierre?.trim() || !!r.solucion || r.materiales.length > 0;
@@ -865,7 +869,25 @@ function AnalisisPanel({ onBack, onClose }: { onBack: () => void; onClose: () =>
                             <td className="py-2 px-3 text-center">
                               {tieneExtra && <ChevronDown size={13} className={`text-slate-500 transition-transform ${abierto ? "rotate-180" : ""}`} />}
                             </td>
-                            <td className="py-2 px-3 font-mono text-slate-200">{r.conexion}</td>
+                            <td className="py-2 px-3 font-mono text-slate-200">
+                              <div className="flex flex-col gap-1">
+                                <span>{r.conexion}</span>
+                                {(r.reclamos_mes > 1 || r.reincidencia_mismo_problema > 1) && (
+                                  <div className="flex gap-1 flex-wrap">
+                                    {r.reclamos_mes > 1 && (
+                                      <span className="px-1.5 py-0.5 rounded-full bg-orange-500/20 text-orange-400 text-[10px] font-bold leading-none">
+                                        {r.reclamos_mes}× mes
+                                      </span>
+                                    )}
+                                    {r.reincidencia_mismo_problema > 1 && (
+                                      <span className="px-1.5 py-0.5 rounded-full bg-red-500/20 text-red-400 text-[10px] font-bold leading-none">
+                                        {r.reincidencia_mismo_problema}× mismo
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
                             <td className="py-2 px-3 text-slate-400">{SUC_LABEL[r.cod_sucursal] ?? `Suc.${r.cod_sucursal}`}</td>
                             <td className="py-2 px-3">
                               <span className={`px-2 py-0.5 rounded-full ${estCls}`}>{estLabel}</span>
@@ -877,7 +899,12 @@ function AnalisisPanel({ onBack, onClose }: { onBack: () => void; onClose: () =>
                             <td className="py-2 px-3 text-slate-400 max-w-[120px] truncate">{r.usuario_carga ?? "—"}</td>
                             <td className="py-2 px-3 text-slate-400">{r.fecha}</td>
                             <td className="py-2 px-3 text-right">
-                              <span className={`px-2 py-0.5 rounded-full font-semibold ${bg} ${text}`}>{r.dias}d</span>
+                              <div className="flex items-center justify-end gap-1.5">
+                                {r.dias_resolucion >= 7 && (
+                                  <Clock size={12} className="text-orange-400 flex-shrink-0" />
+                                )}
+                                <span className={`px-2 py-0.5 rounded-full font-semibold ${bg} ${text}`}>{r.dias_resolucion}d</span>
+                              </div>
                             </td>
                           </tr>
                           {abierto && tieneExtra && (

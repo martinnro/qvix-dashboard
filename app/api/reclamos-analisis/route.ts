@@ -22,6 +22,7 @@ export async function GET() {
         ih.id_incidencia,
         ih.id_conexion                                AS conexion,
         id.cod_sucursal,
+        id.id_problema,
         ih.estado_incidencia,
         ps.problema_descripcion                       AS problema,
         id.problema_detalle,
@@ -32,11 +33,16 @@ export async function GET() {
         ih.observacion_solucion                       AS obs_cierre,
         sol.solucion,
         CONVERT(VARCHAR, ih.fecha_carga, 5)           AS fecha,
-        DATEDIFF(DAY, ih.fecha_carga, GETDATE())      AS dias
+        DATEDIFF(DAY, ih.fecha_carga, GETDATE())      AS dias,
+        CASE
+          WHEN ih.estado_incidencia >= 3 AND vos.fecha_solucion IS NOT NULL
+          THEN DATEDIFF(DAY, ih.fecha_carga, vos.fecha_solucion)
+          ELSE DATEDIFF(DAY, ih.fecha_carga, GETDATE())
+        END                                           AS dias_resolucion
       FROM incidencias_header ih WITH (NOLOCK)
       LEFT JOIN incidencias_detalle id   WITH (NOLOCK) ON id.id_incidencia = ih.id_incidencia
       OUTER APPLY (
-        SELECT TOP 1 o.id_cuadrilla
+        SELECT TOP 1 o.id_cuadrilla, o.fecha_solucion
         FROM v_ordenes_servicios o WITH (NOLOCK)
         WHERE o.id_incidencia = ih.id_incidencia
         ORDER BY o.id_Orden_Servicio DESC
@@ -81,8 +87,39 @@ export async function GET() {
       }
     }
 
+    // Conteo mensual por conexión para detectar reincidencias
+    const mesMap = new Map<number, { total: number; byProblema: Map<number | null, number> }>();
+    if (rows.length > 0) {
+      const uniqueConexiones = [...new Set(rows.map((r) => Number(r.conexion)))];
+      const mesResult = await pool.request().query(`
+        SELECT ih.id_conexion, id.id_problema, COUNT(*) AS cnt
+        FROM incidencias_header ih WITH (NOLOCK)
+        LEFT JOIN incidencias_detalle id WITH (NOLOCK) ON id.id_incidencia = ih.id_incidencia
+        WHERE ih.tipo_incidencia = 2
+          AND ih.fecha_carga >= DATEADD(DAY, 1-DAY(GETDATE()), CAST(GETDATE() AS DATE))
+          AND ih.id_conexion IN (${uniqueConexiones.join(",")})
+        GROUP BY ih.id_conexion, id.id_problema
+      `);
+      for (const m of mesResult.recordset) {
+        const conn = Number(m.id_conexion);
+        if (!mesMap.has(conn)) mesMap.set(conn, { total: 0, byProblema: new Map() });
+        const entry = mesMap.get(conn)!;
+        entry.total += m.cnt;
+        entry.byProblema.set(m.id_problema ?? null, (entry.byProblema.get(m.id_problema ?? null) ?? 0) + m.cnt);
+      }
+    }
+
     return NextResponse.json(
-      rows.map((r) => ({ ...r, materiales: materialesMap[r.id_incidencia] ?? [] }))
+      rows.map((r) => {
+        const conn = Number(r.conexion);
+        const mesInfo = mesMap.get(conn);
+        return {
+          ...r,
+          materiales: materialesMap[r.id_incidencia] ?? [],
+          reclamos_mes: mesInfo?.total ?? 1,
+          reincidencia_mismo_problema: mesInfo?.byProblema.get(r.id_problema ?? null) ?? 1,
+        };
+      })
     );
   } catch (err: unknown) {
     console.error("[reclamos-analisis]", err);

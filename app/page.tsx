@@ -1,7 +1,7 @@
 "use client";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { FileDown, BarChart2, PlusCircle, Sheet, ChevronDown, Tv, BarChart3, History, LogOut } from "lucide-react";
+import { BarChart2, PlusCircle, ChevronDown, Tv, BarChart3, LogOut } from "lucide-react";
 import SummaryCards from "./components/SummaryCards";
 import EvolutionChart from "./components/EvolutionChart";
 import TotalesChart from "./components/TotalesChart";
@@ -13,7 +13,6 @@ import DonutChart from "./components/DonutChart";
 import ProjectionTable from "./components/ProjectionTable";
 import RankingTable from "./components/RankingTable";
 import AnalisisComparativo from "./components/AnalisisComparativo";
-import HistoryPanel from "./components/HistoryPanel";
 import ThemeToggle from "./components/ThemeToggle";
 import LicenciasView from "./components/LicenciasView";
 import SucursalesView from "./components/SucursalesView";
@@ -33,8 +32,6 @@ import TVPlanesView from "./components/TVPlanesView";
 import CampaniasWhatsappView from "./components/CampaniasWhatsappView";
 import SolicitudesConexionView from "./components/SolicitudesConexionView";
 import { buildOrgStats, buildSummaries, buildTotales } from "./lib/dataUtils";
-import { exportToPDF } from "./lib/exportPDF";
-import { exportToExcel } from "./lib/exportExcel";
 import { parseCSV } from "./lib/csvParser";
 import type { DataRow, Servicio } from "./lib/types";
 
@@ -68,7 +65,6 @@ function Home() {
   const [showTVPlanes, setShowTVPlanes]               = useState(false);
   const [showCampanias, setShowCampanias]             = useState(false);
   const [showSolicitudes, setShowSolicitudes]         = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
   const [analisisDesde, setAnalisisDesde] = useState("");
   const [analisisHasta, setAnalisisHasta] = useState("");
   const [sessionUser, setSessionUser] = useState<{
@@ -263,17 +259,6 @@ function Home() {
                   <button onClick={() => { goHome(); setShowBajasQvix(true); setShowTVMenu(false); }} className={menuItem}>
                     <Tv size={14} className="text-rose-400 flex-shrink-0" /> Bajas QVIX
                   </button>
-                  <button onClick={() => { setShowHistory(true); setShowTVMenu(false); }} className={menuItem}>
-                    <History size={14} className="text-slate-400 flex-shrink-0" /> Historial de cambios
-                  </button>
-                  {hasData && <>
-                    <button onClick={() => { exportToExcel(filteredRows, filteredOrgStats, servicio); setShowTVMenu(false); }} className={menuItem}>
-                      <Sheet size={14} className="text-teal-400 flex-shrink-0" /> Exportar Excel
-                    </button>
-                    <button onClick={() => { exportToPDF(filteredRows, filteredOrgStats, servicio); setShowTVMenu(false); }} className={menuItem}>
-                      <FileDown size={14} className="text-emerald-400 flex-shrink-0" /> Exportar PDF
-                    </button>
-                  </>}
                 </div>
               )}
             </div>}
@@ -428,7 +413,6 @@ function Home() {
       </header>
 
       {/* Historial flotante */}
-      <HistoryPanel open={showHistory} onClose={() => setShowHistory(false)} onRestored={loadData} />
 
       {showLicencias && (
         <LicenciasView

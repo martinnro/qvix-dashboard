@@ -690,6 +690,7 @@ interface AnalisisRow {
   usuario_carga: string | null;
   observaciones: string | null;
   obs_cierre: string | null;
+  solucion: string | null;
   fecha: string;
   dias: number;
   materiales: Array<{ material: string; cantidad: number }>;
@@ -854,7 +855,7 @@ function AnalisisPanel({ onBack, onClose }: { onBack: () => void; onClose: () =>
                       const { bg, text } = diasColor(r.dias);
                       const { label: estLabel, cls: estCls } = estadoInfo(r.estado_incidencia);
                       const esDañado = r.problema?.toUpperCase().includes("DAÑADO") ?? false;
-                      const tieneExtra = !!r.problema || !!r.problema_detalle?.trim() || !!r.observaciones?.trim() || !!r.obs_cierre?.trim() || r.materiales.length > 0;
+                      const tieneExtra = !!r.problema || !!r.problema_detalle?.trim() || !!r.observaciones?.trim() || !!r.obs_cierre?.trim() || !!r.solucion || r.materiales.length > 0;
                       return (
                         <React.Fragment key={r.id_incidencia}>
                           <tr
@@ -893,6 +894,12 @@ function AnalisisPanel({ onBack, onClose }: { onBack: () => void; onClose: () =>
                                     <div>
                                       <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Detalle del cliente</p>
                                       <p className="text-sm text-slate-200 leading-relaxed whitespace-pre-wrap">{r.problema_detalle}</p>
+                                    </div>
+                                  )}
+                                  {r.solucion && (
+                                    <div>
+                                      <p className="text-xs text-slate-500 uppercase tracking-wider mb-1">Solución</p>
+                                      <p className="text-sm font-medium text-emerald-400">{r.solucion}</p>
                                     </div>
                                   )}
                                   {r.observaciones?.trim() && (

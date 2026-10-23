@@ -30,6 +30,7 @@ export async function GET() {
         u.desc_usr                                    AS usuario_carga,
         ih.observaciones,
         vos.obs_cierre,
+        sol.solucion,
         CONVERT(VARCHAR, ih.fecha_carga, 5)           AS fecha,
         DATEDIFF(DAY, ih.fecha_carga, GETDATE())      AS dias
       FROM incidencias_header ih WITH (NOLOCK)
@@ -41,6 +42,13 @@ export async function GET() {
         WHERE o.id_incidencia = ih.id_incidencia
         ORDER BY o.id_Orden_Servicio DESC
       ) vos
+      OUTER APPLY (
+        SELECT TOP 1 ta.asistencia AS solucion
+        FROM incidencias_soluciones is2 WITH (NOLOCK)
+        LEFT JOIN tipo_asistencia ta WITH (NOLOCK) ON ta.tipo_asistencia = is2.tipo_asistencia
+        WHERE is2.id_incidencia = ih.id_incidencia
+        ORDER BY is2.fecha_carga DESC
+      ) sol
       LEFT JOIN problemas ps             WITH (NOLOCK) ON ps.id_problema  = id.id_problema
       LEFT JOIN cuadrillas cu            WITH (NOLOCK) ON cu.id_cuadrilla = vos.id_cuadrilla
       LEFT JOIN usuarios u               WITH (NOLOCK) ON u.id_usuario    = ih.id_usuario
@@ -52,14 +60,10 @@ export async function GET() {
 
     const rows = result.recordset;
 
-    // Materiales para los reclamos cerrados (estado 3)
-    const cerradasIds = rows
-      .filter((r) => r.estado_incidencia >= 3)
-      .map((r) => r.id_incidencia as number);
-
     const materialesMap: Record<number, Array<{ material: string; cantidad: number }>> = {};
 
-    if (cerradasIds.length > 0) {
+    if (rows.length > 0) {
+      const allIds = rows.map((r) => r.id_incidencia as number);
       const matResult = await pool.request().query(`
         SELECT
           im.id_incidencia,
@@ -67,8 +71,7 @@ export async function GET() {
           SUM(im.cantidad)      AS cantidad
         FROM incidencias_materiales im WITH (NOLOCK)
         INNER JOIN DISPOSITIVOS d WITH (NOLOCK) ON d.id_dispositivo = im.id_dispositivo
-        WHERE im.id_incidencia IN (${cerradasIds.join(",")})
-          AND im.cantidad > 0
+        WHERE im.id_incidencia IN (${allIds.join(",")})
         GROUP BY im.id_incidencia, d.nombre_dispositivo
         ORDER BY im.id_incidencia, SUM(im.cantidad) DESC
       `);

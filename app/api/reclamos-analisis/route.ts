@@ -29,16 +29,15 @@ export async function GET() {
         ih.id_usuario                                 AS usuario_id,
         u.desc_usr                                    AS usuario_carga,
         ih.observaciones,
-        vos.obs_cierre,
+        ih.observacion_solucion                       AS obs_cierre,
         sol.solucion,
         CONVERT(VARCHAR, ih.fecha_carga, 5)           AS fecha,
         DATEDIFF(DAY, ih.fecha_carga, GETDATE())      AS dias
       FROM incidencias_header ih WITH (NOLOCK)
       LEFT JOIN incidencias_detalle id   WITH (NOLOCK) ON id.id_incidencia = ih.id_incidencia
       OUTER APPLY (
-        SELECT TOP 1 o.id_cuadrilla, os.observacion AS obs_cierre
+        SELECT TOP 1 o.id_cuadrilla
         FROM v_ordenes_servicios o WITH (NOLOCK)
-        LEFT JOIN ordenes_servicios os WITH (NOLOCK) ON os.id_orden_servicio = o.id_Orden_Servicio
         WHERE o.id_incidencia = ih.id_incidencia
         ORDER BY o.id_Orden_Servicio DESC
       ) vos

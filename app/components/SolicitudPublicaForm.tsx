@@ -345,18 +345,18 @@ export default function SolicitudPublicaForm({
                       WebkitBackfaceVisibility: "hidden",
                     }}
                   >
-                    <div className="relative w-full px-5 pt-3 pb-3.5 flex items-center justify-between" style={{ backgroundColor: PURPLE_DARK }}>
-                      <span className="inline-block px-3 py-0.5 rounded-full text-[11px] font-semibold" style={{ backgroundColor: ACCENT, color: PURPLE_DARK }}>
-                        {esTv ? "TV" : form.go_tv ? <>Internet + <strong>GOtv</strong></> : "Internet"}
-                      </span>
-                      <span className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-200 ${activo ? "scale-110" : "scale-100"}`}
-                        style={{ border: `2px solid ${activo ? ACCENT : "rgba(255,255,255,0.5)"}`, backgroundColor: activo ? ACCENT : "transparent" }}
-                      >
-                        {activo && <Check size={12} style={{ color: PURPLE_DARK }} strokeWidth={3} />}
-                      </span>
-                    </div>
-                    <div className="relative w-full px-5 pb-2" style={{ backgroundColor: PURPLE_DARK }}>
-                      <h3 className="text-white font-semibold text-lg">
+                    <div className="relative w-full px-5 pt-3 pb-2" style={{ backgroundColor: PURPLE_DARK }}>
+                      <div className="flex items-center justify-between">
+                        <span className="inline-block px-3 py-0.5 rounded-full text-[11px] font-semibold" style={{ backgroundColor: ACCENT, color: PURPLE_DARK }}>
+                          {esTv ? "TV" : form.go_tv ? <>Internet + <strong>GOtv</strong></> : "Internet"}
+                        </span>
+                        <span className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-200 ${activo ? "scale-110" : "scale-100"}`}
+                          style={{ border: `2px solid ${activo ? ACCENT : "rgba(255,255,255,0.5)"}`, backgroundColor: activo ? ACCENT : "transparent" }}
+                        >
+                          {activo && <Check size={12} style={{ color: PURPLE_DARK }} strokeWidth={3} />}
+                        </span>
+                      </div>
+                      <h3 className="text-white font-semibold text-lg mt-1.5">
                         {esTv ? plan.nombre : `Fibra ${partes ? partes[1] : plan.nombre}${partes?.[2] ? ` ${partes[2]}` : ""}`}
                       </h3>
                     </div>
@@ -548,7 +548,7 @@ export default function SolicitudPublicaForm({
       </form>
 
       {condicionesPlan && condicionesPlan.condiciones && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50" onClick={() => setCondicionesPlan(null)}>
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-slate-900/50" onClick={() => setCondicionesPlan(null)}>
           <div role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}
             className="relative w-full max-w-lg bg-white rounded-2xl shadow-xl p-6 sm:p-7"
           >

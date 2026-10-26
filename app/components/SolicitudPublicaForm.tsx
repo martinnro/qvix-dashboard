@@ -336,9 +336,11 @@ export default function SolicitudPublicaForm({
                 const instalacion = plan.incluye.find((it) => it.icono === "instalacion");
                 return (
                   <button key={plan.id} type="button" onClick={() => set("velocidad", activo ? "" : plan.nombre)}
-                    className={`relative w-full rounded-[20px] overflow-hidden text-left flex flex-col transform-gpu transition-all duration-200 ease-out hover:-translate-y-1.5 active:scale-[0.98] active:duration-75 ${activo ? "-translate-y-1.5" : ""}`}
+                    className={`relative w-full rounded-[20px] overflow-hidden text-left flex flex-col transform-gpu transition-all duration-200 ease-out hover:-translate-y-1.5 active:scale-[0.98] active:duration-75 ${
+                      activo ? "-translate-y-1.5" : "shadow-[0_1px_2px_rgba(0,0,0,0.05)] hover:shadow-[0_24px_40px_-24px_rgba(46,18,82,0.45)]"
+                    }`}
                     style={{
-                      boxShadow: activo ? `0 24px 40px -24px ${PURPLE_DARK}73` : "0 1px 2px rgba(0,0,0,0.05)",
+                      boxShadow: activo ? `0 24px 40px -24px ${PURPLE_DARK}73` : undefined,
                       outline: activo ? `2px solid ${PURPLE}` : "2px solid transparent",
                       outlineOffset: 2,
                       WebkitTransform: "translateZ(0)",
@@ -395,8 +397,8 @@ export default function SolicitudPublicaForm({
                       {plan.precio > 0 && (
                         <div className="mt-auto">
                           <div className="flex items-end justify-center gap-1 pt-1 pb-1">
-                            <span className="text-xl font-semibold mt-2.5" style={{ color: PURPLE_DARK }}>$</span>
-                            <span className="text-5xl font-medium leading-none tracking-tight" style={{ color: PURPLE_DARK }}>
+                            <span className="text-xl font-extrabold mt-2.5" style={{ color: PURPLE_DARK }}>$</span>
+                            <span className="text-5xl font-extrabold leading-none" style={{ color: PURPLE_DARK, letterSpacing: "-2px" }}>
                               {Math.round(plan.precio).toLocaleString("es-AR")}
                             </span>
                             <span className="text-sm font-medium mt-2.5" style={{ color: PURPLE_DARK }}>/mes</span>

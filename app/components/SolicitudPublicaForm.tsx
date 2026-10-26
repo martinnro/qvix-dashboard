@@ -1,8 +1,13 @@
 "use client";
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
-import { Loader2, CheckCircle2, AlertCircle, Wifi, MapPin, Check, Plus, Film, Box, Monitor, Wrench, Tag, Info, ChevronDown, ArrowDown, ArrowUp, FileText, X, Tv } from "lucide-react";
+import { Plus_Jakarta_Sans } from "next/font/google";
+import { Loader2, CheckCircle2, AlertCircle, Wifi, MapPin, Check, Plus, ArrowDown, ArrowUp, FileText, X, Tv, Tag, ChevronRight, Film, Box, Monitor } from "lucide-react";
 import BurbujasDecorativas from "./BurbujasDecorativas";
+
+// Misma tipografía y paleta que el sitio institucional nuevo (repo ultranet-web, a cargo del
+// diseñador) — ver app/enlaces/page.tsx, portado desde ahí con el mismo criterio.
+const jakarta = Plus_Jakarta_Sans({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800"], display: "swap" });
 
 const UbicacionMapPicker = dynamic(() => import("./UbicacionMapPicker"), { ssr: false });
 
@@ -37,6 +42,10 @@ interface PlanItem {
   texto: string;
 }
 
+const ICONO_COMPONENTE: Record<IconoItem, React.ComponentType<{ size?: number; style?: React.CSSProperties }>> = {
+  film: Film, box: Box, monitor: Monitor, instalacion: Box,
+};
+
 interface PlanConexion {
   id: number;
   nombre: string;
@@ -48,24 +57,18 @@ interface PlanConexion {
   condiciones: string | null;
 }
 
-const ICONO_COMPONENTE: Record<IconoItem, React.ComponentType<{ size?: number; className?: string; style?: React.CSSProperties }>> = {
-  film: Film, box: Box, monitor: Monitor, instalacion: Wrench,
-};
-
 function pesos(n: number): string {
   return n.toLocaleString("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 }
 
-// Paleta tomada de ultranet.com.ar
-const MORADO = "#3D1263";
-const MORADO_CLARO = "#5B2A8A";
-const CIAN = "#22C3DC";
-// Paleta específica de la tarjeta de plan (tomada por muestreo del modelo de referencia) —
-// ahí no aparece el cian en ningún lado, es toda violeta/morado.
-const TARJETA_MORADO = "#3B0E67";
-const TARJETA_MORADO_CLARO = "#612BB1";
-const TARJETA_VIOLETA_BADGE_1 = "#7C22D0";
-const TARJETA_VIOLETA_BADGE_2 = "#822AE5";
+// Misma paleta que app/enlaces/page.tsx, tomada del repo real ultranet-web (variables :root de
+// su CSS) — ya no la paleta del mockup suelto que se usó antes de tener el repo del diseñador.
+const PURPLE_DARK = "#2E1252";
+const PURPLE = "#6B3FA0";
+const ACCENT = "#3FE0F5";
+const TEAL_SOFT = "#D3F4FA";
+const TEAL_DARK = "#008AAA";
+const LILAC_SOFT = "#EBE1F7";
 
 interface FormState {
   cod_sucursal: number | null;
@@ -102,7 +105,7 @@ const initialState: FormState = {
 };
 
 const inputClass = "w-full bg-white border border-slate-300 rounded-lg px-3.5 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 transition-shadow";
-const inputStyle = { "--tw-ring-color": CIAN } as React.CSSProperties;
+const inputStyle = { "--tw-ring-color": ACCENT } as React.CSSProperties;
 const labelClass = "block text-xs font-medium text-slate-500 mb-1.5";
 
 function Field({ label, children, required }: { label: string; children: React.ReactNode; required?: boolean }) {
@@ -203,7 +206,7 @@ export default function SolicitudPublicaForm({
 
   if (enviado) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-6" style={{ background: `linear-gradient(135deg, ${MORADO}, ${MORADO_CLARO})` }}>
+      <div className={`${jakarta.className} min-h-screen flex items-center justify-center px-6`} style={{ background: PURPLE_DARK }}>
         <div className="max-w-md text-center">
           <div className="w-16 h-16 rounded-full bg-white/15 flex items-center justify-center mx-auto mb-5">
             <CheckCircle2 size={34} className="text-white" />
@@ -227,22 +230,22 @@ export default function SolicitudPublicaForm({
   // formulario — pensado para un QR expuesto en un evento con gente de distintas localidades.
   if (sucursalInicial === null && !form.cod_sucursal) {
     return (
-      <div className="relative overflow-hidden min-h-screen flex items-center" style={{ background: `linear-gradient(135deg, ${MORADO}, ${MORADO_CLARO})` }}>
+      <div className={`${jakarta.className} relative overflow-hidden min-h-screen flex items-center`} style={{ background: PURPLE_DARK }}>
         <BurbujasDecorativas />
         <div className="relative px-4 py-14 text-center w-full">
           <div className="relative">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/ultranet-logo.png" alt="Ultranet — Internet a Ultra Velocidad" className="mx-auto" style={{ width: 220 }} />
+            <img src="/ultranet-logo-blanco.svg" alt="Ultranet — Internet a Ultra Velocidad" className="mx-auto" style={{ width: 220 }} />
             <p className="text-white/80 text-sm mt-7 mb-4">Por favor, seleccioná tu localidad para continuar</p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-w-lg mx-auto">
               {sucursalesDisponibles.map((cod) => (
                 <button key={cod} type="button" onClick={() => set("cod_sucursal", cod)}
                   className="flex items-center rounded-full overflow-hidden text-left transition-transform hover:scale-[1.03]"
                 >
-                  <span className="flex items-center justify-center px-3 py-3" style={{ backgroundColor: CIAN }}>
-                    <MapPin size={16} className="text-white" />
+                  <span className="flex items-center justify-center px-3 py-3" style={{ backgroundColor: ACCENT }}>
+                    <MapPin size={16} style={{ color: PURPLE_DARK }} />
                   </span>
-                  <span className="flex-1 px-3 py-2 text-left" style={{ backgroundColor: "#1F0A38" }}>
+                  <span className="flex-1 px-3 py-2 text-left" style={{ backgroundColor: "rgba(255,255,255,0.1)" }}>
                     <span className="block text-white font-bold text-xs leading-tight">{SUCURSALES[cod]}</span>
                     <span className="block text-white/50 text-[10px] italic">Catamarca</span>
                   </span>
@@ -256,25 +259,25 @@ export default function SolicitudPublicaForm({
   }
 
   return (
-    <div className="min-h-screen bg-[#f7f5fb]">
+    <div className={`${jakarta.className} min-h-screen bg-white`}>
       {/* Hero morado */}
-      <div className="relative overflow-hidden px-4 pt-10 pb-12 sm:pb-16 text-center" style={{ background: `linear-gradient(135deg, ${MORADO}, ${MORADO_CLARO})` }}>
+      <div className="relative overflow-hidden px-4 pt-10 pb-12 sm:pb-16 text-center" style={{ background: PURPLE_DARK }}>
         <BurbujasDecorativas />
         <div className="relative">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/ultranet-logo.png" alt="Ultranet — Internet a Ultra Velocidad" className="mx-auto" style={{ width: 220 }} />
+          <img src="/ultranet-logo-blanco.svg" alt="Ultranet — Internet a Ultra Velocidad" className="mx-auto" style={{ width: 220 }} />
 
           {sucursalInicial === null ? (
             <button type="button" onClick={() => set("cod_sucursal", null)}
               className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 rounded-full px-4 py-2 mt-7 transition-colors"
             >
-              <MapPin size={15} style={{ color: CIAN }} />
+              <MapPin size={15} style={{ color: ACCENT }} />
               <span className="text-white text-sm font-semibold">{SUCURSALES[form.cod_sucursal as number]}, Catamarca</span>
               <span className="text-white/60 text-xs underline underline-offset-2">Cambiar</span>
             </button>
           ) : (
             <div className="inline-flex items-center gap-2 bg-white/10 rounded-full px-4 py-2 mt-7">
-              <MapPin size={15} style={{ color: CIAN }} />
+              <MapPin size={15} style={{ color: ACCENT }} />
               <span className="text-white text-sm font-semibold">{SUCURSALES[form.cod_sucursal as number]}, Catamarca</span>
             </div>
           )}
@@ -287,7 +290,7 @@ export default function SolicitudPublicaForm({
           <h2 className="text-2xl font-extrabold text-slate-900 text-center mb-4">{soloTv ? "Sumá la TV a tu internet" : "Elegí tu plan"}</h2>
 
           <div className="flex justify-center mb-5">
-            <div className="inline-flex bg-slate-200 rounded-full p-1">
+            <div className="inline-flex rounded-full p-1" style={{ backgroundColor: "#F1F1F1" }}>
               <button type="button" onClick={() => { setSoloTv(false); setForm((f) => ({ ...f, go_tv: true, velocidad: "" })); }}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-full text-xs sm:text-sm font-bold transition-colors"
                 style={go_tv_style(form.go_tv && !soloTv, true)}
@@ -328,126 +331,92 @@ export default function SolicitudPublicaForm({
                 const instalacion = plan.incluye.find((it) => it.icono === "instalacion");
                 return (
                   <button key={plan.id} type="button" onClick={() => set("velocidad", activo ? "" : plan.nombre)}
-                    className={`relative w-full rounded-2xl overflow-hidden text-left flex flex-col bg-white transform-gpu transition-all duration-200 ease-out hover:-translate-y-0.5 active:scale-[0.97] active:duration-75 ${activo ? "-translate-y-0.5" : ""}`}
+                    className={`relative w-full rounded-[20px] overflow-hidden text-left flex flex-col transform-gpu transition-all duration-200 ease-out hover:-translate-y-1.5 active:scale-[0.98] active:duration-75 ${activo ? "-translate-y-1.5" : ""}`}
                     style={{
-                      border: `2px solid ${activo ? TARJETA_MORADO_CLARO : "#e2e8f0"}`,
-                      boxShadow: activo ? `0 10px 25px -8px ${TARJETA_MORADO_CLARO}80` : "0 1px 2px rgba(0,0,0,0.05)",
+                      boxShadow: activo ? `0 24px 40px -24px ${PURPLE_DARK}73` : "0 1px 2px rgba(0,0,0,0.05)",
+                      outline: activo ? `2px solid ${PURPLE}` : "2px solid transparent",
+                      outlineOffset: 2,
                       WebkitTransform: "translateZ(0)",
                       WebkitBackfaceVisibility: "hidden",
                     }}
                   >
-                    {/* Header recto, sin curva — más simple y sin riesgo de que el recorte tape algo. */}
-                    <div className="relative w-full overflow-hidden px-5 pt-4 pb-5" style={{ background: `linear-gradient(135deg, ${TARJETA_MORADO}, ${TARJETA_MORADO_CLARO})` }}>
-                      {esTv
-                        ? <Tv size={80} strokeWidth={1.5} className="absolute top-4 right-2 text-white/15 pointer-events-none" />
-                        : <Wifi size={80} strokeWidth={1.5} className="absolute top-4 right-2 text-white/15 pointer-events-none" />}
-                      <div className="relative flex items-start justify-between">
-                        <span className="inline-block px-3 py-1 rounded-full text-[11px] font-bold text-white tracking-wide uppercase"
-                          style={{ background: `linear-gradient(135deg, ${TARJETA_VIOLETA_BADGE_1}, ${TARJETA_VIOLETA_BADGE_2})` }}
-                        >
-                          {esTv ? "TV" : form.go_tv ? "Doble Play" : "Solo Internet"}
-                        </span>
-                        <span className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-200 ${activo ? "scale-110" : "scale-100"}`}
-                          style={{ border: `2px solid ${activo ? CIAN : "rgba(255,255,255,0.6)"}`, backgroundColor: activo ? CIAN : "transparent" }}
-                        >
-                          {activo && <Check size={14} className="text-white" strokeWidth={3} style={{ animation: "plan-check-pop 0.25s ease-out" }} />}
-                        </span>
-                      </div>
-                      <div className="relative flex items-baseline gap-2 mt-3">
-                        <span className={`font-extrabold leading-none text-white ${esTv ? "text-xl" : "text-5xl"}`}>{partes ? partes[1] : plan.nombre}</span>
-                        {partes && partes[2] && (
-                          <span className="text-sm font-bold text-white px-2 py-1 rounded-md" style={{ backgroundColor: CIAN }}>{partes[2]}</span>
-                        )}
-                      </div>
+                    <div className="relative w-full px-5 pt-3 pb-3.5 flex items-center justify-between" style={{ backgroundColor: PURPLE_DARK }}>
+                      <span className="inline-block px-3 py-0.5 rounded-full text-[11px] font-semibold" style={{ backgroundColor: ACCENT, color: PURPLE_DARK }}>
+                        {esTv ? "TV" : form.go_tv ? <>Internet + <strong>GOtv</strong></> : "Solo Internet"}
+                      </span>
+                      <span className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-200 ${activo ? "scale-110" : "scale-100"}`}
+                        style={{ border: `2px solid ${activo ? ACCENT : "rgba(255,255,255,0.5)"}`, backgroundColor: activo ? ACCENT : "transparent" }}
+                      >
+                        {activo && <Check size={12} style={{ color: PURPLE_DARK }} strokeWidth={3} />}
+                      </span>
+                    </div>
+                    <div className="relative w-full px-5 pb-2" style={{ backgroundColor: PURPLE_DARK }}>
+                      <h3 className="text-white font-semibold text-lg">
+                        {esTv ? plan.nombre : `Fibra ${partes ? partes[1] : plan.nombre}${partes?.[2] ? ` ${partes[2]}` : ""}`}
+                      </h3>
                     </div>
 
-                    <div className="px-5 pt-3 pb-4 flex-1 flex flex-col">
-                      <div className="flex items-center justify-between gap-2">
-                        <div>
-                          <p className="text-slate-800 text-sm font-bold">{esTv ? plan.nombre : `FTTH Internet${form.go_tv ? " + TV" : ""}${partes ? "" : ` ${plan.nombre}`}`}</p>
-                          {partes && (
-                            <div className="flex items-center gap-2 mt-1 text-sm font-bold" style={{ color: TARJETA_MORADO }}>
-                              <span className="inline-flex items-center gap-0.5"><ArrowDown size={14} />{partes[1]} Mb</span>
-                              <span className="w-px h-4 bg-slate-200" />
-                              <span className="inline-flex items-center gap-0.5"><ArrowUp size={14} />{Math.round(Number(partes[1]) * 0.1)} Mb</span>
-                            </div>
-                          )}
+                    <div className="px-5 pt-4 pb-4 flex-1 flex flex-col" style={{ backgroundColor: LILAC_SOFT }}>
+                      {partes && (
+                        <div className="flex items-center gap-2 mb-3 text-sm font-bold" style={{ color: PURPLE_DARK }}>
+                          <span className="inline-flex items-center gap-0.5"><ArrowDown size={14} />{partes[1]} Mb</span>
+                          <span className="w-px h-4" style={{ backgroundColor: "rgba(46,18,82,0.2)" }} />
+                          <span className="inline-flex items-center gap-0.5"><ArrowUp size={14} />{Math.round(Number(partes[1]) * 0.1)} Mb</span>
                         </div>
-                        {form.go_tv && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src="/gotv-logo.png" alt="GO TV" className="w-auto flex-shrink-0" style={{ height: 22 }} />
-                        )}
-                      </div>
+                      )}
 
                       {itemsGrid.length > 0 && (
-                        <>
-                          <div className="border-t border-slate-100 my-3" />
-                          <div className="grid grid-cols-3 gap-2">
-                            {itemsGrid.map((item, i) => {
-                              const Icono = ICONO_COMPONENTE[item.icono];
-                              return (
-                                <div key={i} className="flex items-start gap-1.5 min-w-0">
-                                  <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#f1eef6" }}>
-                                    <Icono size={12} style={{ color: TARJETA_MORADO }} />
-                                  </div>
-                                  <div className="min-w-0">
-                                    <p className="text-[11px] font-bold text-slate-800 leading-tight whitespace-nowrap">{item.titulo}</p>
-                                    {item.texto && <p className="text-[10px] text-slate-500 leading-snug text-balance">{item.texto}</p>}
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </>
+                        <ul className="space-y-1.5 mb-3">
+                          {itemsGrid.map((item, i) => {
+                            const Icono = ICONO_COMPONENTE[item.icono];
+                            return (
+                              <li key={i} className="flex items-start gap-2 text-sm">
+                                <span className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#fff" }}>
+                                  <Icono size={11} style={{ color: PURPLE_DARK }} />
+                                </span>
+                                <span><strong>{item.titulo}</strong>{item.texto ? `: ${item.texto}` : ""}</span>
+                              </li>
+                            );
+                          })}
+                        </ul>
                       )}
 
                       {instalacion && (
-                        <div className="mt-3 rounded-2xl px-4 py-3 flex items-center gap-3" style={{ backgroundColor: "#ebf8ee" }}>
-                          <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#bfedc3" }}>
-                            <Wrench size={17} style={{ color: "#004100" }} />
-                          </div>
-                          <p className="text-sm font-bold leading-tight" style={{ color: "#002800" }}>{instalacion.titulo}</p>
-                          {instalacion.texto && (
-                            <>
-                              <div className="w-px self-stretch" style={{ backgroundColor: "#055608" }} />
-                              <p className="text-xs leading-snug" style={{ color: "#334155" }}>{instalacion.texto}</p>
-                            </>
-                          )}
-                        </div>
+                        <span className="inline-flex self-start items-center gap-1.5 text-xs font-semibold px-3.5 py-1 rounded-full mb-3" style={{ backgroundColor: ACCENT, color: PURPLE_DARK }}>
+                          − {instalacion.titulo}
+                        </span>
                       )}
 
                       {plan.precio > 0 && (
                         <div className="mt-auto">
-                          <div className="border-t border-slate-100 my-3" />
-                          <div className="flex items-end justify-between gap-3">
-                            <div>
-                              <span className="inline-block px-2.5 py-0.5 rounded-md text-[11px] font-bold text-white uppercase tracking-wide" style={{ backgroundColor: "#f6549b" }}>Promo</span>
-                              <div className="flex items-baseline gap-1.5 mt-1">
-                                <span className="text-3xl font-extrabold leading-none" style={{ color: TARJETA_MORADO }}>{pesos(plan.precio)}</span>
-                                <span className="text-sm text-slate-500">por mes</span>
-                              </div>
-                            </div>
-                            {plan.precio_lista !== null && plan.precio_lista > plan.precio && (
-                              <div className="flex flex-col items-end gap-1.5 pl-3 border-l border-slate-200">
-                                <span className="text-xs text-slate-400">Precio de lista: <span className="text-sm line-through">{pesos(plan.precio_lista)}</span></span>
-                                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap" style={{ backgroundColor: "#fde5ef", color: "#dd0054" }}>
-                                  <Tag size={14} style={{ color: "#e40056" }} />
-                                  Ahorrás {pesos(plan.precio_lista - plan.precio)}
-                                </span>
-                              </div>
-                            )}
+                          <div className="flex items-end justify-center gap-1 pt-1 pb-1">
+                            <span className="text-xl font-semibold mt-2.5" style={{ color: PURPLE_DARK }}>$</span>
+                            <span className="text-5xl font-medium leading-none tracking-tight" style={{ color: PURPLE_DARK }}>
+                              {Math.round(plan.precio).toLocaleString("es-AR")}
+                            </span>
+                            <span className="text-sm font-medium mt-2.5" style={{ color: PURPLE_DARK }}>/mes</span>
                           </div>
+                          {plan.precio_lista !== null && plan.precio_lista > plan.precio && (
+                            <div className="flex items-center justify-center gap-2 text-xs mb-2" style={{ color: "#8A8798" }}>
+                              Precio de lista <span className="line-through">{pesos(plan.precio_lista)}</span>
+                              <span className="inline-flex items-center gap-1 font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: TEAL_SOFT, color: TEAL_DARK }}>
+                                <Tag size={11} /> ahorrás {pesos(plan.precio_lista - plan.precio)}
+                              </span>
+                            </div>
+                          )}
                           {plan.condiciones && (
                             <span
                               role="button"
                               tabIndex={0}
                               onClick={(e) => { e.stopPropagation(); e.preventDefault(); setCondicionesPlan(plan); }}
                               onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); e.preventDefault(); setCondicionesPlan(plan); } }}
-                              className="mt-3 inline-flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 cursor-pointer"
+                              className="flex items-center justify-center gap-1 text-[13.5px] font-semibold cursor-pointer hover:opacity-75 transition-opacity"
+                              style={{ color: PURPLE_DARK }}
                             >
-                              <Info size={14} />
-                              <span className="underline underline-offset-2">Ver condiciones de la promoción</span>
-                              <ChevronDown size={14} />
+                              Ver tarifas y condiciones
+                              <span className="w-[22px] h-[22px] rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#8A8798" }}>
+                                <ChevronRight size={12} className="text-white" />
+                              </span>
                             </span>
                           )}
                         </div>
@@ -464,17 +433,17 @@ export default function SolicitudPublicaForm({
               que una tarjeta — para que no pase desapercibida como un link chico */}
           <button type="button" onClick={() => set("velocidad", form.velocidad === "Otra" ? "" : "Otra")}
             className={`relative w-full flex items-center gap-2.5 rounded-2xl border-2 border-dashed px-4 py-3.5 mt-3 transition-colors ${form.velocidad === "Otra" ? "" : "border-slate-300 hover:border-slate-400"}`}
-            style={form.velocidad === "Otra" ? { borderColor: MORADO, backgroundColor: "#faf8fc" } : undefined}
+            style={form.velocidad === "Otra" ? { borderColor: PURPLE_DARK, backgroundColor: "#faf8fc" } : undefined}
           >
-            <span className="flex items-center justify-center w-8 h-8 rounded-full flex-shrink-0" style={{ backgroundColor: form.velocidad === "Otra" ? CIAN : "#e2e8f0" }}>
-              <Plus size={18} className={form.velocidad === "Otra" ? "text-white" : "text-slate-500"} />
+            <span className="flex items-center justify-center w-8 h-8 rounded-full flex-shrink-0" style={{ backgroundColor: form.velocidad === "Otra" ? ACCENT : "#e2e8f0" }}>
+              <Plus size={18} className="text-slate-500" style={form.velocidad === "Otra" ? { color: PURPLE_DARK } : undefined} />
             </span>
-            <span className="text-sm font-bold" style={{ color: form.velocidad === "Otra" ? MORADO : "#475569" }}>
+            <span className="text-sm font-bold" style={{ color: form.velocidad === "Otra" ? PURPLE_DARK : "#475569" }}>
               ¿Necesitás otra velocidad? Contanos cuál
             </span>
             {form.velocidad === "Otra" && (
-              <span className="ml-auto w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: CIAN }}>
-                <Check size={12} className="text-white" strokeWidth={3} />
+              <span className="ml-auto w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: ACCENT }}>
+                <Check size={12} style={{ color: PURPLE_DARK }} strokeWidth={3} />
               </span>
             )}
           </button>
@@ -523,7 +492,7 @@ export default function SolicitudPublicaForm({
             lat={form.inm_lat}
             lng={form.inm_lng}
             onChange={(lat, lng) => setForm((f) => ({ ...f, inm_lat: lat, inm_lng: lng }))}
-            color={MORADO}
+            color={PURPLE_DARK}
             centro={form.cod_sucursal ? SUCURSAL_COORDS[form.cod_sucursal] ?? null : null}
           />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -561,8 +530,8 @@ export default function SolicitudPublicaForm({
         )}
 
         <button type="submit" disabled={sending}
-          className="w-full text-white font-bold py-4 rounded-full text-base shadow-lg transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
-          style={{ backgroundColor: CIAN, boxShadow: `0 10px 25px -5px ${CIAN}66` }}
+          className="w-full font-bold py-4 rounded-full text-base shadow-lg transition-opacity disabled:opacity-50 flex items-center justify-center gap-2"
+          style={{ backgroundColor: ACCENT, color: PURPLE_DARK, boxShadow: `0 10px 25px -5px ${ACCENT}66` }}
         >
           {sending && <Loader2 size={18} className="animate-spin" />}
           {sending ? "Enviando…" : "Quiero mi conexión"}
@@ -584,15 +553,15 @@ export default function SolicitudPublicaForm({
               <X size={20} />
             </button>
             <div className="flex items-start gap-4">
-              <div className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#f1eef6" }}>
-                <FileText size={20} style={{ color: TARJETA_MORADO }} />
+              <div className="w-11 h-11 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: LILAC_SOFT }}>
+                <FileText size={20} style={{ color: PURPLE_DARK }} />
               </div>
               <div className="pr-6">
                 <h3 className="text-base font-extrabold text-slate-900">Condiciones de la promoción – Plan {condicionesPlan.nombre}</h3>
                 <ul className="mt-3 space-y-2 text-sm text-slate-700 leading-relaxed">
                   {condicionesPlan.condiciones.split("\n").map((linea, i) => linea.trim() && (
                     <li key={i} className="flex gap-2.5">
-                      <span className="mt-2 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: "#7c22d0" }} />
+                      <span className="mt-2 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: PURPLE }} />
                       <span>{linea.trim()}</span>
                     </li>
                   ))}
@@ -602,7 +571,7 @@ export default function SolicitudPublicaForm({
             <div className="flex justify-end mt-6">
               <button type="button" onClick={() => setCondicionesPlan(null)}
                 className="px-5 py-2.5 rounded-xl text-sm font-bold text-white transition-opacity hover:opacity-90"
-                style={{ backgroundColor: "#7c22d0" }}
+                style={{ backgroundColor: PURPLE_DARK }}
               >
                 Entendido
               </button>
@@ -617,6 +586,6 @@ export default function SolicitudPublicaForm({
 function go_tv_style(current: boolean, esteBoton: boolean): React.CSSProperties {
   const activo = current === esteBoton;
   return activo
-    ? { backgroundColor: CIAN, color: "#fff" }
-    : { backgroundColor: "transparent", color: "#64748b" };
+    ? { backgroundColor: PURPLE_DARK, color: ACCENT }
+    : { backgroundColor: "transparent", color: "#8A8798" };
 }

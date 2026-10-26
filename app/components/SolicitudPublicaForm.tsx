@@ -373,7 +373,7 @@ export default function SolicitudPublicaForm({
                           {itemsGrid.map((item, i) => {
                             const Icono = ICONO_COMPONENTE[item.icono];
                             return (
-                              <li key={i} className="flex items-start gap-2 text-sm">
+                              <li key={i} className="flex items-start gap-2 text-sm" style={{ color: PURPLE_DARK }}>
                                 <span className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0" style={{ backgroundColor: "#fff" }}>
                                   <Icono size={11} style={{ color: PURPLE_DARK }} />
                                 </span>

@@ -267,7 +267,7 @@ export default function SolicitudPublicaForm({
         </a>
         <div className="relative px-4 py-14 text-center w-full">
           <div className="relative">
-            <a href={SITIO_ULTRANET} className="inline-block">
+            <a href={SITIO_ULTRANET} className="block w-fit mx-auto">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/ultranet-logo-blanco.svg" alt="Ultranet — Internet a Ultra Velocidad" className="mx-auto" style={{ width: 220 }} />
             </a>
@@ -299,7 +299,7 @@ export default function SolicitudPublicaForm({
       <div className="relative overflow-hidden px-4 pt-10 pb-12 sm:pb-16 text-center" style={{ background: PURPLE_DARK }}>
         <BurbujasDecorativas />
         <div className="relative">
-          <a href={SITIO_ULTRANET} className="inline-block">
+          <a href={SITIO_ULTRANET} className="block w-fit mx-auto">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/ultranet-logo-blanco.svg" alt="Ultranet — Internet a Ultra Velocidad" className="mx-auto" style={{ width: 220 }} />
           </a>

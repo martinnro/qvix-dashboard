@@ -359,7 +359,7 @@ export default function SolicitudPublicaForm({
                       </h3>
                     </div>
 
-                    <div className="px-5 pt-4 pb-4 flex-1 flex flex-col" style={{ backgroundColor: LILAC_SOFT }}>
+                    <div className="relative w-full px-5 pt-4 pb-4 flex-1 flex flex-col transform-gpu" style={{ backgroundColor: LILAC_SOFT, WebkitTransform: "translateZ(0)", WebkitBackfaceVisibility: "hidden" }}>
                       {partes && (
                         <div className="flex items-center gap-2 mb-3 text-sm font-bold" style={{ color: PURPLE_DARK }}>
                           <span className="inline-flex items-center gap-0.5"><ArrowDown size={14} />{partes[1]} Mb</span>

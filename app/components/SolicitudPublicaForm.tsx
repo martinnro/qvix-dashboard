@@ -32,6 +32,9 @@ const SUCURSAL_COORDS: Record<number, [number, number]> = {
   8: [-27.6921754, -67.6189241], // Fiambalá
 };
 
+// El logo del encabezado lleva al sitio institucional.
+const SITIO_ULTRANET = "https://www.ultranet.com.ar";
+
 const TIPOS_DOCUMENTO = ["DNI", "LC", "LE"] as const;
 
 type IconoItem = "film" | "box" | "monitor" | "instalacion";
@@ -264,8 +267,10 @@ export default function SolicitudPublicaForm({
         </a>
         <div className="relative px-4 py-14 text-center w-full">
           <div className="relative">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/ultranet-logo-blanco.svg" alt="Ultranet — Internet a Ultra Velocidad" className="mx-auto" style={{ width: 220 }} />
+            <a href={SITIO_ULTRANET} className="inline-block">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/ultranet-logo-blanco.svg" alt="Ultranet — Internet a Ultra Velocidad" className="mx-auto" style={{ width: 220 }} />
+            </a>
             <p className="text-white/80 text-sm mt-7 mb-4">Por favor, seleccioná tu localidad para continuar</p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-w-lg mx-auto">
               {sucursalesDisponibles.map((cod) => (
@@ -294,8 +299,10 @@ export default function SolicitudPublicaForm({
       <div className="relative overflow-hidden px-4 pt-10 pb-12 sm:pb-16 text-center" style={{ background: PURPLE_DARK }}>
         <BurbujasDecorativas />
         <div className="relative">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/ultranet-logo-blanco.svg" alt="Ultranet — Internet a Ultra Velocidad" className="mx-auto" style={{ width: 220 }} />
+          <a href={SITIO_ULTRANET} className="inline-block">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/ultranet-logo-blanco.svg" alt="Ultranet — Internet a Ultra Velocidad" className="mx-auto" style={{ width: 220 }} />
+          </a>
 
           {sucursalInicial === null ? (
             <button type="button" onClick={() => set("cod_sucursal", null)}

@@ -232,8 +232,10 @@ export default function SolicitudPublicaForm({
     return (
       <div className={`${jakarta.className} relative overflow-hidden min-h-screen flex items-center`} style={{ background: PURPLE_DARK }}>
         <BurbujasDecorativas />
-        <a href="/enlaces" className="absolute top-5 left-5 inline-flex items-center gap-1.5 text-white/70 hover:text-white text-sm font-medium transition-colors z-10">
-          <ArrowLeft size={16} /> Volver a enlaces
+        <a href="/enlaces" aria-label="Volver a enlaces"
+          className="absolute top-5 left-5 w-9 h-9 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 text-white transition-colors z-10"
+        >
+          <ArrowLeft size={18} />
         </a>
         <div className="relative px-4 py-14 text-center w-full">
           <div className="relative">

@@ -151,7 +151,7 @@ export default function EnlacesPage() {
         .el-ic:has(svg.el-line) { background: #2E1252; color: #fff; border-radius: 50%; width: 40px; height: 40px; margin: 2px; }
         .el-lnk:hover .el-ic { transform: scale(1.1) rotate(-6deg); }
         .el-lnk:active .el-ic { transform: scale(.94) rotate(0deg); }
-        .el-lnk.el-main .el-ic { animation: el-ic-pulse 2.6s cubic-bezier(.22,.8,.24,1) infinite; }
+        .el-lnk.el-main .el-ic { animation: el-ic-pulse 1.6s cubic-bezier(.45,0,.55,1) infinite; }
         .el-lnk.el-main:hover .el-ic { animation-play-state: paused; }
         .el-tx { flex: 1; min-width: 0; display: grid; gap: 1px; }
         .el-tx b { font-size: 16px; font-weight: 700; }
@@ -180,7 +180,7 @@ export default function EnlacesPage() {
 
         @keyframes el-ic-pulse {
           0%, 100% { transform: scale(1); }
-          50%      { transform: scale(1.12); }
+          50%      { transform: scale(1.28); }
         }
         @keyframes el-flow {
           0%   { transform: translate3d(-8%, -6%, 0) rotate(0deg); }

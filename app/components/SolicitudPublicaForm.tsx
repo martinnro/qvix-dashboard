@@ -347,7 +347,7 @@ export default function SolicitudPublicaForm({
                   >
                     <div className="relative w-full px-5 pt-3 pb-3.5 flex items-center justify-between" style={{ backgroundColor: PURPLE_DARK }}>
                       <span className="inline-block px-3 py-0.5 rounded-full text-[11px] font-semibold" style={{ backgroundColor: ACCENT, color: PURPLE_DARK }}>
-                        {esTv ? "TV" : form.go_tv ? <>Internet + <strong>GOtv</strong></> : "Solo Internet"}
+                        {esTv ? "TV" : form.go_tv ? <>Internet + <strong>GOtv</strong></> : "Internet"}
                       </span>
                       <span className={`w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-all duration-200 ${activo ? "scale-110" : "scale-100"}`}
                         style={{ border: `2px solid ${activo ? ACCENT : "rgba(255,255,255,0.5)"}`, backgroundColor: activo ? ACCENT : "transparent" }}

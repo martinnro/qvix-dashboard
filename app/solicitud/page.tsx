@@ -8,10 +8,10 @@ export const metadata = {
 export default async function SolicitudPublicaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ sucursal?: string }>;
+  searchParams: Promise<{ sucursal?: string; plan?: string }>;
 }) {
-  const { sucursal } = await searchParams;
+  const { sucursal, plan } = await searchParams;
   const sucursalNum = sucursal ? parseInt(sucursal, 10) : null;
 
-  return <SolicitudPublicaForm sucursalInicial={sucursalNum && !isNaN(sucursalNum) ? sucursalNum : null} />;
+  return <SolicitudPublicaForm sucursalInicial={sucursalNum && !isNaN(sucursalNum) ? sucursalNum : null} planInicial={plan ?? null} />;
 }

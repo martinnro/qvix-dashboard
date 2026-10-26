@@ -57,6 +57,14 @@ interface PlanConexion {
   condiciones: string | null;
 }
 
+// Plan preelegido desde la web institucional (ultranet-web): ?plan=int300 (sólo internet) o
+// ?plan=dp500 (internet + TV), los mismos códigos que usa su página de legales. Se compara por
+// los Mb del nombre del plan, porque en la base los nombres varían ("800Mb", "800MB").
+function parsePlanWeb(codigo: string | null): { tipo: "internet" | "doble_play"; mb: number } | null {
+  const m = codigo?.match(/^(int|dp)(\d+)$/);
+  return m ? { tipo: m[1] === "int" ? "internet" : "doble_play", mb: Number(m[2]) } : null;
+}
+
 function pesos(n: number): string {
   return n.toLocaleString("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 });
 }
@@ -119,15 +127,23 @@ function Field({ label, children, required }: { label: string; children: React.R
 
 export default function SolicitudPublicaForm({
   sucursalInicial = null,
+  planInicial = null,
   sucursalesDisponibles = SUCURSALES_VALIDAS,
   onSubmitted,
 }: {
   sucursalInicial?: number | null;
+  /** Código de plan que manda la web institucional (ej. "int300", "dp500"). */
+  planInicial?: string | null;
   /** Restringe qué sucursales puede elegir (ej. las permitidas para un vendedor logueado). Por defecto, todas. */
   sucursalesDisponibles?: number[];
   onSubmitted?: () => void;
 }) {
-  const [form, setForm] = useState<FormState>({ ...initialState, cod_sucursal: sucursalInicial });
+  const planWebInicial = parsePlanWeb(planInicial);
+  const [form, setForm] = useState<FormState>({
+    ...initialState,
+    cod_sucursal: sucursalInicial,
+    go_tv: planWebInicial ? planWebInicial.tipo === "doble_play" : initialState.go_tv,
+  });
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [enviado, setEnviado] = useState(false);
@@ -144,6 +160,15 @@ export default function SolicitudPublicaForm({
       .catch(() => setPlanes([]))
       .finally(() => setPlanesLoading(false));
   }, []);
+
+  // Con un plan preelegido desde la web, se marca su tarjeta apenas llegan los planes
+  // (sin pisar una elección que el usuario ya haya hecho).
+  useEffect(() => {
+    const planWeb = parsePlanWeb(planInicial);
+    if (!planWeb) return;
+    const plan = planes.find((p) => p.tipo === planWeb.tipo && parseInt(p.nombre, 10) === planWeb.mb);
+    if (plan) setForm((f) => (f.velocidad ? f : { ...f, velocidad: plan.nombre }));
+  }, [planes, planInicial]);
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) => setForm((f) => ({ ...f, [key]: value }));
 

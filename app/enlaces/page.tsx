@@ -122,7 +122,7 @@ export default function EnlacesPage() {
         .el-bg { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
         .el-bubbles { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
         .el-bubble { position: absolute; border-radius: 999px;
-          animation: el-burbuja-subir var(--dur) ease-in infinite; animation-delay: var(--delay); }
+          animation: el-burbuja-subir var(--dur) ease-in infinite backwards; animation-delay: var(--delay); }
         @keyframes el-burbuja-subir {
           0%   { transform: translate(0, 0); opacity: 0; }
           8%   { opacity: 1; }

@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import { Plus_Jakarta_Sans } from "next/font/google";
-import { Loader2, CheckCircle2, AlertCircle, Wifi, MapPin, Check, Plus, ArrowDown, ArrowUp, FileText, X, Tv, Tag, ChevronRight, Film, Box, Monitor } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, Wifi, MapPin, Check, Plus, ArrowDown, ArrowUp, ArrowLeft, FileText, X, Tv, Tag, ChevronRight, Film, Box, Monitor } from "lucide-react";
 import BurbujasDecorativas from "./BurbujasDecorativas";
 
 // Misma tipografía y paleta que el sitio institucional nuevo (repo ultranet-web, a cargo del
@@ -232,6 +232,9 @@ export default function SolicitudPublicaForm({
     return (
       <div className={`${jakarta.className} relative overflow-hidden min-h-screen flex items-center`} style={{ background: PURPLE_DARK }}>
         <BurbujasDecorativas />
+        <a href="/enlaces" className="absolute top-5 left-5 inline-flex items-center gap-1.5 text-white/70 hover:text-white text-sm font-medium transition-colors z-10">
+          <ArrowLeft size={16} /> Volver a enlaces
+        </a>
         <div className="relative px-4 py-14 text-center w-full">
           <div className="relative">
             {/* eslint-disable-next-line @next/next/no-img-element */}

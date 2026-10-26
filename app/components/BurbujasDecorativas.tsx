@@ -27,8 +27,10 @@ export default function BurbujasDecorativas() {
       {puntos.map((p, i) => (
         <div key={i} className="absolute rounded-full bg-white/10" style={{
           top: p.top, left: p.left, width: p.size * 2, height: p.size * 2,
-          animation: `float-globito ${p.duracion}s ease-in infinite`,
-          animationDelay: `${p.delay}s`,
+          // "backwards" aplica el 0% del keyframe (opacity 0) también DURANTE el delay inicial —
+          // sin esto, mientras espera para arrancar el navegador la muestra a opacidad normal y
+          // quieta, y al terminar el delay salta de golpe a invisible (se ve como una explosión).
+          animation: `float-globito ${p.duracion}s ease-in ${p.delay}s infinite backwards`,
           ["--drift" as string]: `${p.drift ?? 8}px`,
         }} />
       ))}

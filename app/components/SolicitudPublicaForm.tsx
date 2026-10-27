@@ -577,7 +577,10 @@ export default function SolicitudPublicaForm({
         </button>
 
         <p className="text-xs text-slate-400 text-center leading-relaxed px-4">
-          Esta solicitud no implica el perfeccionamiento del contrato hasta que se realice la instalación del servicio en tu domicilio, sujeto a factibilidad técnica del área.
+          Esta solicitud no implica el perfeccionamiento del contrato hasta que se realice la instalación del servicio en tu domicilio, sujeto a factibilidad técnica del área.{" "}
+          {/* Aviso de la Ley 25.326 de Protección de Datos Personales */}
+          Al enviar esta solicitud aceptás que Ultranet use tus datos para gestionarla y contactarte. Podés pedir acceso, corrección o eliminación de tus datos escribiendo a contacto@ultranet.com.ar.{" "}
+          <a href="/privacidad" className="underline underline-offset-2 hover:text-slate-600">Política de privacidad</a>
         </p>
       </form>
 

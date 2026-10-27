@@ -18,8 +18,10 @@ export async function proxy(req: NextRequest) {
   // precios sin sesión — crear/editar/eliminar (POST/PUT/DELETE) lo sigue exigiendo la propia ruta.
   // /enlaces: página pública tipo "linktree" (QR de evento), sin login.
   // /api/contacto-web: los formularios de contacto del sitio institucional (estático) envían acá.
+  // /privacidad: política de privacidad, enlazada desde el aviso de /solicitud.
   if (
     pathname.startsWith("/login") ||
+    pathname.startsWith("/privacidad") ||
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/solicitud") ||
     pathname.startsWith("/enlaces") ||

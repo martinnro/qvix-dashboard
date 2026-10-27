@@ -17,12 +17,14 @@ export async function proxy(req: NextRequest) {
   // /api/planes-conexion (solo GET): el mismo formulario público necesita leer los planes y
   // precios sin sesión — crear/editar/eliminar (POST/PUT/DELETE) lo sigue exigiendo la propia ruta.
   // /enlaces: página pública tipo "linktree" (QR de evento), sin login.
+  // /api/contacto-web: los formularios de contacto del sitio institucional (estático) envían acá.
   if (
     pathname.startsWith("/login") ||
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/solicitud") ||
     pathname.startsWith("/enlaces") ||
     pathname.startsWith("/api/solicitudes-conexion/public") ||
+    pathname.startsWith("/api/contacto-web") ||
     (pathname.startsWith("/api/planes-conexion") && req.method === "GET")
   ) {
     return NextResponse.next();

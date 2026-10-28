@@ -1048,7 +1048,7 @@ export default function InstalacionesView({
                         contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #334155" }}
                         labelStyle={{ color: "#e2e8f0", fontWeight: 600 }}
                         itemStyle={{ color: "#94a3b8" }}
-                        formatter={(val: number, name: string) => [val, SUCURSALES[+name] ?? name]}
+                        formatter={(val, name) => [`${val}`, SUCURSALES[+`${name}`] ?? `${name}`]}
                       />
                       {sucursalesEnData.map((cod) => (
                         <Line

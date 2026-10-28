@@ -395,6 +395,7 @@ export default function InstalacionesView({
   const [fibraLoading, setFibraLoading] = useState(false);
   const [fibraError, setFibraError] = useState<string | null>(null);
   const [fibraSort, setFibraSort] = useState<{ col: keyof FibraRow; asc: boolean }>({ col: "fecha", asc: false });
+  const [excludedIds, setExcludedIds] = useState<Set<number>>(new Set());
 
   const fetchData = useCallback(async (suc: number | null = null) => {
     setLoading(true);
@@ -457,7 +458,7 @@ export default function InstalacionesView({
     if (sucSel !== null) params.set("sucursal", String(sucSel));
     fetch(`/api/instalaciones/fibra?${params}`)
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
-      .then((json) => { if (!cancelled) setFibraRows(json.rows); })
+      .then((json) => { if (!cancelled) { setFibraRows(json.rows); setExcludedIds(new Set()); } })
       .catch((e) => { if (!cancelled) setFibraError(e.message); })
       .finally(() => { if (!cancelled) setFibraLoading(false); });
     return () => { cancelled = true; };
@@ -831,9 +832,14 @@ export default function InstalacionesView({
   // ── Sub-panel: Por cantidad fibra ─────────────────────────────────────────
   if (panel === "fibra") {
     const rows = fibraRows ?? [];
-    const bajo  = rows.filter((r) => r.metros < 50);
-    const medio = rows.filter((r) => r.metros >= 50 && r.metros <= 70);
-    const alto  = rows.filter((r) => r.metros > 70);
+    const activeRows = rows.filter((r) => !excludedIds.has(r.id_conexion));
+    const bajo  = activeRows.filter((r) => r.metros < 50);
+    const medio = activeRows.filter((r) => r.metros >= 50 && r.metros <= 70);
+    const alto  = activeRows.filter((r) => r.metros > 70);
+    const avgMetros = activeRows.length
+      ? Math.round(activeRows.reduce((s, r) => s + r.metros, 0) / activeRows.length)
+      : 0;
+
     const sorted = [...rows].sort((a, b) => {
       const va = a[fibraSort.col];
       const vb = b[fibraSort.col];
@@ -851,10 +857,24 @@ export default function InstalacionesView({
         {fibraSort.col === col ? (fibraSort.asc ? " ▲" : " ▼") : " ↕"}
       </th>
     );
+    const toggleExclude = (id: number) =>
+      setExcludedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id); else next.add(id);
+        return next;
+      });
+
     return (
       <div className="min-h-screen bg-slate-900 text-white">
         <div className="max-w-screen-xl mx-auto px-6 py-8 space-y-6">
-          <Header titulo="Por cantidad de fibra" subtitulo={`${rows.length} instalaciones con fibra registrada`} />
+          <Header
+            titulo="Por cantidad de fibra"
+            subtitulo={
+              excludedIds.size > 0
+                ? `${activeRows.length} instalaciones activas · ${excludedIds.size} excluida${excludedIds.size > 1 ? "s" : ""} del cálculo`
+                : `${rows.length} instalaciones con fibra registrada`
+            }
+          />
 
           {fibraLoading && (
             <div className="flex items-center gap-2 text-slate-400 text-sm">
@@ -870,30 +890,41 @@ export default function InstalacionesView({
           {!fibraLoading && rows.length > 0 && (
             <>
               {/* Mini-dashboard de resumen */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                 <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
-                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Total con fibra</p>
-                  <div className="text-2xl font-bold text-slate-100">{rows.length}</div>
-                  <p className="text-xs text-slate-400 mt-1">{desde} → {hasta}</p>
+                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Total activas</p>
+                  <div className="text-2xl font-bold text-slate-100">{activeRows.length}</div>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {excludedIds.size > 0 ? `de ${rows.length} total` : `${desde} → ${hasta}`}
+                  </p>
+                </div>
+                <div className="bg-slate-800 border border-cyan-700/60 rounded-xl p-4">
+                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">
+                    {excludedIds.size > 0 ? "Promedio real" : "Promedio"}
+                  </p>
+                  <div className="text-2xl font-bold text-cyan-400">{avgMetros} m</div>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {excludedIds.size > 0 ? `sin ${excludedIds.size} excluida${excludedIds.size > 1 ? "s" : ""}` : "por instalación"}
+                  </p>
                 </div>
                 <div className="bg-slate-800 border border-red-800/50 rounded-xl p-4">
                   <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">&lt; 50 m</p>
                   <div className="text-2xl font-bold text-red-400">{bajo.length}</div>
-                  <p className="text-xs text-slate-400 mt-1">{rows.length ? Math.round(bajo.length / rows.length * 100) : 0}% del total</p>
+                  <p className="text-xs text-slate-400 mt-1">{activeRows.length ? Math.round(bajo.length / activeRows.length * 100) : 0}% del total</p>
                 </div>
                 <div className="bg-slate-800 border border-amber-700/50 rounded-xl p-4">
                   <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">50 – 70 m</p>
                   <div className="text-2xl font-bold text-amber-400">{medio.length}</div>
-                  <p className="text-xs text-slate-400 mt-1">{rows.length ? Math.round(medio.length / rows.length * 100) : 0}% del total</p>
+                  <p className="text-xs text-slate-400 mt-1">{activeRows.length ? Math.round(medio.length / activeRows.length * 100) : 0}% del total</p>
                 </div>
                 <div className="bg-slate-800 border border-emerald-800/50 rounded-xl p-4">
                   <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">&gt; 70 m</p>
                   <div className="text-2xl font-bold text-emerald-400">{alto.length}</div>
-                  <p className="text-xs text-slate-400 mt-1">{rows.length ? Math.round(alto.length / rows.length * 100) : 0}% del total</p>
+                  <p className="text-xs text-slate-400 mt-1">{activeRows.length ? Math.round(alto.length / activeRows.length * 100) : 0}% del total</p>
                 </div>
               </div>
 
-              {/* Distribución por tramo y sucursal */}
+              {/* Distribución por tramo y sucursal (usa activeRows) */}
               <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
                 <h3 className="text-slate-300 font-medium text-sm mb-4">Distribución por tramo y sucursal</h3>
                 <div className="overflow-x-auto">
@@ -905,28 +936,34 @@ export default function InstalacionesView({
                         <th className="text-right pb-2 text-xs text-amber-400 uppercase tracking-wide font-semibold">50–70m</th>
                         <th className="text-right pb-2 text-xs text-emerald-400 uppercase tracking-wide font-semibold">&gt; 70m</th>
                         <th className="text-right pb-2 text-xs text-slate-400 uppercase tracking-wide font-semibold">Total</th>
+                        <th className="text-right pb-2 text-xs text-cyan-500 uppercase tracking-wide font-semibold">Prom.</th>
                       </tr>
                     </thead>
                     <tbody>
                       {Object.entries(
-                        rows.reduce<Record<number, { b: number; m: number; a: number }>>((acc, r) => {
-                          if (!acc[r.cod_sucursal]) acc[r.cod_sucursal] = { b: 0, m: 0, a: 0 };
+                        activeRows.reduce<Record<number, { b: number; m: number; a: number; sum: number }>>((acc, r) => {
+                          if (!acc[r.cod_sucursal]) acc[r.cod_sucursal] = { b: 0, m: 0, a: 0, sum: 0 };
                           if (r.metros < 50) acc[r.cod_sucursal].b++;
                           else if (r.metros <= 70) acc[r.cod_sucursal].m++;
                           else acc[r.cod_sucursal].a++;
+                          acc[r.cod_sucursal].sum += r.metros;
                           return acc;
                         }, {})
                       )
                         .sort(([, a], [, b]) => (b.b + b.m + b.a) - (a.b + a.m + a.a))
-                        .map(([cod, v]) => (
-                          <tr key={cod} className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors">
-                            <td className="py-2 font-medium text-slate-200">{SUCURSALES[+cod] ?? `Suc. ${cod}`}</td>
-                            <td className="py-2 text-right text-red-400 font-mono">{v.b || "—"}</td>
-                            <td className="py-2 text-right text-amber-400 font-mono">{v.m || "—"}</td>
-                            <td className="py-2 text-right text-emerald-400 font-mono">{v.a || "—"}</td>
-                            <td className="py-2 text-right text-slate-100 font-semibold font-mono">{v.b + v.m + v.a}</td>
-                          </tr>
-                        ))}
+                        .map(([cod, v]) => {
+                          const tot = v.b + v.m + v.a;
+                          return (
+                            <tr key={cod} className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors">
+                              <td className="py-2 font-medium text-slate-200">{SUCURSALES[+cod] ?? `Suc. ${cod}`}</td>
+                              <td className="py-2 text-right text-red-400 font-mono">{v.b || "—"}</td>
+                              <td className="py-2 text-right text-amber-400 font-mono">{v.m || "—"}</td>
+                              <td className="py-2 text-right text-emerald-400 font-mono">{v.a || "—"}</td>
+                              <td className="py-2 text-right text-slate-100 font-semibold font-mono">{tot}</td>
+                              <td className="py-2 text-right text-cyan-400 font-mono">{tot ? Math.round(v.sum / tot) : "—"} m</td>
+                            </tr>
+                          );
+                        })}
                     </tbody>
                   </table>
                 </div>
@@ -934,8 +971,16 @@ export default function InstalacionesView({
 
               {/* Listado detallado */}
               <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
-                <div className="px-5 py-4 border-b border-slate-700">
+                <div className="px-5 py-4 border-b border-slate-700 flex items-center justify-between gap-3 flex-wrap">
                   <h3 className="text-slate-300 font-medium text-sm">Detalle de instalaciones</h3>
+                  {excludedIds.size > 0 && (
+                    <button
+                      onClick={() => setExcludedIds(new Set())}
+                      className="text-xs text-slate-500 hover:text-amber-400 transition-colors"
+                    >
+                      Restaurar {excludedIds.size} excluida{excludedIds.size > 1 ? "s" : ""}
+                    </button>
+                  )}
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -946,26 +991,58 @@ export default function InstalacionesView({
                         <SortHdr col="fecha" label="Fecha" />
                         <SortHdr col="metros" label="Metros" />
                         <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wide">Tramo</th>
+                        <th className="px-4 py-3 w-10" />
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-700/50">
                       {sorted.map((r, i) => {
+                        const excluded = excludedIds.has(r.id_conexion);
                         const tramo = r.metros < 50 ? { label: "< 50m", color: "text-red-400 bg-red-900/30 border-red-800/50" }
                           : r.metros <= 70 ? { label: "50–70m", color: "text-amber-400 bg-amber-900/30 border-amber-800/50" }
                           : { label: "> 70m", color: "text-emerald-400 bg-emerald-900/30 border-emerald-800/50" };
                         const anomalia = r.metros > 400;
                         const [yyyy, mm, dd] = r.fecha.split("-");
                         return (
-                          <tr key={i} className={`transition-colors ${anomalia ? "bg-red-950/40 hover:bg-red-950/60" : "hover:bg-slate-700/30"}`}>
-                            <td className="px-4 py-2.5 text-slate-300 font-medium">{SUCURSALES[r.cod_sucursal] ?? `Suc. ${r.cod_sucursal}`}</td>
-                            <td className="px-4 py-2.5 text-slate-100 font-mono">{r.id_conexion}</td>
-                            <td className="px-4 py-2.5 text-slate-300 font-mono">{dd}/{mm}/{yyyy}</td>
-                            <td className={`px-4 py-2.5 font-mono font-semibold ${anomalia ? "text-red-400" : "text-slate-100"}`}>
+                          <tr
+                            key={i}
+                            className={`transition-colors ${
+                              excluded
+                                ? "opacity-40 bg-slate-900/40"
+                                : anomalia
+                                ? "bg-red-950/40 hover:bg-red-950/60"
+                                : "hover:bg-slate-700/30"
+                            }`}
+                          >
+                            <td className={`px-4 py-2.5 font-medium ${excluded ? "line-through text-slate-500" : "text-slate-300"}`}>
+                              {SUCURSALES[r.cod_sucursal] ?? `Suc. ${r.cod_sucursal}`}
+                            </td>
+                            <td className={`px-4 py-2.5 font-mono ${excluded ? "line-through text-slate-500" : "text-slate-100"}`}>
+                              {r.id_conexion}
+                            </td>
+                            <td className={`px-4 py-2.5 font-mono ${excluded ? "line-through text-slate-500" : "text-slate-300"}`}>
+                              {dd}/{mm}/{yyyy}
+                            </td>
+                            <td className={`px-4 py-2.5 font-mono font-semibold ${excluded ? "line-through text-slate-500" : anomalia ? "text-red-400" : "text-slate-100"}`}>
                               {r.metros} m
-                              {anomalia && <span className="ml-2 text-xs font-normal text-red-400 opacity-80">⚠ revisar</span>}
+                              {!excluded && anomalia && <span className="ml-2 text-xs font-normal text-red-400 opacity-80">⚠ revisar</span>}
                             </td>
                             <td className="px-4 py-2.5">
-                              <span className={`inline-block px-2 py-0.5 rounded border text-xs font-semibold ${tramo.color}`}>{tramo.label}</span>
+                              {!excluded && (
+                                <span className={`inline-block px-2 py-0.5 rounded border text-xs font-semibold ${tramo.color}`}>{tramo.label}</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2.5 text-right">
+                              <button
+                                onClick={() => toggleExclude(r.id_conexion)}
+                                title={excluded ? "Restaurar conexión" : "Excluir del cálculo"}
+                                className={`text-xs px-2 py-1 rounded transition-colors ${
+                                  excluded
+                                    ? "text-amber-400 hover:text-amber-300 border border-amber-700/50 hover:border-amber-500"
+                                    : "text-slate-600 hover:text-red-400 border border-transparent hover:border-red-800/50"
+                                }`}
+                              >
+                                {excluded ? "↩" : "×"}
+                              </button>
                             </td>
                           </tr>
                         );

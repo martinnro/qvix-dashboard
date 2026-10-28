@@ -31,6 +31,7 @@ import BajasQvixView from "./components/BajasQvixView";
 import TVPlanesView from "./components/TVPlanesView";
 import CampaniasWhatsappView from "./components/CampaniasWhatsappView";
 import SolicitudesConexionView from "./components/SolicitudesConexionView";
+import AuditoriaCorteView from "./components/AuditoriaCorteView";
 import { buildOrgStats, buildSummaries, buildTotales } from "./lib/dataUtils";
 import { parseCSV } from "./lib/csvParser";
 import type { DataRow, Servicio } from "./lib/types";
@@ -65,6 +66,7 @@ function Home() {
   const [showTVPlanes, setShowTVPlanes]               = useState(false);
   const [showCampanias, setShowCampanias]             = useState(false);
   const [showSolicitudes, setShowSolicitudes]         = useState(false);
+  const [showAuditoriaCorte, setShowAuditoriaCorte]   = useState(false);
   const [analisisDesde, setAnalisisDesde] = useState("");
   const [analisisHasta, setAnalisisHasta] = useState("");
   const [sessionUser, setSessionUser] = useState<{
@@ -132,7 +134,7 @@ function Home() {
   const selectedOrgIndex = singleOrg ? orgStats.findIndex((o) => o.organizacion === singleOrg) : -1;
 
   // ── Vista activa (mutuamente exclusivas) ───────────────────────────────────
-  const goHome = () => { setShowServiceView(false); setShowLicencias(false); setShowSucursales(false); setShowMapa(false); setShowReclamos(false); setShowCambioDrop(false); setShowInfraestructura(false); setShowFuentesStock(false); setShowDispositivos(false); setShowMacScanner(false); setShowAnalisisSenales(false); setShowInstalaciones(false); setShowBajasQvix(false); setShowTVPlanes(false); setShowCampanias(false); setShowSolicitudes(false); };
+  const goHome = () => { setShowServiceView(false); setShowLicencias(false); setShowSucursales(false); setShowMapa(false); setShowReclamos(false); setShowCambioDrop(false); setShowInfraestructura(false); setShowFuentesStock(false); setShowDispositivos(false); setShowMacScanner(false); setShowAnalisisSenales(false); setShowInstalaciones(false); setShowBajasQvix(false); setShowTVPlanes(false); setShowCampanias(false); setShowSolicitudes(false); setShowAuditoriaCorte(false); };
   const goTo = (view: "licencias" | "sucursales") => {
     goHome();
     setShowLicencias(view === "licencias");
@@ -264,7 +266,7 @@ function Home() {
             </div>}
 
             {/* Reportes dropdown */}
-            {(puedeVer("reclamos") || puedeVer("instalaciones") || puedeVer("mapa") || puedeVer("fuentes") || puedeVer("dispositivos") || puedeVer("campanias") || puedeVer("solicitudes")) && <div ref={reportesRef} className="relative">
+            {(puedeVer("reclamos") || puedeVer("instalaciones") || puedeVer("mapa") || puedeVer("fuentes") || puedeVer("dispositivos") || puedeVer("campanias") || puedeVer("solicitudes") || puedeVer("auditoria_corte")) && <div ref={reportesRef} className="relative">
               <button
                 onClick={() => { setShowReportesMenu(v => !v); setShowTVMenu(false); }}
                 className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-colors ${
@@ -327,6 +329,12 @@ function Home() {
                     <button onClick={() => { goHome(); setShowSolicitudes(true); setShowReportesMenu(false); }} className={`${menuItem} whitespace-nowrap`}>
                       <span className="w-2 h-2 rounded-full flex-shrink-0 bg-cyan-500" />
                       Solicitudes
+                    </button>
+                  )}
+                  {puedeVer("auditoria_corte") && (
+                    <button onClick={() => { goHome(); setShowAuditoriaCorte(true); setShowReportesMenu(false); }} className={`${menuItem} whitespace-nowrap`}>
+                      <span className="w-2 h-2 rounded-full flex-shrink-0 bg-orange-500" />
+                      Auditoría G. Corte
                     </button>
                   )}
 
@@ -445,8 +453,9 @@ function Home() {
       {showTVPlanes && <TVPlanesView onClose={goHome} sucursalesPermitidas={sessionUser?.sucursales ?? null} />}
       {showCampanias && <CampaniasWhatsappView onClose={goHome} sucursalesPermitidas={sessionUser?.sucursales ?? null} />}
       {showSolicitudes && <SolicitudesConexionView onClose={goHome} sucursalesPermitidas={sessionUser?.sucursales ?? null} />}
+      {showAuditoriaCorte && <AuditoriaCorteView onClose={goHome} sucursalesPermitidas={sessionUser?.sucursales ?? null} />}
 
-      <main className={`max-w-screen-xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8 ${showLicencias || showSucursales || showMapa || showReclamos || showCambioDrop || showInfraestructura || showFuentesStock || showDispositivos || showMacScanner || showAnalisisSenales || showInstalaciones || showBajasQvix || showTVPlanes || showCampanias || showSolicitudes ? "hidden" : ""}`}>
+      <main className={`max-w-screen-xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8 ${showLicencias || showSucursales || showMapa || showReclamos || showCambioDrop || showInfraestructura || showFuentesStock || showDispositivos || showMacScanner || showAnalisisSenales || showInstalaciones || showBajasQvix || showTVPlanes || showCampanias || showSolicitudes || showAuditoriaCorte ? "hidden" : ""}`}>
 
         {/* ── Dashboard principal — solo en home ── */}
         {!showServiceView && sessionUser !== null && (puedeVer("tv") || puedeVer("inicio")) && (

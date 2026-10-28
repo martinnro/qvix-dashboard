@@ -96,6 +96,15 @@ html.light input::placeholder { color: #94a3b8 !important; }
 html.light ::-webkit-scrollbar-track { background: #f1f5f9; }
 html.light ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
 
+/* Scrollbar (dark) */
+html:not(.light) ::-webkit-scrollbar-track { background: #1e293b; }
+html:not(.light) ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+html:not(.light) ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+/* Firefox (no ::-webkit-scrollbar-* support — these are the equivalent properties) */
+html.light { scrollbar-color: #cbd5e1 #f1f5f9; scrollbar-width: thin; }
+html:not(.light) { scrollbar-color: #475569 #1e293b; scrollbar-width: thin; }
+
 /* ══════════════════════════════════════════
    DARK MODE — diff badge overrides
    ══════════════════════════════════════════ */

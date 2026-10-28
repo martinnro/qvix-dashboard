@@ -953,13 +953,17 @@ export default function InstalacionesView({
                         const tramo = r.metros < 50 ? { label: "< 50m", color: "text-red-400 bg-red-900/30 border-red-800/50" }
                           : r.metros <= 70 ? { label: "50–70m", color: "text-amber-400 bg-amber-900/30 border-amber-800/50" }
                           : { label: "> 70m", color: "text-emerald-400 bg-emerald-900/30 border-emerald-800/50" };
+                        const anomalia = r.metros > 400;
                         const [yyyy, mm, dd] = r.fecha.split("-");
                         return (
-                          <tr key={i} className="hover:bg-slate-700/30 transition-colors">
+                          <tr key={i} className={`transition-colors ${anomalia ? "bg-red-950/40 hover:bg-red-950/60" : "hover:bg-slate-700/30"}`}>
                             <td className="px-4 py-2.5 text-slate-300 font-medium">{SUCURSALES[r.cod_sucursal] ?? `Suc. ${r.cod_sucursal}`}</td>
                             <td className="px-4 py-2.5 text-slate-100 font-mono">{r.id_conexion}</td>
                             <td className="px-4 py-2.5 text-slate-300 font-mono">{dd}/{mm}/{yyyy}</td>
-                            <td className="px-4 py-2.5 text-slate-100 font-mono font-semibold">{r.metros} m</td>
+                            <td className={`px-4 py-2.5 font-mono font-semibold ${anomalia ? "text-red-400" : "text-slate-100"}`}>
+                              {r.metros} m
+                              {anomalia && <span className="ml-2 text-xs font-normal text-red-400 opacity-80">⚠ revisar</span>}
+                            </td>
                             <td className="px-4 py-2.5">
                               <span className={`inline-block px-2 py-0.5 rounded border text-xs font-semibold ${tramo.color}`}>{tramo.label}</span>
                             </td>

@@ -5,6 +5,7 @@ import MaterialesView from "./MaterialesView";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   PieChart, Pie, Cell, Legend,
+  LineChart, Line,
 } from "recharts";
 
 const SUCURSALES: Record<number, string> = {
@@ -396,6 +397,8 @@ export default function InstalacionesView({
   const [fibraError, setFibraError] = useState<string | null>(null);
   const [fibraSort, setFibraSort] = useState<{ col: keyof FibraRow; asc: boolean }>({ col: "fecha", asc: false });
   const [excludedIds, setExcludedIds] = useState<Set<number>>(new Set());
+  const [selectedMonths, setSelectedMonths] = useState<Set<string>>(new Set());
+  const [chartFocusSuc, setChartFocusSuc] = useState<number | null>(null);
 
   const fetchData = useCallback(async (suc: number | null = null) => {
     setLoading(true);
@@ -458,7 +461,7 @@ export default function InstalacionesView({
     if (sucSel !== null) params.set("sucursal", String(sucSel));
     fetch(`/api/instalaciones/fibra?${params}`)
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
-      .then((json) => { if (!cancelled) { setFibraRows(json.rows); setExcludedIds(new Set()); } })
+      .then((json) => { if (!cancelled) { setFibraRows(json.rows); setExcludedIds(new Set()); setSelectedMonths(new Set()); setChartFocusSuc(null); } })
       .catch((e) => { if (!cancelled) setFibraError(e.message); })
       .finally(() => { if (!cancelled) setFibraLoading(false); });
     return () => { cancelled = true; };
@@ -831,16 +834,47 @@ export default function InstalacionesView({
 
   // ── Sub-panel: Por cantidad fibra ─────────────────────────────────────────
   if (panel === "fibra") {
+    const MESES_CORTO = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+    const mesCorto = (yyyymm: string) => {
+      const [y, m] = yyyymm.split("-");
+      return `${MESES_CORTO[+m - 1]} ${y.slice(2)}`;
+    };
+
     const rows = fibraRows ?? [];
     const activeRows = rows.filter((r) => !excludedIds.has(r.id_conexion));
-    const bajo  = activeRows.filter((r) => r.metros < 50);
-    const medio = activeRows.filter((r) => r.metros >= 50 && r.metros <= 70);
-    const alto  = activeRows.filter((r) => r.metros > 70);
-    const avgMetros = activeRows.length
-      ? Math.round(activeRows.reduce((s, r) => s + r.metros, 0) / activeRows.length)
+
+    // Meses presentes (para pills y chart)
+    const allMonths = [...new Set(activeRows.map((r) => r.fecha.slice(0, 7)))].sort();
+
+    // Sucursales con datos (para chart)
+    const sucursalesEnData = [...new Set(activeRows.map((r) => r.cod_sucursal))].sort();
+    const colorBySuc: Record<number, string> = {};
+    sucursalesEnData.forEach((cod, i) => { colorBySuc[cod] = COLORS[i % COLORS.length]; });
+
+    // Chart data: un punto por mes, una serie por sucursal
+    const chartData = allMonths.map((mes) => {
+      const obj: Record<string, string | number> = { mes, label: mesCorto(mes) };
+      sucursalesEnData.forEach((cod) => {
+        obj[String(cod)] = activeRows.filter((r) => r.fecha.startsWith(mes) && r.cod_sucursal === cod).length;
+      });
+      return obj;
+    });
+
+    // displayRows: activeRows filtrados por mes y sucursal enfocada
+    const displayRows = activeRows.filter((r) => {
+      const mesOk = selectedMonths.size === 0 || selectedMonths.has(r.fecha.slice(0, 7));
+      const sucOk = chartFocusSuc === null || r.cod_sucursal === chartFocusSuc;
+      return mesOk && sucOk;
+    });
+
+    const bajo  = displayRows.filter((r) => r.metros < 50);
+    const medio = displayRows.filter((r) => r.metros >= 50 && r.metros <= 70);
+    const alto  = displayRows.filter((r) => r.metros > 70);
+    const avgMetros = displayRows.length
+      ? Math.round(displayRows.reduce((s, r) => s + r.metros, 0) / displayRows.length)
       : 0;
 
-    const sorted = [...rows].sort((a, b) => {
+    const sorted = [...displayRows].sort((a, b) => {
       const va = a[fibraSort.col];
       const vb = b[fibraSort.col];
       const cmp = va < vb ? -1 : va > vb ? 1 : 0;
@@ -864,14 +898,16 @@ export default function InstalacionesView({
         return next;
       });
 
+    const activeFilters = selectedMonths.size > 0 || chartFocusSuc !== null || excludedIds.size > 0;
+
     return (
       <div className="min-h-screen bg-slate-900 text-white">
         <div className="max-w-screen-xl mx-auto px-6 py-8 space-y-6">
           <Header
             titulo="Por cantidad de fibra"
             subtitulo={
-              excludedIds.size > 0
-                ? `${activeRows.length} instalaciones activas · ${excludedIds.size} excluida${excludedIds.size > 1 ? "s" : ""} del cálculo`
+              activeFilters
+                ? `${displayRows.length} de ${activeRows.length} instalaciones · ${excludedIds.size > 0 ? `${excludedIds.size} excluida${excludedIds.size > 1 ? "s" : ""}` : ""}`
                 : `${rows.length} instalaciones con fibra registrada`
             }
           />
@@ -889,13 +925,51 @@ export default function InstalacionesView({
 
           {!fibraLoading && rows.length > 0 && (
             <>
+              {/* Filtro por mes */}
+              {allMonths.length > 1 && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-slate-500 uppercase tracking-wider">Mes:</span>
+                  <button
+                    onClick={() => setSelectedMonths(new Set())}
+                    className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                      selectedMonths.size === 0
+                        ? "bg-amber-600 border-amber-500 text-white"
+                        : "border-slate-600 text-slate-400 hover:border-amber-500 hover:text-amber-300"
+                    }`}
+                  >
+                    Todos
+                  </button>
+                  {allMonths.map((mes) => {
+                    const active = selectedMonths.has(mes);
+                    const cnt = activeRows.filter((r) => r.fecha.startsWith(mes)).length;
+                    return (
+                      <button
+                        key={mes}
+                        onClick={() => setSelectedMonths((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(mes)) next.delete(mes); else next.add(mes);
+                          return next;
+                        })}
+                        className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                          active
+                            ? "bg-amber-600 border-amber-500 text-white"
+                            : "border-slate-600 text-slate-400 hover:border-amber-500 hover:text-amber-300"
+                        }`}
+                      >
+                        {mesCorto(mes)} <span className="opacity-60">{cnt}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
               {/* Mini-dashboard de resumen */}
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                 <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
-                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Total activas</p>
-                  <div className="text-2xl font-bold text-slate-100">{activeRows.length}</div>
+                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Total</p>
+                  <div className="text-2xl font-bold text-slate-100">{displayRows.length}</div>
                   <p className="text-xs text-slate-400 mt-1">
-                    {excludedIds.size > 0 ? `de ${rows.length} total` : `${desde} → ${hasta}`}
+                    {activeFilters ? `de ${activeRows.length} total` : `${desde} → ${hasta}`}
                   </p>
                 </div>
                 <div className="bg-slate-800 border border-cyan-700/60 rounded-xl p-4">
@@ -910,21 +984,90 @@ export default function InstalacionesView({
                 <div className="bg-slate-800 border border-red-800/50 rounded-xl p-4">
                   <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">&lt; 50 m</p>
                   <div className="text-2xl font-bold text-red-400">{bajo.length}</div>
-                  <p className="text-xs text-slate-400 mt-1">{activeRows.length ? Math.round(bajo.length / activeRows.length * 100) : 0}% del total</p>
+                  <p className="text-xs text-slate-400 mt-1">{displayRows.length ? Math.round(bajo.length / displayRows.length * 100) : 0}% del total</p>
                 </div>
                 <div className="bg-slate-800 border border-amber-700/50 rounded-xl p-4">
                   <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">50 – 70 m</p>
                   <div className="text-2xl font-bold text-amber-400">{medio.length}</div>
-                  <p className="text-xs text-slate-400 mt-1">{activeRows.length ? Math.round(medio.length / activeRows.length * 100) : 0}% del total</p>
+                  <p className="text-xs text-slate-400 mt-1">{displayRows.length ? Math.round(medio.length / displayRows.length * 100) : 0}% del total</p>
                 </div>
                 <div className="bg-slate-800 border border-emerald-800/50 rounded-xl p-4">
                   <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">&gt; 70 m</p>
                   <div className="text-2xl font-bold text-emerald-400">{alto.length}</div>
-                  <p className="text-xs text-slate-400 mt-1">{activeRows.length ? Math.round(alto.length / activeRows.length * 100) : 0}% del total</p>
+                  <p className="text-xs text-slate-400 mt-1">{displayRows.length ? Math.round(alto.length / displayRows.length * 100) : 0}% del total</p>
                 </div>
               </div>
 
-              {/* Distribución por tramo y sucursal (usa activeRows) */}
+              {/* Línea del tiempo mensual por sucursal */}
+              {allMonths.length > 1 && (
+                <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
+                  <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
+                    <h3 className="text-slate-300 font-medium text-sm">Evolución mensual por sucursal</h3>
+                    {chartFocusSuc !== null && (
+                      <button
+                        onClick={() => setChartFocusSuc(null)}
+                        className="text-xs text-slate-500 hover:text-amber-400 transition-colors"
+                      >
+                        Mostrar todas ×
+                      </button>
+                    )}
+                  </div>
+                  {/* Leyenda interactiva */}
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {sucursalesEnData.map((cod) => {
+                      const focused = chartFocusSuc === cod;
+                      const inactive = chartFocusSuc !== null && !focused;
+                      return (
+                        <button
+                          key={cod}
+                          onClick={() => setChartFocusSuc(focused ? null : cod)}
+                          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all ${
+                            inactive
+                              ? "border-slate-700 text-slate-600 opacity-40"
+                              : focused
+                              ? "border-current text-white"
+                              : "border-slate-600 text-slate-300 hover:border-slate-400"
+                          }`}
+                          style={focused ? { borderColor: colorBySuc[cod], color: colorBySuc[cod] } : {}}
+                        >
+                          <span
+                            className="w-2 h-2 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: inactive ? "#475569" : colorBySuc[cod] }}
+                          />
+                          {SUCURSALES[cod] ?? `Suc. ${cod}`}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <LineChart data={chartData} margin={{ top: 4, right: 8, left: -16, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                      <XAxis dataKey="label" tick={{ fill: "#94a3b8", fontSize: 11 }} />
+                      <YAxis tick={{ fill: "#94a3b8", fontSize: 11 }} allowDecimals={false} />
+                      <Tooltip
+                        contentStyle={{ backgroundColor: "#1e293b", border: "1px solid #334155" }}
+                        labelStyle={{ color: "#e2e8f0", fontWeight: 600 }}
+                        itemStyle={{ color: "#94a3b8" }}
+                        formatter={(val: number, name: string) => [val, SUCURSALES[+name] ?? name]}
+                      />
+                      {sucursalesEnData.map((cod) => (
+                        <Line
+                          key={cod}
+                          type="monotone"
+                          dataKey={String(cod)}
+                          stroke={colorBySuc[cod]}
+                          strokeWidth={chartFocusSuc === cod ? 3 : chartFocusSuc !== null ? 1 : 2}
+                          strokeOpacity={chartFocusSuc !== null && chartFocusSuc !== cod ? 0.15 : 1}
+                          dot={{ r: chartFocusSuc === cod ? 4 : 2, fill: colorBySuc[cod] }}
+                          activeDot={{ r: 5 }}
+                        />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+
+              {/* Distribución por tramo y sucursal */}
               <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
                 <h3 className="text-slate-300 font-medium text-sm mb-4">Distribución por tramo y sucursal</h3>
                 <div className="overflow-x-auto">
@@ -941,7 +1084,7 @@ export default function InstalacionesView({
                     </thead>
                     <tbody>
                       {Object.entries(
-                        activeRows.reduce<Record<number, { b: number; m: number; a: number; sum: number }>>((acc, r) => {
+                        displayRows.reduce<Record<number, { b: number; m: number; a: number; sum: number }>>((acc, r) => {
                           if (!acc[r.cod_sucursal]) acc[r.cod_sucursal] = { b: 0, m: 0, a: 0, sum: 0 };
                           if (r.metros < 50) acc[r.cod_sucursal].b++;
                           else if (r.metros <= 70) acc[r.cod_sucursal].m++;
@@ -954,8 +1097,14 @@ export default function InstalacionesView({
                         .map(([cod, v]) => {
                           const tot = v.b + v.m + v.a;
                           return (
-                            <tr key={cod} className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors">
-                              <td className="py-2 font-medium text-slate-200">{SUCURSALES[+cod] ?? `Suc. ${cod}`}</td>
+                            <tr
+                              key={cod}
+                              onClick={() => setChartFocusSuc(chartFocusSuc === +cod ? null : +cod)}
+                              className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors cursor-pointer"
+                            >
+                              <td className="py-2 font-medium" style={{ color: colorBySuc[+cod] ?? "#e2e8f0" }}>
+                                {SUCURSALES[+cod] ?? `Suc. ${cod}`}
+                              </td>
                               <td className="py-2 text-right text-red-400 font-mono">{v.b || "—"}</td>
                               <td className="py-2 text-right text-amber-400 font-mono">{v.m || "—"}</td>
                               <td className="py-2 text-right text-emerald-400 font-mono">{v.a || "—"}</td>
@@ -972,7 +1121,14 @@ export default function InstalacionesView({
               {/* Listado detallado */}
               <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
                 <div className="px-5 py-4 border-b border-slate-700 flex items-center justify-between gap-3 flex-wrap">
-                  <h3 className="text-slate-300 font-medium text-sm">Detalle de instalaciones</h3>
+                  <h3 className="text-slate-300 font-medium text-sm">
+                    Detalle de instalaciones
+                    {chartFocusSuc !== null && (
+                      <span className="ml-2 text-xs font-normal px-2 py-0.5 rounded-full border" style={{ color: colorBySuc[chartFocusSuc], borderColor: colorBySuc[chartFocusSuc] + "60" }}>
+                        {SUCURSALES[chartFocusSuc]}
+                      </span>
+                    )}
+                  </h3>
                   {excludedIds.size > 0 && (
                     <button
                       onClick={() => setExcludedIds(new Set())}
@@ -1013,7 +1169,8 @@ export default function InstalacionesView({
                                 : "hover:bg-slate-700/30"
                             }`}
                           >
-                            <td className={`px-4 py-2.5 font-medium ${excluded ? "line-through text-slate-500" : "text-slate-300"}`}>
+                            <td className={`px-4 py-2.5 font-medium ${excluded ? "line-through text-slate-500" : ""}`}
+                              style={excluded ? {} : { color: colorBySuc[r.cod_sucursal] ?? "#cbd5e1" }}>
                               {SUCURSALES[r.cod_sucursal] ?? `Suc. ${r.cod_sucursal}`}
                             </td>
                             <td className={`px-4 py-2.5 font-mono ${excluded ? "line-through text-slate-500" : "text-slate-100"}`}>

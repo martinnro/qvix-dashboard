@@ -1,6 +1,6 @@
 "use client";
 import { useState, useCallback, useEffect, useRef } from "react";
-import { ChevronLeft, ChevronDown, X, Loader2, AlertCircle, Tv, Tag, TrendingUp, List, HardHat, Search, Package } from "lucide-react";
+import { ChevronLeft, ChevronDown, X, Loader2, AlertCircle, Tv, Tag, TrendingUp, List, HardHat, Search, Package, Ruler } from "lucide-react";
 import MaterialesView from "./MaterialesView";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
@@ -41,6 +41,12 @@ interface DetalleRow {
   estado_servicio: string; subtipo: string;
   cuadrilla: string | null;
 }
+interface FibraRow {
+  cod_sucursal: number;
+  id_conexion: number;
+  fecha: string;
+  metros: number;
+}
 interface Data {
   total: number;
   porModelo:        ModeloRow[];
@@ -57,7 +63,7 @@ interface Data {
   fueraSlaDetalle:  FueraSlaRow[];
 }
 
-type PanelType = "modelo" | "subtipo" | "tendencia" | "cuadrilla" | "pendientes" | "detalle" | "fueraSla" | "materiales";
+type PanelType = "modelo" | "subtipo" | "tendencia" | "cuadrilla" | "pendientes" | "detalle" | "fueraSla" | "materiales" | "fibra";
 
 function hoy()      { return new Date().toISOString().slice(0, 10); }
 function inicioAnio() { return `${new Date().getFullYear()}-01-01`; }
@@ -385,6 +391,10 @@ export default function InstalacionesView({
   const [rowsPorDim, setRowsPorDim] = useState<Record<CriterioTendencia, TendenciaRow[] | null>>({
     subtipo: null, cuadrilla: null, modelo: null,
   });
+  const [fibraRows, setFibraRows] = useState<FibraRow[] | null>(null);
+  const [fibraLoading, setFibraLoading] = useState(false);
+  const [fibraError, setFibraError] = useState<string | null>(null);
+  const [fibraSort, setFibraSort] = useState<{ col: keyof FibraRow; asc: boolean }>({ col: "fecha", asc: false });
 
   const fetchData = useCallback(async (suc: number | null = null) => {
     setLoading(true);
@@ -437,6 +447,21 @@ export default function InstalacionesView({
     });
     return () => { flags.forEach((f) => { f.cancelled = true; }); };
   }, [desde, hasta, sucSel, filtros]);
+
+  useEffect(() => {
+    if (panel !== "fibra") return;
+    let cancelled = false;
+    setFibraLoading(true);
+    setFibraError(null);
+    const params = new URLSearchParams({ desde, hasta });
+    if (sucSel !== null) params.set("sucursal", String(sucSel));
+    fetch(`/api/instalaciones/fibra?${params}`)
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
+      .then((json) => { if (!cancelled) setFibraRows(json.rows); })
+      .catch((e) => { if (!cancelled) setFibraError(e.message); })
+      .finally(() => { if (!cancelled) setFibraLoading(false); });
+    return () => { cancelled = true; };
+  }, [panel, desde, hasta, sucSel]);
 
   const SUCURSALES_OCULTAS = [0, 3];
   const sucursalesDisponibles: number[] = (sucursalesPermitidas ?? Object.keys(SUCURSALES).map(Number))
@@ -803,6 +828,155 @@ export default function InstalacionesView({
     );
   }
 
+  // ── Sub-panel: Por cantidad fibra ─────────────────────────────────────────
+  if (panel === "fibra") {
+    const rows = fibraRows ?? [];
+    const bajo  = rows.filter((r) => r.metros < 50);
+    const medio = rows.filter((r) => r.metros >= 50 && r.metros <= 70);
+    const alto  = rows.filter((r) => r.metros > 70);
+    const sorted = [...rows].sort((a, b) => {
+      const va = a[fibraSort.col];
+      const vb = b[fibraSort.col];
+      const cmp = va < vb ? -1 : va > vb ? 1 : 0;
+      return fibraSort.asc ? cmp : -cmp;
+    });
+    const toggleSort = (col: keyof FibraRow) =>
+      setFibraSort((prev) => ({ col, asc: prev.col === col ? !prev.asc : true }));
+    const SortHdr = ({ col, label }: { col: keyof FibraRow; label: string }) => (
+      <th
+        onClick={() => toggleSort(col)}
+        className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wide cursor-pointer select-none hover:text-amber-400 transition-colors"
+      >
+        {label}
+        {fibraSort.col === col ? (fibraSort.asc ? " ▲" : " ▼") : " ↕"}
+      </th>
+    );
+    return (
+      <div className="min-h-screen bg-slate-900 text-white">
+        <div className="max-w-screen-xl mx-auto px-6 py-8 space-y-6">
+          <Header titulo="Por cantidad de fibra" subtitulo={`${rows.length} instalaciones con fibra registrada`} />
+
+          {fibraLoading && (
+            <div className="flex items-center gap-2 text-slate-400 text-sm">
+              <Loader2 size={16} className="animate-spin" /> Cargando datos de fibra…
+            </div>
+          )}
+          {fibraError && (
+            <div className="flex items-center gap-2 text-red-400 text-sm bg-red-900/20 border border-red-800 rounded-lg px-4 py-3">
+              <AlertCircle size={16} /> {fibraError}
+            </div>
+          )}
+
+          {!fibraLoading && rows.length > 0 && (
+            <>
+              {/* Mini-dashboard de resumen */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="bg-slate-800 border border-slate-700 rounded-xl p-4">
+                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">Total con fibra</p>
+                  <div className="text-2xl font-bold text-slate-100">{rows.length}</div>
+                  <p className="text-xs text-slate-400 mt-1">{desde} → {hasta}</p>
+                </div>
+                <div className="bg-slate-800 border border-red-800/50 rounded-xl p-4">
+                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">&lt; 50 m</p>
+                  <div className="text-2xl font-bold text-red-400">{bajo.length}</div>
+                  <p className="text-xs text-slate-400 mt-1">{rows.length ? Math.round(bajo.length / rows.length * 100) : 0}% del total</p>
+                </div>
+                <div className="bg-slate-800 border border-amber-700/50 rounded-xl p-4">
+                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">50 – 70 m</p>
+                  <div className="text-2xl font-bold text-amber-400">{medio.length}</div>
+                  <p className="text-xs text-slate-400 mt-1">{rows.length ? Math.round(medio.length / rows.length * 100) : 0}% del total</p>
+                </div>
+                <div className="bg-slate-800 border border-emerald-800/50 rounded-xl p-4">
+                  <p className="text-xs text-slate-500 uppercase tracking-wider mb-2">&gt; 70 m</p>
+                  <div className="text-2xl font-bold text-emerald-400">{alto.length}</div>
+                  <p className="text-xs text-slate-400 mt-1">{rows.length ? Math.round(alto.length / rows.length * 100) : 0}% del total</p>
+                </div>
+              </div>
+
+              {/* Distribución por tramo y sucursal */}
+              <div className="bg-slate-800 border border-slate-700 rounded-xl p-5">
+                <h3 className="text-slate-300 font-medium text-sm mb-4">Distribución por tramo y sucursal</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-700">
+                        <th className="text-left pb-2 text-xs text-slate-400 uppercase tracking-wide font-semibold">Sucursal</th>
+                        <th className="text-right pb-2 text-xs text-red-400 uppercase tracking-wide font-semibold">&lt; 50m</th>
+                        <th className="text-right pb-2 text-xs text-amber-400 uppercase tracking-wide font-semibold">50–70m</th>
+                        <th className="text-right pb-2 text-xs text-emerald-400 uppercase tracking-wide font-semibold">&gt; 70m</th>
+                        <th className="text-right pb-2 text-xs text-slate-400 uppercase tracking-wide font-semibold">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(
+                        rows.reduce<Record<number, { b: number; m: number; a: number }>>((acc, r) => {
+                          if (!acc[r.cod_sucursal]) acc[r.cod_sucursal] = { b: 0, m: 0, a: 0 };
+                          if (r.metros < 50) acc[r.cod_sucursal].b++;
+                          else if (r.metros <= 70) acc[r.cod_sucursal].m++;
+                          else acc[r.cod_sucursal].a++;
+                          return acc;
+                        }, {})
+                      )
+                        .sort(([, a], [, b]) => (b.b + b.m + b.a) - (a.b + a.m + a.a))
+                        .map(([cod, v]) => (
+                          <tr key={cod} className="border-b border-slate-700/50 hover:bg-slate-700/30 transition-colors">
+                            <td className="py-2 font-medium text-slate-200">{SUCURSALES[+cod] ?? `Suc. ${cod}`}</td>
+                            <td className="py-2 text-right text-red-400 font-mono">{v.b || "—"}</td>
+                            <td className="py-2 text-right text-amber-400 font-mono">{v.m || "—"}</td>
+                            <td className="py-2 text-right text-emerald-400 font-mono">{v.a || "—"}</td>
+                            <td className="py-2 text-right text-slate-100 font-semibold font-mono">{v.b + v.m + v.a}</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Listado detallado */}
+              <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden">
+                <div className="px-5 py-4 border-b border-slate-700">
+                  <h3 className="text-slate-300 font-medium text-sm">Detalle de instalaciones</h3>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-900/50">
+                      <tr>
+                        <SortHdr col="cod_sucursal" label="Sucursal" />
+                        <SortHdr col="id_conexion" label="ID Conexión" />
+                        <SortHdr col="fecha" label="Fecha" />
+                        <SortHdr col="metros" label="Metros" />
+                        <th className="px-4 py-3 text-left text-xs font-semibold text-slate-400 uppercase tracking-wide">Tramo</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-700/50">
+                      {sorted.map((r, i) => {
+                        const tramo = r.metros < 50 ? { label: "< 50m", color: "text-red-400 bg-red-900/30 border-red-800/50" }
+                          : r.metros <= 70 ? { label: "50–70m", color: "text-amber-400 bg-amber-900/30 border-amber-800/50" }
+                          : { label: "> 70m", color: "text-emerald-400 bg-emerald-900/30 border-emerald-800/50" };
+                        const [yyyy, mm, dd] = r.fecha.split("-");
+                        return (
+                          <tr key={i} className="hover:bg-slate-700/30 transition-colors">
+                            <td className="px-4 py-2.5 text-slate-300 font-medium">{SUCURSALES[r.cod_sucursal] ?? `Suc. ${r.cod_sucursal}`}</td>
+                            <td className="px-4 py-2.5 text-slate-100 font-mono">{r.id_conexion}</td>
+                            <td className="px-4 py-2.5 text-slate-300 font-mono">{dd}/{mm}/{yyyy}</td>
+                            <td className="px-4 py-2.5 text-slate-100 font-mono font-semibold">{r.metros} m</td>
+                            <td className="px-4 py-2.5">
+                              <span className={`inline-block px-2 py-0.5 rounded border text-xs font-semibold ${tramo.color}`}>{tramo.label}</span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   // ── Sub-panel: Materiales ─────────────────────────────────────────────────
   if (panel === "materiales") {
     return <MaterialesView onBack={() => setPanel(null)} tipo="instalaciones" />;
@@ -1084,13 +1258,14 @@ export default function InstalacionesView({
         {/* NavCards */}
         <div>
           <h3 className="text-slate-400 font-medium text-xs uppercase tracking-wider mb-3">Ver detalle por</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
-            <NavCard icon={Tv}        titulo="Por modelo"    subtitulo="Dispositivos más instalados"       color="#06b6d4" onClick={() => setPanel("modelo")}    />
-            <NavCard icon={Tag}       titulo="Por subtipo"   subtitulo="Tipo de instalación realizada"     color="#a855f7" onClick={() => setPanel("subtipo")}   />
-            <NavCard icon={HardHat}   titulo="Por cuadrilla" subtitulo="Cuadrillas que más instalaron"     color="#f43f5e" onClick={() => setPanel("cuadrilla")} />
-            <NavCard icon={TrendingUp} titulo="Tendencia"    subtitulo="Evolución mensual"                 color="#f59e0b" onClick={() => setPanel("tendencia")} />
-            <NavCard icon={List}      titulo="Detalle"       subtitulo="Listado completo de registros"     color="#10b981" onClick={() => setPanel("detalle")}   />
-            <NavCard icon={Package}   titulo="Materiales"    subtitulo="Materiales usados en instalaciones" color="#e879f9" onClick={() => setPanel("materiales")} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+            <NavCard icon={Tv}        titulo="Por modelo"        subtitulo="Dispositivos más instalados"        color="#06b6d4" onClick={() => setPanel("modelo")}    />
+            <NavCard icon={Tag}       titulo="Por subtipo"       subtitulo="Tipo de instalación realizada"      color="#a855f7" onClick={() => setPanel("subtipo")}   />
+            <NavCard icon={HardHat}   titulo="Por cuadrilla"     subtitulo="Cuadrillas que más instalaron"      color="#f43f5e" onClick={() => setPanel("cuadrilla")} />
+            <NavCard icon={TrendingUp} titulo="Tendencia"        subtitulo="Evolución mensual"                  color="#f59e0b" onClick={() => setPanel("tendencia")} />
+            <NavCard icon={List}      titulo="Detalle"           subtitulo="Listado completo de registros"      color="#10b981" onClick={() => setPanel("detalle")}   />
+            <NavCard icon={Package}   titulo="Materiales"        subtitulo="Materiales usados en instalaciones" color="#e879f9" onClick={() => setPanel("materiales")} />
+            <NavCard icon={Ruler}     titulo="Por cantidad fibra" subtitulo="Metros de fibra por instalación"   color="#fb923c" onClick={() => { setFibraRows(null); setPanel("fibra"); }} />
           </div>
         </div>
 

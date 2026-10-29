@@ -51,15 +51,18 @@ function sitioDeOrigen(): string | null {
   }
 }
 
+// Píldora de arriba a la izquierda del encabezado: un enlace (href) o una acción (onClick).
+// En celular se ve solo la flecha.
+function BotonVolver({ texto, etiqueta, href, onClick }: { texto: string; etiqueta: string; href?: string; onClick?: () => void }) {
+  const className = "absolute top-5 left-5 z-10 inline-flex items-center justify-center gap-1.5 h-9 min-w-9 rounded-full bg-white/10 hover:bg-white/20 text-white text-sm font-semibold transition-colors sm:pl-3 sm:pr-4";
+  const contenido = (<><ArrowLeft size={17} /><span className="hidden sm:inline">{texto}</span></>);
+  return href
+    ? <a href={href} aria-label={etiqueta} className={className}>{contenido}</a>
+    : <button type="button" onClick={onClick} aria-label={etiqueta} className={className}>{contenido}</button>;
+}
+
 function BotonVolverSitio({ href }: { href: string }) {
-  return (
-    <a href={href} aria-label="Volver al sitio de Ultranet"
-      className="absolute top-5 left-5 z-10 inline-flex items-center justify-center gap-1.5 h-9 min-w-9 rounded-full bg-white/10 hover:bg-white/20 text-white text-sm font-semibold transition-colors sm:pl-3 sm:pr-4"
-    >
-      <ArrowLeft size={17} />
-      <span className="hidden sm:inline">Volver al sitio</span>
-    </a>
-  );
+  return <BotonVolver href={href} texto="Volver al sitio" etiqueta="Volver al sitio de Ultranet" />;
 }
 
 const TIPOS_DOCUMENTO = ["DNI", "LC", "LE"] as const;
@@ -340,7 +343,13 @@ export default function SolicitudPublicaForm({
       {/* Hero morado */}
       <div className="relative overflow-hidden px-4 pt-10 pb-12 sm:pb-16 text-center" style={{ background: PURPLE_DARK }}>
         <BurbujasDecorativas />
-        <BotonVolverSitio href={sitioWeb} />
+        {/* Si eligió la localidad acá, "Volver" lo lleva a esa pantalla; si vino con ?sucursal= fija
+            (QR de una sucursal), no hay pantalla anterior y vuelve al sitio. */}
+        {sucursalInicial === null ? (
+          <BotonVolver texto="Volver" etiqueta="Volver a elegir la localidad" onClick={() => set("cod_sucursal", null)} />
+        ) : (
+          <BotonVolverSitio href={sitioWeb} />
+        )}
         <div className="relative">
           <a href={sitioWeb} className="block w-fit mx-auto">
             {/* eslint-disable-next-line @next/next/no-img-element */}

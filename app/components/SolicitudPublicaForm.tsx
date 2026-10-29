@@ -32,8 +32,35 @@ const SUCURSAL_COORDS: Record<number, [number, number]> = {
   8: [-27.6921754, -67.6189241], // Fiambalá
 };
 
-// El logo del encabezado lleva al sitio institucional.
+// El logo y el botón "Volver al sitio" llevan al sitio institucional. Si la persona llegó desde
+// una versión del sitio que no es la oficial (la demo o una prueba local), vuelve a esa.
 const SITIO_ULTRANET = "https://www.ultranet.com.ar";
+const ORIGENES_SITIO = [
+  "https://www.ultranet.com.ar",
+  "https://ultranet.com.ar",
+  "https://ultranet-demo.vercel.app",
+  "http://localhost:8000",
+];
+
+function sitioDeOrigen(): string | null {
+  try {
+    const origen = new URL(document.referrer).origin;
+    return ORIGENES_SITIO.includes(origen) ? origen + "/" : null;
+  } catch {
+    return null;
+  }
+}
+
+function BotonVolverSitio({ href }: { href: string }) {
+  return (
+    <a href={href} aria-label="Volver al sitio de Ultranet"
+      className="absolute top-5 left-5 z-10 inline-flex items-center justify-center gap-1.5 h-9 min-w-9 rounded-full bg-white/10 hover:bg-white/20 text-white text-sm font-semibold transition-colors sm:pl-3 sm:pr-4"
+    >
+      <ArrowLeft size={17} />
+      <span className="hidden sm:inline">Volver al sitio</span>
+    </a>
+  );
+}
 
 const TIPOS_DOCUMENTO = ["DNI", "LC", "LE"] as const;
 
@@ -155,6 +182,11 @@ export default function SolicitudPublicaForm({
   const [planesLoading, setPlanesLoading] = useState(true);
   const [condicionesPlan, setCondicionesPlan] = useState<PlanConexion | null>(null);
   const [soloTv, setSoloTv] = useState(false);
+  // null = no vino desde el sitio web (por ejemplo, desde el QR o desde /enlaces)
+  const [sitioPrevio, setSitioPrevio] = useState<string | null>(null);
+  const sitioWeb = sitioPrevio ?? SITIO_ULTRANET;
+
+  useEffect(() => { setSitioPrevio(sitioDeOrigen()); }, []);
 
   useEffect(() => {
     fetch("/api/planes-conexion")
@@ -249,6 +281,12 @@ export default function SolicitudPublicaForm({
           >
             Cargar otra solicitud
           </button>
+          <a href={sitioWeb}
+            className="mt-6 flex w-fit mx-auto items-center gap-1.5 rounded-full px-5 py-2.5 text-sm font-bold transition-opacity hover:opacity-90"
+            style={{ backgroundColor: ACCENT, color: PURPLE_DARK }}
+          >
+            <ArrowLeft size={16} /> Volver al sitio
+          </a>
         </div>
       </div>
     );
@@ -260,14 +298,18 @@ export default function SolicitudPublicaForm({
     return (
       <div className={`${jakarta.className} relative overflow-hidden min-h-screen flex items-center`} style={{ background: PURPLE_DARK }}>
         <BurbujasDecorativas />
-        <a href="/enlaces" aria-label="Volver a enlaces"
-          className="absolute top-5 left-5 w-9 h-9 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 text-white transition-colors z-10"
-        >
-          <ArrowLeft size={18} />
-        </a>
+        {sitioPrevio ? (
+          <BotonVolverSitio href={sitioPrevio} />
+        ) : (
+          <a href="/enlaces" aria-label="Volver a enlaces"
+            className="absolute top-5 left-5 w-9 h-9 rounded-full flex items-center justify-center bg-white/10 hover:bg-white/20 text-white transition-colors z-10"
+          >
+            <ArrowLeft size={18} />
+          </a>
+        )}
         <div className="relative px-4 py-14 text-center w-full">
           <div className="relative">
-            <a href={SITIO_ULTRANET} className="block w-fit mx-auto">
+            <a href={sitioWeb} className="block w-fit mx-auto">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src="/ultranet-logo-blanco.svg" alt="Ultranet — Internet a Ultra Velocidad" className="mx-auto" style={{ width: 220 }} />
             </a>
@@ -298,8 +340,9 @@ export default function SolicitudPublicaForm({
       {/* Hero morado */}
       <div className="relative overflow-hidden px-4 pt-10 pb-12 sm:pb-16 text-center" style={{ background: PURPLE_DARK }}>
         <BurbujasDecorativas />
+        <BotonVolverSitio href={sitioWeb} />
         <div className="relative">
-          <a href={SITIO_ULTRANET} className="block w-fit mx-auto">
+          <a href={sitioWeb} className="block w-fit mx-auto">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/ultranet-logo-blanco.svg" alt="Ultranet — Internet a Ultra Velocidad" className="mx-auto" style={{ width: 220 }} />
           </a>
